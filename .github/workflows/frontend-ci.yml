@@ -1,46 +1,55 @@
 name: Frontend CI/CD Pipeline
 
-on: 
-    push: 
-        branches: [main, develop]
-        paths:
-            - 'frontend/**'
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "frontend/**"
 
-    pull_request: 
-        branches: [main, develop]
-        paths:
-            - 'frontend/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "frontend/**"
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
+  frontend:
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v3
+    defaults:
+      run:
+        working-directory: frontend
 
-            - name: Use Node.js
-              uses: actions/setup-node@v3
-              with:
-                node-version: '18'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-            - name: Install dependencies
-              run: npm ci
-              working-directory: ./frontend
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
-            - name: Lint code
-              run: npm run lint
-              working-directory: ./frontend
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+          run_install: false
 
-            - name: Run tests
-              run: npm test
-              working-directory: ./frontend
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-            - name: Build app
-              run: npm run build
-              working-directory: ./frontend
+      - name: Lint
+        run: pnpm lint
 
-            - name: Deploy to staging
-              run: echo "Add frontend deployment script here"
-              env:
-                STAGING_ENV: ${{ secrets.STAGING_ENV }}
+      - name: Run tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Deploy to staging
+        if: github.ref == 'refs/heads/develop'
+        run: echo "Add frontend deployment script here"
+        env:
+          STAGING_ENV: ${{ secrets.STAGING_ENV }}
