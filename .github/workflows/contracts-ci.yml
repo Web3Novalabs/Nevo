@@ -31,15 +31,19 @@ jobs:
           curl -s https://get.stellar.org | bash
 
       - name: Check formatting
-        run: cargo fmt --all -- --check --manifest-path ./contract/contract/Cargo.toml
+        run: cargo fmt --all -- --check
+        working-directory: ./contract/contract
 
       - name: Run contract tests
-        run: cargo test --manifest-path ./contract/contract/Cargo.toml
+        run: cargo test
+        working-directory: ./contract/contract
 
       - name: Build contracts
-        run: cargo build --release --manifest-path ./contract/contract/Cargo.toml
+        run: cargo build --release
+        working-directory: ./contract/contract
 
       - name: Deploy to Stellar testnet
         run: echo "Add Stellar deployment script here"
+        working-directory: ./contract/contract
         env:
           STELLAR_SECRET: ${{ secrets.STELLAR_SECRET }}
