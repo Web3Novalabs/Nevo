@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /*.json$
+Disallow: /api/
+
+Sitemap: https://nevo.app/sitemap.xml
