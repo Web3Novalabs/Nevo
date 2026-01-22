@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import ConnectWallet from "./ConnectWallet";
 
 export const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -45,6 +46,7 @@ export const Navigation = () => {
           <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium">
             Launch App
           </button>
+          <ConnectWallet />
         </div>
 
         {/* Mobile Menu Button */}
