@@ -42,3 +42,17 @@ pub fn contract_unpaused(env: &Env, admin: Address, timestamp: u64) {
     let topics = (Symbol::new(env, "contract_unpaused"), admin);
     env.events().publish(topics, timestamp);
 }
+
+pub fn contribution(
+    env: &Env,
+    pool_id: u64,
+    contributor: Address,
+    asset: Address,
+    amount: i128,
+    timestamp: u64,
+    is_private: bool,
+) {
+    let topics = (Symbol::new(env, "contribution"), pool_id);
+    env.events()
+        .publish(topics, (contributor, asset, amount, timestamp, is_private));
+}

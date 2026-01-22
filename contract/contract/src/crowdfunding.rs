@@ -234,4 +234,68 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .get(&StorageKey::IsPaused)
             .unwrap_or(false)
     }
+
+    fn contribute(
+        env: Env,
+        pool_id: u64,
+        contributor: Address,
+        asset: Address,
+        amount: i128,
+        is_private: bool,
+    ) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+        contributor.require_auth();
+
+        if amount <= 0 {
+            return Err(CrowdfundingError::InvalidAmount);
+        }
+
+        let pool_key = StorageKey::Pool(pool_id);
+        if !env.storage().instance().has(&pool_key) {
+            return Err(CrowdfundingError::PoolNotFound);
+        }
+
+        let state_key = StorageKey::PoolState(pool_id);
+        let state: PoolState = env
+            .storage()
+            .instance()
+            .get(&state_key)
+            .unwrap_or(PoolState::Active);
+
+        if state != PoolState::Active {
+            return Err(CrowdfundingError::InvalidPoolState);
+        }
+
+        // Transfer tokens
+        // Note: In a real implementation we would use the token client.
+        // For this task we assume the token interface is available via soroban_sdk::token
+        use soroban_sdk::token;
+        let token_client = token::Client::new(&env, &asset);
+        token_client.transfer(&contributor, &env.current_contract_address(), &amount);
+
+        // Update metrics
+        let metrics_key = StorageKey::PoolMetrics(pool_id);
+        let mut metrics: PoolMetrics = env
+            .storage()
+            .instance()
+            .get(&metrics_key)
+            .unwrap_or(PoolMetrics::new());
+
+        metrics.total_raised += amount;
+        metrics.contributor_count += 1;
+        metrics.last_donation_at = env.ledger().timestamp();
+
+        env.storage().instance().set(&metrics_key, &metrics);
+
+        // Emit event
+        let topics = (soroban_sdk::Symbol::new(&env, "contribution"), pool_id);
+        env.events().publish(
+            topics,
+            (contributor, asset, amount, env.ledger().timestamp(), is_private),
+        );
+
+        Ok(())
+    }
 }
