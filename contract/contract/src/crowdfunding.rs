@@ -20,6 +20,9 @@ impl CrowdfundingTrait for CrowdfundingContract {
         goal: i128,
         deadline: u64,
     ) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
         creator.require_auth();
 
         if title.len() == 0 {
@@ -72,6 +75,9 @@ impl CrowdfundingTrait for CrowdfundingContract {
         required_signatures: Option<u32>,
         signers: Option<Vec<Address>>,
     ) -> Result<u64, CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
         creator.require_auth();
 
         // Validate inputs
@@ -117,16 +123,18 @@ impl CrowdfundingTrait for CrowdfundingContract {
             return Err(CrowdfundingError::PoolAlreadyExists);
         }
 
-        // Create pool configuration
+        // Derive pool duration from requested deadline and current timestamp
+        let now = env.ledger().timestamp();
+        let duration = deadline.saturating_sub(now);
+
+        // Create pool configuration (persistent view)
         let pool_config = PoolConfig {
-            id: pool_id,
             name: name.clone(),
             description: description.clone(),
-            creator: creator.clone(),
             target_amount,
-            deadline,
-            created_at: env.ledger().timestamp(),
-            multi_sig_config,
+            is_private: false,
+            duration,
+            created_at: now,
         };
 
         // Store pool configuration
@@ -138,11 +146,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         // Initialize empty metrics
         let metrics_key = StorageKey::PoolMetrics(pool_id);
-        let initial_metrics = PoolMetrics {
-            total_donations: 0,
-            donor_count: 0,
-            last_donation_at: 0,
-        };
+        let initial_metrics = PoolMetrics::new();
         env.storage().instance().set(&metrics_key, &initial_metrics);
 
         // Update next pool ID
@@ -202,266 +206,117 @@ impl CrowdfundingTrait for CrowdfundingContract {
         Ok(())
     }
 
-    fn request_disbursement(
-        env: Env,
-        pool_id: u64,
-        amount: i128,
-        recipient: Address,
-        requester: Address,
-    ) -> Result<u64, CrowdfundingError> {
-        requester.require_auth();
+    fn initialize(env: Env, admin: Address) -> Result<(), CrowdfundingError> {
+        if env.storage().instance().has(&StorageKey::Admin) {
+            return Err(CrowdfundingError::ContractAlreadyInitialized);
+        }
+        env.storage().instance().set(&StorageKey::Admin, &admin);
+        env.storage().instance().set(&StorageKey::IsPaused, &false);
+        Ok(())
+    }
 
-        // Get pool config
-        let pool_key = StorageKey::Pool(pool_id);
-        let pool_config: PoolConfig = env
+    fn pause(env: Env) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
             .storage()
             .instance()
-            .get(&pool_key)
-            .ok_or(CrowdfundingError::PoolNotFound)?;
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::CampaignNotFound)?; // Or some other error if not initialized
+        admin.require_auth();
 
-        // Verify requester is either creator or a signer
-        let is_authorized = if let Some(ref multi_sig) = pool_config.multi_sig_config {
-            pool_config.creator == requester || multi_sig.signers.contains(&requester)
-        } else {
-            pool_config.creator == requester
-        };
-
-        if !is_authorized {
-            return Err(CrowdfundingError::NotAuthorizedSigner);
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractAlreadyPaused);
         }
 
-        // Generate disbursement ID
-        let next_disb_key = StorageKey::NextDisbursementId(pool_id);
-        let disbursement_id = env.storage().instance().get(&next_disb_key).unwrap_or(1u64);
+        env.storage().instance().set(&StorageKey::IsPaused, &true);
+        events::contract_paused(&env, admin, env.ledger().timestamp());
+        Ok(())
+    }
 
-        // Create disbursement request
-        let disbursement = DisbursementRequest {
-            pool_id,
-            amount,
-            recipient: recipient.clone(),
-            approvals: Vec::new(&env),
-            created_at: env.ledger().timestamp(),
-            executed: false,
-        };
+    fn unpause(env: Env) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::CampaignNotFound)?;
+        admin.require_auth();
 
-        // Store disbursement
-        let disb_key = StorageKey::DisbursementRequest(pool_id, disbursement_id);
-        env.storage().instance().set(&disb_key, &disbursement);
+        if !Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractAlreadyUnpaused);
+        }
+
+        env.storage().instance().set(&StorageKey::IsPaused, &false);
+        events::contract_unpaused(&env, admin, env.ledger().timestamp());
+        Ok(())
+    }
+
+    fn is_paused(env: Env) -> bool {
         env.storage()
             .instance()
-            .set(&next_disb_key, &(disbursement_id + 1));
-
-        Ok(disbursement_id)
+            .get(&StorageKey::IsPaused)
+            .unwrap_or(false)
     }
 
-    fn approve_disbursement(
+    fn contribute(
         env: Env,
         pool_id: u64,
-        disbursement_id: u64,
-        signer: Address,
+        contributor: Address,
+        asset: Address,
+        amount: i128,
+        is_private: bool,
     ) -> Result<(), CrowdfundingError> {
-        signer.require_auth();
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+        contributor.require_auth();
 
-        // Get pool config
+        if amount <= 0 {
+            return Err(CrowdfundingError::InvalidAmount);
+        }
+
         let pool_key = StorageKey::Pool(pool_id);
-        let pool_config: PoolConfig = env
+        if !env.storage().instance().has(&pool_key) {
+            return Err(CrowdfundingError::PoolNotFound);
+        }
+
+        let state_key = StorageKey::PoolState(pool_id);
+        let state: PoolState = env
             .storage()
             .instance()
-            .get(&pool_key)
-            .ok_or(CrowdfundingError::PoolNotFound)?;
+            .get(&state_key)
+            .unwrap_or(PoolState::Active);
 
-        // Verify signer is authorized
-        if let Some(ref multi_sig) = pool_config.multi_sig_config {
-            if !multi_sig.signers.contains(&signer) && pool_config.creator != signer {
-                return Err(CrowdfundingError::NotAuthorizedSigner);
-            }
-        } else {
-            if pool_config.creator != signer {
-                return Err(CrowdfundingError::NotAuthorizedSigner);
-            }
+        if state != PoolState::Active {
+            return Err(CrowdfundingError::InvalidPoolState);
         }
 
-        // Get disbursement request
-        let disb_key = StorageKey::DisbursementRequest(pool_id, disbursement_id);
-        let mut disbursement: DisbursementRequest = env
+        // Transfer tokens
+        // Note: In a real implementation we would use the token client.
+        // For this task we assume the token interface is available via soroban_sdk::token
+        use soroban_sdk::token;
+        let token_client = token::Client::new(&env, &asset);
+        token_client.transfer(&contributor, &env.current_contract_address(), &amount);
+
+        // Update metrics
+        let metrics_key = StorageKey::PoolMetrics(pool_id);
+        let mut metrics: PoolMetrics = env
             .storage()
             .instance()
-            .get(&disb_key)
-            .ok_or(CrowdfundingError::DisbursementNotFound)?;
+            .get(&metrics_key)
+            .unwrap_or(PoolMetrics::new());
 
-        if disbursement.executed {
-            return Err(CrowdfundingError::DisbursementAlreadyExecuted);
-        }
+        metrics.total_raised += amount;
+        metrics.contributor_count += 1;
+        metrics.last_donation_at = env.ledger().timestamp();
 
-        // Check if already approved
-        if disbursement.approvals.contains(&signer) {
-            return Err(CrowdfundingError::AlreadyApproved);
-        }
+        env.storage().instance().set(&metrics_key, &metrics);
 
-        // Add approval
-        disbursement.approvals.push_back(signer);
-        env.storage().instance().set(&disb_key, &disbursement);
+        // Emit event
+        let topics = (soroban_sdk::Symbol::new(&env, "contribution"), pool_id);
+        env.events().publish(
+            topics,
+            (contributor, asset, amount, env.ledger().timestamp(), is_private),
+        );
 
         Ok(())
-    }
-
-    fn execute_disbursement(
-        env: Env,
-        pool_id: u64,
-        disbursement_id: u64,
-    ) -> Result<(), CrowdfundingError> {
-        // Get pool config
-        let pool_key = StorageKey::Pool(pool_id);
-        let pool_config: PoolConfig = env
-            .storage()
-            .instance()
-            .get(&pool_key)
-            .ok_or(CrowdfundingError::PoolNotFound)?;
-
-        // Get disbursement request
-        let disb_key = StorageKey::DisbursementRequest(pool_id, disbursement_id);
-        let mut disbursement: DisbursementRequest = env
-            .storage()
-            .instance()
-            .get(&disb_key)
-            .ok_or(CrowdfundingError::DisbursementNotFound)?;
-
-        if disbursement.executed {
-            return Err(CrowdfundingError::DisbursementAlreadyExecuted);
-        }
-
-        // Check if sufficient approvals
-        let required_approvals = if let Some(ref multi_sig) = pool_config.multi_sig_config {
-            multi_sig.required_signatures
-        } else {
-            1
-        };
-
-        let approval_count = disbursement.approvals.len() as u32;
-        if approval_count < required_approvals {
-            return Err(CrowdfundingError::InsufficientApprovals);
-        }
-
-        // Mark as executed
-        disbursement.executed = true;
-        env.storage().instance().set(&disb_key, &disbursement);
-
-        // Here you would implement actual token transfer logic
-        // For now, we just mark it as executed
-
-        Ok(())
-    }
-
-    fn add_signer(
-        env: Env,
-        pool_id: u64,
-        new_signer: Address,
-        caller: Address,
-    ) -> Result<(), CrowdfundingError> {
-        caller.require_auth();
-
-        // Get pool config
-        let pool_key = StorageKey::Pool(pool_id);
-        let mut pool_config: PoolConfig = env
-            .storage()
-            .instance()
-            .get(&pool_key)
-            .ok_or(CrowdfundingError::PoolNotFound)?;
-
-        // Only creator can add signers
-        if pool_config.creator != caller {
-            return Err(CrowdfundingError::NotAuthorizedSigner);
-        }
-
-        // Initialize multi-sig if not present
-        if pool_config.multi_sig_config.is_none() {
-            let mut signers = Vec::new(&env);
-            signers.push_back(new_signer);
-            pool_config.multi_sig_config = Some(MultiSigConfig {
-                required_signatures: 1,
-                signers,
-            });
-        } else {
-            let mut multi_sig = pool_config.multi_sig_config.unwrap();
-            
-            if multi_sig.signers.contains(&new_signer) {
-                return Err(CrowdfundingError::SignerAlreadyExists);
-            }
-
-            multi_sig.signers.push_back(new_signer);
-            pool_config.multi_sig_config = Some(multi_sig);
-        }
-
-        env.storage().instance().set(&pool_key, &pool_config);
-
-        Ok(())
-    }
-
-    fn remove_signer(
-        env: Env,
-        pool_id: u64,
-        signer_to_remove: Address,
-        caller: Address,
-    ) -> Result<(), CrowdfundingError> {
-        caller.require_auth();
-
-        // Get pool config
-        let pool_key = StorageKey::Pool(pool_id);
-        let mut pool_config: PoolConfig = env
-            .storage()
-            .instance()
-            .get(&pool_key)
-            .ok_or(CrowdfundingError::PoolNotFound)?;
-
-        // Only creator can remove signers
-        if pool_config.creator != caller {
-            return Err(CrowdfundingError::NotAuthorizedSigner);
-        }
-
-        let multi_sig = pool_config
-            .multi_sig_config
-            .as_mut()
-            .ok_or(CrowdfundingError::InvalidMultiSigConfig)?;
-
-        // Find and remove signer
-        let initial_len = multi_sig.signers.len();
-        let mut new_signers = Vec::new(&env);
-        
-        for i in 0..multi_sig.signers.len() {
-            let signer = multi_sig.signers.get(i).unwrap();
-            if signer != signer_to_remove {
-                new_signers.push_back(signer);
-            }
-        }
-
-        if new_signers.len() == initial_len {
-            return Err(CrowdfundingError::SignerNotFound);
-        }
-
-        if new_signers.len() == 0 {
-            return Err(CrowdfundingError::CannotRemoveLastSigner);
-        }
-
-        // Adjust required signatures if needed
-        let new_signer_count = new_signers.len() as u32;
-        if multi_sig.required_signatures > new_signer_count {
-            multi_sig.required_signatures = new_signer_count;
-        }
-
-        multi_sig.signers = new_signers;
-        pool_config.multi_sig_config = Some(multi_sig.clone());
-        
-        env.storage().instance().set(&pool_key, &pool_config);
-
-        Ok(())
-    }
-
-    fn get_disbursement(
-        env: Env,
-        pool_id: u64,
-        disbursement_id: u64,
-    ) -> Option<DisbursementRequest> {
-        let disb_key = StorageKey::DisbursementRequest(pool_id, disbursement_id);
-        env.storage().instance().get(&disb_key)
     }
 }

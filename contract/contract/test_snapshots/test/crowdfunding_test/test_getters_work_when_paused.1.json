@@ -1,34 +1,35 @@
 {
   "generators": {
-    "address": 2,
+    "address": 3,
     "nonce": 0,
     "mux_id": 0
   },
   "auth": [
     [],
+    [],
     [
       [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
         {
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "save_pool",
+              "function_name": "create_campaign",
               "args": [
                 {
-                  "string": "Medical Fund"
+                  "bytes": "0b00000000000000000000000000000000000000000000000000000000000000"
                 },
                 {
-                  "string": "Fund for medical expenses"
+                  "string": "Pre-pause"
                 },
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                 },
                 {
-                  "i128": "5000"
+                  "i128": "1000"
                 },
                 {
-                  "u64": "86400"
+                  "u64": "10000"
                 }
               ]
             }
@@ -37,6 +38,22 @@
         }
       ]
     ],
+    [
+      [
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+        {
+          "function": {
+            "contract_fn": {
+              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "function_name": "pause",
+              "args": []
+            }
+          },
+          "sub_invocations": []
+        }
+      ]
+    ],
+    [],
     []
   ],
   "ledger": {
@@ -76,22 +93,7 @@
                         "key": {
                           "vec": [
                             {
-                              "symbol": "NextPoolId"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "u64": "2"
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
-                              "symbol": "Pool"
-                            },
-                            {
-                              "u64": "1"
+                              "bytes": "0b00000000000000000000000000000000000000000000000000000000000000"
                             }
                           ]
                         },
@@ -99,50 +101,42 @@
                           "map": [
                             {
                               "key": {
-                                "symbol": "created_at"
+                                "symbol": "creator"
                               },
                               "val": {
-                                "u64": "0"
+                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                               }
                             },
                             {
                               "key": {
-                                "symbol": "description"
+                                "symbol": "deadline"
                               },
                               "val": {
-                                "string": "Fund for medical expenses"
+                                "u64": "10000"
                               }
                             },
                             {
                               "key": {
-                                "symbol": "duration"
+                                "symbol": "goal"
                               },
                               "val": {
-                                "u64": "86400"
+                                "i128": "1000"
                               }
                             },
                             {
                               "key": {
-                                "symbol": "is_private"
+                                "symbol": "id"
                               },
                               "val": {
-                                "bool": false
+                                "bytes": "0b00000000000000000000000000000000000000000000000000000000000000"
                               }
                             },
                             {
                               "key": {
-                                "symbol": "name"
+                                "symbol": "title"
                               },
                               "val": {
-                                "string": "Medical Fund"
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "target_amount"
-                              },
-                              "val": {
-                                "i128": "5000"
+                                "string": "Pre-pause"
                               }
                             }
                           ]
@@ -152,55 +146,24 @@
                         "key": {
                           "vec": [
                             {
-                              "symbol": "PoolMetrics"
-                            },
-                            {
-                              "u64": "1"
+                              "symbol": "Admin"
                             }
                           ]
                         },
                         "val": {
-                          "map": [
-                            {
-                              "key": {
-                                "symbol": "contributor_count"
-                              },
-                              "val": {
-                                "u32": 0
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "last_donation_at"
-                              },
-                              "val": {
-                                "u64": "0"
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "total_raised"
-                              },
-                              "val": {
-                                "i128": "0"
-                              }
-                            }
-                          ]
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                         }
                       },
                       {
                         "key": {
                           "vec": [
                             {
-                              "symbol": "PoolState"
-                            },
-                            {
-                              "u64": "1"
+                              "symbol": "IsPaused"
                             }
                           ]
                         },
                         "val": {
-                          "u32": 0
+                          "bool": true
                         }
                       }
                     ]
@@ -219,7 +182,7 @@
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
             "key": {
               "ledger_key_nonce": {
-                "nonce": "801925984706572462"
+                "nonce": "5541220902715666415"
               }
             },
             "durability": "temporary"
@@ -232,6 +195,39 @@
               "contract_data": {
                 "ext": "v0",
                 "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+                "key": {
+                  "ledger_key_nonce": {
+                    "nonce": "5541220902715666415"
+                  }
+                },
+                "durability": "temporary",
+                "val": "void"
+              }
+            },
+            "ext": "v0"
+          },
+          6311999
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+            "key": {
+              "ledger_key_nonce": {
+                "nonce": "801925984706572462"
+              }
+            },
+            "durability": "temporary"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
                 "key": {
                   "ledger_key_nonce": {
                     "nonce": "801925984706572462"

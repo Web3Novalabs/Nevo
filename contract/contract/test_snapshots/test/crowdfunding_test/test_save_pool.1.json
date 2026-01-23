@@ -106,22 +106,6 @@
                             },
                             {
                               "key": {
-                                "symbol": "creator"
-                              },
-                              "val": {
-                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "deadline"
-                              },
-                              "val": {
-                                "u64": "86400"
-                              }
-                            },
-                            {
-                              "key": {
                                 "symbol": "description"
                               },
                               "val": {
@@ -130,10 +114,18 @@
                             },
                             {
                               "key": {
-                                "symbol": "id"
+                                "symbol": "duration"
                               },
                               "val": {
-                                "u64": "1"
+                                "u64": "86400"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "is_private"
+                              },
+                              "val": {
+                                "bool": false
                               }
                             },
                             {
@@ -170,7 +162,7 @@
                           "map": [
                             {
                               "key": {
-                                "symbol": "donor_count"
+                                "symbol": "contributor_count"
                               },
                               "val": {
                                 "u32": 0
@@ -186,7 +178,7 @@
                             },
                             {
                               "key": {
-                                "symbol": "total_donations"
+                                "symbol": "total_raised"
                               },
                               "val": {
                                 "i128": "0"

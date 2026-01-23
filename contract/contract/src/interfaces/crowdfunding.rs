@@ -36,44 +36,20 @@ pub trait CrowdfundingTrait {
         new_state: PoolState,
     ) -> Result<(), CrowdfundingError>;
 
-    fn request_disbursement(
+    fn initialize(env: Env, admin: Address) -> Result<(), CrowdfundingError>;
+
+    fn pause(env: Env) -> Result<(), CrowdfundingError>;
+
+    fn unpause(env: Env) -> Result<(), CrowdfundingError>;
+
+    fn is_paused(env: Env) -> bool;
+
+    fn contribute(
         env: Env,
         pool_id: u64,
+        contributor: Address,
+        asset: Address,
         amount: i128,
-        recipient: Address,
-        requester: Address,
-    ) -> Result<u64, CrowdfundingError>;
-
-    fn approve_disbursement(
-        env: Env,
-        pool_id: u64,
-        disbursement_id: u64,
-        signer: Address,
+        is_private: bool,
     ) -> Result<(), CrowdfundingError>;
-
-    fn execute_disbursement(
-        env: Env,
-        pool_id: u64,
-        disbursement_id: u64,
-    ) -> Result<(), CrowdfundingError>;
-
-    fn add_signer(
-        env: Env,
-        pool_id: u64,
-        new_signer: Address,
-        caller: Address,
-    ) -> Result<(), CrowdfundingError>;
-
-    fn remove_signer(
-        env: Env,
-        pool_id: u64,
-        signer_to_remove: Address,
-        caller: Address,
-    ) -> Result<(), CrowdfundingError>;
-
-    fn get_disbursement(
-        env: Env,
-        pool_id: u64,
-        disbursement_id: u64,
-    ) -> Option<DisbursementRequest>;
 }

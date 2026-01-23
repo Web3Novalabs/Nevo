@@ -10,42 +10,65 @@ pub struct CampaignDetails {
     pub deadline: u64,
 }
 
+// Updated pool configuration for donation pools
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MultiSigConfig {
-    pub required_signatures: u32,
-    pub signers: Vec<Address>,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PoolConfig {
-    pub id: u64,
     pub name: String,
     pub description: String,
-    pub creator: Address,
     pub target_amount: i128,
-    pub deadline: u64,
+    pub is_private: bool,
+    pub duration: u64,
     pub created_at: u64,
     pub multi_sig_config: Option<MultiSigConfig>,
 }
 
+impl PoolConfig {
+    /// Validate pool configuration according to Nevo invariants.
+    ///
+    /// Follows Soroban best practices by failing fast with `panic!` when
+    /// invariants are violated. Callers should validate user input before
+    /// persisting configuration on-chain.
+    pub fn validate(&self) {
+        // Name must not be empty
+        assert!(!self.name.is_empty(), "pool name must not be empty");
+
+        // Target amount must be strictly positive
+        assert!(self.target_amount > 0, "target_amount must be > 0");
+
+        // Duration must be strictly positive (non-zero)
+        assert!(self.duration > 0, "duration must be > 0");
+    }
+}
+
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(u32)]
 pub enum PoolState {
     Active = 0,
     Paused = 1,
     Completed = 2,
     Cancelled = 3,
+    Disbursed = 4,
 }
 
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PoolMetrics {
-    pub total_donations: i128,
-    pub donor_count: u32,
+    pub total_raised: i128,
+    pub contributor_count: u32,
     pub last_donation_at: u64,
+}
+
+impl PoolMetrics {
+    /// Creates zero-initialized metrics for a new pool.
+    pub fn new() -> Self {
+        Self {
+            total_raised: 0,
+            contributor_count: 0,
+            last_donation_at: 0,
+        }
+    }
 }
 
 #[contracttype]
@@ -66,6 +89,60 @@ pub enum StorageKey {
     PoolState(u64),
     PoolMetrics(u64),
     NextPoolId,
-    DisbursementRequest(u64, u64),
-    NextDisbursementId(u64),
+    IsPaused,
+    Admin,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::Env;
+
+    #[test]
+    fn pool_config_validation_success() {
+        let env = Env::default();
+        let cfg = PoolConfig {
+            name: String::from_str(&env, "Education Fund"),
+            description: String::from_str(&env, "Scholarships for underprivileged students"),
+            target_amount: 1_000_000,
+            is_private: false,
+            duration: 30 * 24 * 60 * 60,
+            created_at: 1,
+        };
+
+        cfg.validate();
+    }
+
+    #[test]
+    #[should_panic]
+    fn pool_config_invalid_target_amount_panics() {
+        let env = Env::default();
+        let cfg = PoolConfig {
+            name: String::from_str(&env, "Invalid Target"),
+            description: String::from_str(&env, "Should panic"),
+            target_amount: 0,
+            is_private: false,
+            duration: 30 * 24 * 60 * 60,
+            created_at: 1,
+        };
+
+        cfg.validate();
+    }
+
+    #[test]
+    fn pool_state_variants_have_expected_discriminants() {
+        assert_eq!(PoolState::Active as u32, 0);
+        assert_eq!(PoolState::Paused as u32, 1);
+        assert_eq!(PoolState::Completed as u32, 2);
+        assert_eq!(PoolState::Cancelled as u32, 3);
+        assert_eq!(PoolState::Disbursed as u32, 4);
+    }
+
+    #[test]
+    fn pool_metrics_new_is_zero_initialized() {
+        let metrics = PoolMetrics::new();
+        assert_eq!(metrics.total_raised, 0);
+        assert_eq!(metrics.contributor_count, 0);
+        assert_eq!(metrics.last_donation_at, 0);
+    }
 }
