@@ -185,6 +185,9 @@ impl CrowdfundingTrait for CrowdfundingContract {
         pool_id: u64,
         new_state: PoolState,
     ) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
         let pool_key = StorageKey::Pool(pool_id);
         if !env.storage().instance().has(&pool_key) {
             return Err(CrowdfundingError::PoolNotFound);
@@ -229,7 +232,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .storage()
             .instance()
             .get(&StorageKey::Admin)
-            .ok_or(CrowdfundingError::CampaignNotFound)?; // Or some other error if not initialized
+            .ok_or(CrowdfundingError::NotInitialized)?;
         admin.require_auth();
 
         if Self::is_paused(env.clone()) {
@@ -246,7 +249,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .storage()
             .instance()
             .get(&StorageKey::Admin)
-            .ok_or(CrowdfundingError::CampaignNotFound)?;
+            .ok_or(CrowdfundingError::NotInitialized)?;
         admin.require_auth();
 
         if !Self::is_paused(env.clone()) {

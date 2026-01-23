@@ -586,6 +586,46 @@ fn test_operations_disabled_when_paused() {
 }
 
 #[test]
+fn test_update_pool_state_blocked_when_paused() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Create a pool first
+    let creator = Address::generate(&env);
+    let name = String::from_str(&env, "Test Pool");
+    let description = String::from_str(&env, "Test Description");
+    let target = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+    
+    let pool_id = client.save_pool(
+        &name,
+        &description,
+        &creator,
+        &target,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    // Now pause the contract
+    client.pause();
+
+    // Try to update pool state - should fail
+    let result = client.try_update_pool_state(&pool_id, &PoolState::Paused);
+    assert_eq!(result, Err(Ok(CrowdfundingError::ContractPaused)));
+
+    // Unpause and verify it works
+    client.unpause();
+    client.update_pool_state(&pool_id, &PoolState::Paused);
+}
+
+#[test]
 fn test_getters_work_when_paused() {
     let env = Env::default();
     env.mock_all_auths();
