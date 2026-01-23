@@ -96,7 +96,7 @@ export const WaitlistSignupForm = () => {
       setTimeout(() => {
         setIsSubmitted(false);
       }, 5000);
-    } catch (error) {
+    } catch {
       setErrors({
         email: "Failed to join waitlist. Please try again.",
       });
@@ -127,7 +127,7 @@ export const WaitlistSignupForm = () => {
             Thanks for joining, {formData.firstName}!
           </p>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            We'll send you updates to {formData.email} soon.
+            We&apos;ll send you updates to {formData.email} soon.
           </p>
         </div>
       </div>
@@ -155,13 +155,11 @@ export const WaitlistSignupForm = () => {
             onBlur={handleBlur}
             disabled={isLoading}
             placeholder="you@example.com"
-            className={`w-full px-4 py-3 rounded-lg border-2 transition-all duration-200 outline-none ${
-              focusedField === "email"
+            className={`w-full px-4 py-3 rounded-lg border-2 transition-all duration-200 outline-none ${focusedField === "email"
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
                 : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-            } ${
-              errors.email ? "border-red-500 bg-red-50 dark:bg-red-950/30" : ""
-            } text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 disabled:opacity-50 disabled:cursor-not-allowed`}
+              } ${errors.email ? "border-red-500 bg-red-50 dark:bg-red-950/30" : ""
+              } text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 disabled:opacity-50 disabled:cursor-not-allowed`}
             aria-label="Email address"
             required
           />
@@ -191,15 +189,13 @@ export const WaitlistSignupForm = () => {
             onBlur={handleBlur}
             disabled={isLoading}
             placeholder="John"
-            className={`w-full px-4 py-3 rounded-lg border-2 transition-all duration-200 outline-none ${
-              focusedField === "firstName"
+            className={`w-full px-4 py-3 rounded-lg border-2 transition-all duration-200 outline-none ${focusedField === "firstName"
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
                 : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-            } ${
-              errors.firstName
+              } ${errors.firstName
                 ? "border-red-500 bg-red-50 dark:bg-red-950/30"
                 : ""
-            } text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 disabled:opacity-50 disabled:cursor-not-allowed`}
+              } text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 disabled:opacity-50 disabled:cursor-not-allowed`}
             aria-label="First name"
             required
           />
@@ -229,11 +225,10 @@ export const WaitlistSignupForm = () => {
             onBlur={handleBlur}
             disabled={isLoading}
             placeholder="Doe"
-            className={`w-full px-4 py-3 rounded-lg border-2 transition-all duration-200 outline-none ${
-              focusedField === "lastName"
+            className={`w-full px-4 py-3 rounded-lg border-2 transition-all duration-200 outline-none ${focusedField === "lastName"
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
                 : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-            } text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 disabled:opacity-50 disabled:cursor-not-allowed`}
+              } text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 disabled:opacity-50 disabled:cursor-not-allowed`}
             aria-label="Last name"
           />
         </div>
@@ -248,11 +243,10 @@ export const WaitlistSignupForm = () => {
               checked={formData.privacyAccepted}
               onChange={handleChange}
               disabled={isLoading}
-              className={`mt-1 w-5 h-5 rounded border-2 ${
-                errors.privacyAccepted
+              className={`mt-1 w-5 h-5 rounded border-2 ${errors.privacyAccepted
                   ? "border-red-500 accent-red-600"
                   : "border-slate-300 dark:border-slate-600 accent-blue-600"
-              } cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
+                } cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
               aria-label="Accept privacy policy"
             />
             <label
@@ -292,11 +286,10 @@ export const WaitlistSignupForm = () => {
         <button
           type="submit"
           disabled={isLoading}
-          className={`w-full py-3 px-4 rounded-lg font-semibold transition-all duration-200 transform ${
-            isLoading
+          className={`w-full py-3 px-4 rounded-lg font-semibold transition-all duration-200 transform ${isLoading
               ? "bg-slate-400 dark:bg-slate-600 cursor-not-allowed opacity-75"
               : "bg-blue-600 hover:bg-blue-700 active:scale-95 text-white dark:bg-blue-700 dark:hover:bg-blue-600"
-          }`}
+            }`}
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">
@@ -340,7 +333,7 @@ export const WaitlistSignupForm = () => {
 
       {/* Trust Elements */}
       <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-6">
-        🔒 Your data is secure and won't be shared
+        🔒 Your data is secure and won&apos;t be shared
       </p>
     </div>
   );

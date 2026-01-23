@@ -8,6 +8,7 @@ import {
 const SELECTED_WALLET_ID = "selectedWalletId";
 
 function getSelectedWalletId() {
+  if (typeof window === "undefined") return null;
   return localStorage.getItem(SELECTED_WALLET_ID);
 }
 
@@ -29,12 +30,16 @@ export async function getPublicKey() {
 }
 
 export async function setWallet(walletId: string) {
-  localStorage.setItem(SELECTED_WALLET_ID, walletId);
+  if (typeof window !== "undefined") {
+    localStorage.setItem(SELECTED_WALLET_ID, walletId);
+  }
   kit.setWallet(walletId);
 }
 
 export async function disconnect(callback?: () => Promise<void>) {
-  localStorage.removeItem(SELECTED_WALLET_ID);
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(SELECTED_WALLET_ID);
+  }
   kit.disconnect();
   if (callback) await callback();
 }
