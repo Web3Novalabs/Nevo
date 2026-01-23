@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     testutils::{Address as _, Events, Ledger},
-    Address, BytesN, Env, String, TryIntoVal,
+    Address, BytesN, Env, String, TryIntoVal, Vec,
 };
 
 use crate::{
@@ -223,7 +223,15 @@ fn test_save_pool() {
     let target_amount = 10_000i128;
     let deadline = env.ledger().timestamp() + 86400;
 
-    let pool_id = client.save_pool(&name, &description, &creator, &target_amount, &deadline);
+    let pool_id = client.save_pool(
+        &name,
+        &description,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
 
     assert_eq!(pool_id, 1);
 }
@@ -250,12 +258,22 @@ fn test_save_pool_validation() {
         &creator,
         &target_amount,
         &deadline,
+        &None,
+        &None,
     );
     assert_eq!(result, Err(Ok(CrowdfundingError::InvalidPoolName)));
 
     // Test invalid target amount
     let name = String::from_str(&env, "Test Pool");
-    let result = client.try_save_pool(&name, &description, &creator, &0i128, &deadline);
+    let result = client.try_save_pool(
+        &name,
+        &description,
+        &creator,
+        &0i128,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
     assert_eq!(result, Err(Ok(CrowdfundingError::InvalidPoolTarget)));
 
     // Test invalid deadline
@@ -266,6 +284,8 @@ fn test_save_pool_validation() {
         &creator,
         &target_amount,
         &past_deadline,
+        &None,
+        &None,
     );
     assert_eq!(result, Err(Ok(CrowdfundingError::InvalidPoolDeadline)));
 }
@@ -284,7 +304,15 @@ fn test_get_pool() {
     let target_amount = 5_000i128;
     let deadline = env.ledger().timestamp() + 86400;
 
-    let pool_id = client.save_pool(&name, &description, &creator, &target_amount, &deadline);
+    let pool_id = client.save_pool(
+        &name,
+        &description,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
 
     let pool = client.get_pool(&pool_id).unwrap();
 
@@ -326,7 +354,15 @@ fn test_update_pool_state() {
     let target_amount = 15_000i128;
     let deadline = env.ledger().timestamp() + 86400;
 
-    let pool_id = client.save_pool(&name, &description, &creator, &target_amount, &deadline);
+    let pool_id = client.save_pool(
+        &name,
+        &description,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
 
     // Update state to Paused
     client.update_pool_state(&pool_id, &PoolState::Paused);
@@ -361,7 +397,15 @@ fn test_update_pool_state_invalid_transition() {
     let target_amount = 10_000i128;
     let deadline = env.ledger().timestamp() + 86400;
 
-    let pool_id = client.save_pool(&name, &description, &creator, &target_amount, &deadline);
+    let pool_id = client.save_pool(
+        &name,
+        &description,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
 
     // First complete the pool
     client.update_pool_state(&pool_id, &PoolState::Completed);
@@ -390,14 +434,30 @@ fn test_multiple_pools() {
     let description1 = String::from_str(&env, "First pool");
     let target1 = 10_000i128;
     let deadline1 = env.ledger().timestamp() + 86400;
-    let pool_id1 = client.save_pool(&name1, &description1, &creator1, &target1, &deadline1);
+    let pool_id1 = client.save_pool(
+        &name1,
+        &description1,
+        &creator1,
+        &target1,
+        &deadline1,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
 
     // Create second pool
     let name2 = String::from_str(&env, "Pool Two");
     let description2 = String::from_str(&env, "Second pool");
     let target2 = 20_000i128;
     let deadline2 = env.ledger().timestamp() + 172800;
-    let pool_id2 = client.save_pool(&name2, &description2, &creator2, &target2, &deadline2);
+    let pool_id2 = client.save_pool(
+        &name2,
+        &description2,
+        &creator2,
+        &target2,
+        &deadline2,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
 
     assert_eq!(pool_id1, 1);
     assert_eq!(pool_id2, 2);
@@ -513,7 +573,15 @@ fn test_operations_disabled_when_paused() {
     assert_eq!(result, Err(Ok(CrowdfundingError::ContractPaused)));
 
     // Try save pool - should fail
-    let result_pool = client.try_save_pool(&title, &title, &creator, &goal, &deadline);
+    let result_pool = client.try_save_pool(
+        &title,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
     assert_eq!(result_pool, Err(Ok(CrowdfundingError::ContractPaused)));
 }
 
@@ -628,7 +696,15 @@ fn test_contribute_and_event_emission() {
     let target_amount = 10_000i128;
     let deadline = env.ledger().timestamp() + 86400;
 
-    let pool_id = client.save_pool(&name, &description, &creator, &target_amount, &deadline);
+    let pool_id = client.save_pool(
+        &name,
+        &description,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
 
     // Advance ledger time
     env.ledger().with_mut(|li| li.timestamp = 100);

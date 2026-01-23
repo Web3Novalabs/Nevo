@@ -10,6 +10,13 @@ pub struct CampaignDetails {
     pub deadline: u64,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MultiSigConfig {
+    pub required_signatures: u32,
+    pub signers: Vec<Address>,
+}
+
 // Updated pool configuration for donation pools
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -20,7 +27,6 @@ pub struct PoolConfig {
     pub is_private: bool,
     pub duration: u64,
     pub created_at: u64,
-    pub multi_sig_config: Option<MultiSigConfig>,
 }
 
 impl PoolConfig {
@@ -91,6 +97,9 @@ pub enum StorageKey {
     NextPoolId,
     IsPaused,
     Admin,
+    MultiSigConfig(u64),
+    DisbursementRequest(u64, u64),
+    NextDisbursementId(u64),
 }
 
 #[cfg(test)]
