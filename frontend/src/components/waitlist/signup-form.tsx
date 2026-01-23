@@ -255,7 +255,10 @@ export const WaitlistSignupForm = () => {
               } cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
               aria-label="Accept privacy policy"
             />
-            <label htmlFor="privacy" className="text-sm text-slate-600 dark:text-slate-300">
+            <label
+              htmlFor="privacy"
+              className="text-sm text-slate-600 dark:text-slate-300"
+            >
               I agree to the{" "}
               <a
                 href="/privacy-policy"
@@ -325,15 +328,14 @@ export const WaitlistSignupForm = () => {
         </button>
 
         {/* General Error Message */}
-        {errors.email &&
-          errors.email.includes("Failed") && (
-            <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0" />
-              <p className="text-sm text-red-700 dark:text-red-300">
-                {errors.email}
-              </p>
-            </div>
-          )}
+        {errors.email && errors.email.includes("Failed") && (
+          <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+            <p className="text-sm text-red-700 dark:text-red-300">
+              {errors.email}
+            </p>
+          </div>
+        )}
       </form>
 
       {/* Trust Elements */}
