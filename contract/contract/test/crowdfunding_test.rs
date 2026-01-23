@@ -602,7 +602,7 @@ fn test_update_pool_state_blocked_when_paused() {
     let description = String::from_str(&env, "Test Description");
     let target = 10_000i128;
     let deadline = env.ledger().timestamp() + 86400;
-    
+
     let pool_id = client.save_pool(
         &name,
         &description,
