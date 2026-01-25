@@ -1,6 +1,6 @@
 {
   "generators": {
-    "address": 3,
+    "address": 2,
     "nonce": 0,
     "mux_id": 0
   },
@@ -14,8 +14,24 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "pause",
-              "args": []
+              "function_name": "create_campaign",
+              "args": [
+                {
+                  "bytes": "6500000000000000000000000000000000000000000000000000000000000000"
+                },
+                {
+                  "string": "C1"
+                },
+                {
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                },
+                {
+                  "i128": "1000"
+                },
+                {
+                  "u64": "100"
+                }
+              ]
             }
           },
           "sub_invocations": []
@@ -29,37 +45,22 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "unpause",
-              "args": []
-            }
-          },
-          "sub_invocations": []
-        }
-      ]
-    ],
-    [
-      [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
-        {
-          "function": {
-            "contract_fn": {
-              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
               "function_name": "create_campaign",
               "args": [
                 {
-                  "bytes": "0c00000000000000000000000000000000000000000000000000000000000000"
+                  "bytes": "6600000000000000000000000000000000000000000000000000000000000000"
                 },
                 {
-                  "string": "After Unpause"
+                  "string": "C2"
                 },
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                 },
                 {
                   "i128": "1000"
                 },
                 {
-                  "u64": "10000"
+                  "u64": "100"
                 }
               ]
             }
@@ -107,7 +108,7 @@
                         "key": {
                           "vec": [
                             {
-                              "bytes": "0c00000000000000000000000000000000000000000000000000000000000000"
+                              "bytes": "6500000000000000000000000000000000000000000000000000000000000000"
                             }
                           ]
                         },
@@ -118,7 +119,7 @@
                                 "symbol": "creator"
                               },
                               "val": {
-                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                               }
                             },
                             {
@@ -126,7 +127,7 @@
                                 "symbol": "deadline"
                               },
                               "val": {
-                                "u64": "10000"
+                                "u64": "100"
                               }
                             },
                             {
@@ -142,7 +143,7 @@
                                 "symbol": "id"
                               },
                               "val": {
-                                "bytes": "0c00000000000000000000000000000000000000000000000000000000000000"
+                                "bytes": "6500000000000000000000000000000000000000000000000000000000000000"
                               }
                             },
                             {
@@ -150,7 +151,7 @@
                                 "symbol": "title"
                               },
                               "val": {
-                                "string": "After Unpause"
+                                "string": "C1"
                               }
                             }
                           ]
@@ -160,12 +161,53 @@
                         "key": {
                           "vec": [
                             {
-                              "symbol": "Admin"
+                              "bytes": "6600000000000000000000000000000000000000000000000000000000000000"
                             }
                           ]
                         },
                         "val": {
-                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                          "map": [
+                            {
+                              "key": {
+                                "symbol": "creator"
+                              },
+                              "val": {
+                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "deadline"
+                              },
+                              "val": {
+                                "u64": "100"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "goal"
+                              },
+                              "val": {
+                                "i128": "1000"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "id"
+                              },
+                              "val": {
+                                "bytes": "6600000000000000000000000000000000000000000000000000000000000000"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "title"
+                              },
+                              "val": {
+                                "string": "C2"
+                              }
+                            }
+                          ]
                         }
                       },
                       {
@@ -179,7 +221,10 @@
                         "val": {
                           "vec": [
                             {
-                              "bytes": "0c00000000000000000000000000000000000000000000000000000000000000"
+                              "bytes": "6500000000000000000000000000000000000000000000000000000000000000"
+                            },
+                            {
+                              "bytes": "6600000000000000000000000000000000000000000000000000000000000000"
                             }
                           ]
                         }
@@ -191,7 +236,7 @@
                               "symbol": "CampaignMetrics"
                             },
                             {
-                              "bytes": "0c00000000000000000000000000000000000000000000000000000000000000"
+                              "bytes": "6500000000000000000000000000000000000000000000000000000000000000"
                             }
                           ]
                         },
@@ -228,12 +273,40 @@
                         "key": {
                           "vec": [
                             {
-                              "symbol": "IsPaused"
+                              "symbol": "CampaignMetrics"
+                            },
+                            {
+                              "bytes": "6600000000000000000000000000000000000000000000000000000000000000"
                             }
                           ]
                         },
                         "val": {
-                          "bool": false
+                          "map": [
+                            {
+                              "key": {
+                                "symbol": "contributor_count"
+                              },
+                              "val": {
+                                "u32": 0
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "last_donation_at"
+                              },
+                              "val": {
+                                "u64": "0"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "total_raised"
+                              },
+                              "val": {
+                                "i128": "0"
+                              }
+                            }
+                          ]
                         }
                       }
                     ]
@@ -301,39 +374,6 @@
                 "key": {
                   "ledger_key_nonce": {
                     "nonce": "5541220902715666415"
-                  }
-                },
-                "durability": "temporary",
-                "val": "void"
-              }
-            },
-            "ext": "v0"
-          },
-          6311999
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
-            "key": {
-              "ledger_key_nonce": {
-                "nonce": "1033654523790656264"
-              }
-            },
-            "durability": "temporary"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
-                "key": {
-                  "ledger_key_nonce": {
-                    "nonce": "1033654523790656264"
                   }
                 },
                 "durability": "temporary",

@@ -764,3 +764,162 @@ fn test_contribute_and_event_emission() {
     // (We've confirmed that env.events().all() has issues in this test setup,
     // but the snapshot recorder will capture the events if they are emitted.)
 }
+
+// Getter & Donation Tests
+
+#[test]
+fn test_get_all_campaigns() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    // 1. Returns empty list when no campaigns exist
+    let campaigns = client.get_all_campaigns();
+    assert_eq!(campaigns.len(), 0);
+
+    // 2. Returns all campaign IDs after multiple campaigns created
+    let creator = Address::generate(&env);
+    let id1 = create_test_campaign_id(&env, 101);
+    let id2 = create_test_campaign_id(&env, 102);
+    
+    client.create_campaign(&id1, &String::from_str(&env, "C1"), &creator, &1000i128, &(env.ledger().timestamp() + 100));
+    client.create_campaign(&id2, &String::from_str(&env, "C2"), &creator, &1000i128, &(env.ledger().timestamp() + 100));
+
+    let campaigns = client.get_all_campaigns();
+    assert_eq!(campaigns.len(), 2);
+    assert!(campaigns.contains(id1));
+    assert!(campaigns.contains(id2));
+}
+
+#[test]
+fn test_donate_and_donor_count() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id);
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 103);
+    client.create_campaign(&campaign_id, &String::from_str(&env, "Donation Test"), &creator, &10000i128, &(env.ledger().timestamp() + 1000));
+
+    // 1. Returns 0 for campaign with no donors
+    assert_eq!(client.get_donor_count(&campaign_id), 0);
+    assert_eq!(client.get_campaign_balance(&campaign_id), 0);
+
+    // Setup donor
+    let donor1 = Address::generate(&env);
+    token_admin_client.mint(&donor1, &5000i128);
+
+    // 2. Donate and check count
+    client.donate(&campaign_id, &donor1, &token_id, &100i128);
+
+    assert_eq!(client.get_donor_count(&campaign_id), 1);
+    assert_eq!(client.get_campaign_balance(&campaign_id), 100);
+
+    // 3. Same donor donates again -> count should still be 1
+    client.donate(&campaign_id, &donor1, &token_id, &50i128);
+    assert_eq!(client.get_donor_count(&campaign_id), 1);
+    assert_eq!(client.get_campaign_balance(&campaign_id), 150);
+
+    // 4. Different donor donates -> count should be 2
+    let donor2 = Address::generate(&env);
+    token_admin_client.mint(&donor2, &5000i128);
+    client.donate(&campaign_id, &donor2, &token_id, &200i128);
+
+    assert_eq!(client.get_donor_count(&campaign_id), 2);
+    assert_eq!(client.get_campaign_balance(&campaign_id), 350);
+}
+
+#[test]
+fn test_get_campaign_goal() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let id = create_test_campaign_id(&env, 104);
+    let goal = 5555i128;
+    
+    client.create_campaign(&id, &String::from_str(&env, "Goal Test"), &creator, &goal, &(env.ledger().timestamp() + 100));
+
+    assert_eq!(client.get_campaign_goal(&id), goal);
+}
+
+#[test]
+fn test_is_campaign_completed() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id);
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let id = create_test_campaign_id(&env, 105);
+    let goal = 1000i128;
+    
+    client.create_campaign(&id, &String::from_str(&env, "Completion Test"), &creator, &goal, &(env.ledger().timestamp() + 1000));
+
+    // 1. Returns false for new campaign
+    assert_eq!(client.is_campaign_completed(&id), false);
+
+    let donor = Address::generate(&env);
+    token_admin_client.mint(&donor, &5000i128);
+
+    // 2. Returns false when under goal
+    client.donate(&id, &donor, &token_id, &900i128);
+    assert_eq!(client.is_campaign_completed(&id), false);
+
+    // 3. Returns true when goal is reached
+    client.donate(&id, &donor, &token_id, &100i128); // Total 1000
+    assert_eq!(client.is_campaign_completed(&id), true);
+
+    // 4. Returns true when goal is exceeded
+    client.donate(&id, &donor, &token_id, &100i128); // Total 1100
+    assert_eq!(client.is_campaign_completed(&id), true);
+}
+
+#[test]
+fn test_donate_deadline_passed() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().with_mut(|li| li.timestamp = 1000);
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id);
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let id = create_test_campaign_id(&env, 106);
+    let deadline = 2000u64;
+    
+    client.create_campaign(&id, &String::from_str(&env, "Deadline Test"), &creator, &1000i128, &deadline);
+
+    let donor = Address::generate(&env);
+    token_admin_client.mint(&donor, &5000i128);
+
+    // Donate before deadline - should work
+    client.donate(&id, &donor, &token_id, &100i128);
+
+    // Advance time past deadline
+    env.ledger().with_mut(|li| li.timestamp = 2001);
+
+    // Donate after deadline - should fail
+    let result = client.try_donate(&id, &donor, &token_id, &100i128);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidDeadline)));
+}

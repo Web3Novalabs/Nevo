@@ -60,6 +60,24 @@ pub enum PoolState {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CampaignMetrics {
+    pub total_raised: i128,
+    pub contributor_count: u32,
+    pub last_donation_at: u64,
+}
+
+impl CampaignMetrics {
+    pub fn new() -> Self {
+        Self {
+            total_raised: 0,
+            contributor_count: 0,
+            last_donation_at: 0,
+        }
+    }
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PoolMetrics {
     pub total_raised: i128,
     pub contributor_count: u32,
@@ -94,6 +112,10 @@ pub enum StorageKey {
     Pool(u64),
     PoolState(u64),
     PoolMetrics(u64),
+    AllCampaigns,
+    CampaignMetrics(BytesN<32>),
+    CampaignDonor(BytesN<32>, Address),
+
     NextPoolId,
     IsPaused,
     Admin,

@@ -1,45 +1,14 @@
 {
   "generators": {
-    "address": 3,
+    "address": 2,
     "nonce": 0,
     "mux_id": 0
   },
   "auth": [
     [],
-    [],
     [
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-        {
-          "function": {
-            "contract_fn": {
-              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "pause",
-              "args": []
-            }
-          },
-          "sub_invocations": []
-        }
-      ]
-    ],
-    [
-      [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-        {
-          "function": {
-            "contract_fn": {
-              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "unpause",
-              "args": []
-            }
-          },
-          "sub_invocations": []
-        }
-      ]
-    ],
-    [
-      [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
         {
           "function": {
             "contract_fn": {
@@ -47,19 +16,19 @@
               "function_name": "create_campaign",
               "args": [
                 {
-                  "bytes": "0c00000000000000000000000000000000000000000000000000000000000000"
+                  "bytes": "6800000000000000000000000000000000000000000000000000000000000000"
                 },
                 {
-                  "string": "After Unpause"
+                  "string": "Goal Test"
                 },
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                 },
                 {
-                  "i128": "1000"
+                  "i128": "5555"
                 },
                 {
-                  "u64": "10000"
+                  "u64": "100"
                 }
               ]
             }
@@ -107,7 +76,7 @@
                         "key": {
                           "vec": [
                             {
-                              "bytes": "0c00000000000000000000000000000000000000000000000000000000000000"
+                              "bytes": "6800000000000000000000000000000000000000000000000000000000000000"
                             }
                           ]
                         },
@@ -118,7 +87,7 @@
                                 "symbol": "creator"
                               },
                               "val": {
-                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                               }
                             },
                             {
@@ -126,7 +95,7 @@
                                 "symbol": "deadline"
                               },
                               "val": {
-                                "u64": "10000"
+                                "u64": "100"
                               }
                             },
                             {
@@ -134,7 +103,7 @@
                                 "symbol": "goal"
                               },
                               "val": {
-                                "i128": "1000"
+                                "i128": "5555"
                               }
                             },
                             {
@@ -142,7 +111,7 @@
                                 "symbol": "id"
                               },
                               "val": {
-                                "bytes": "0c00000000000000000000000000000000000000000000000000000000000000"
+                                "bytes": "6800000000000000000000000000000000000000000000000000000000000000"
                               }
                             },
                             {
@@ -150,22 +119,10 @@
                                 "symbol": "title"
                               },
                               "val": {
-                                "string": "After Unpause"
+                                "string": "Goal Test"
                               }
                             }
                           ]
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
-                              "symbol": "Admin"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                         }
                       },
                       {
@@ -179,7 +136,7 @@
                         "val": {
                           "vec": [
                             {
-                              "bytes": "0c00000000000000000000000000000000000000000000000000000000000000"
+                              "bytes": "6800000000000000000000000000000000000000000000000000000000000000"
                             }
                           ]
                         }
@@ -191,7 +148,7 @@
                               "symbol": "CampaignMetrics"
                             },
                             {
-                              "bytes": "0c00000000000000000000000000000000000000000000000000000000000000"
+                              "bytes": "6800000000000000000000000000000000000000000000000000000000000000"
                             }
                           ]
                         },
@@ -222,18 +179,6 @@
                               }
                             }
                           ]
-                        }
-                      },
-                      {
-                        "key": {
-                          "vec": [
-                            {
-                              "symbol": "IsPaused"
-                            }
-                          ]
-                        },
-                        "val": {
-                          "bool": false
                         }
                       }
                     ]
@@ -268,72 +213,6 @@
                 "key": {
                   "ledger_key_nonce": {
                     "nonce": "801925984706572462"
-                  }
-                },
-                "durability": "temporary",
-                "val": "void"
-              }
-            },
-            "ext": "v0"
-          },
-          6311999
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-            "key": {
-              "ledger_key_nonce": {
-                "nonce": "5541220902715666415"
-              }
-            },
-            "durability": "temporary"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-                "key": {
-                  "ledger_key_nonce": {
-                    "nonce": "5541220902715666415"
-                  }
-                },
-                "durability": "temporary",
-                "val": "void"
-              }
-            },
-            "ext": "v0"
-          },
-          6311999
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
-            "key": {
-              "ledger_key_nonce": {
-                "nonce": "1033654523790656264"
-              }
-            },
-            "durability": "temporary"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
-                "key": {
-                  "ledger_key_nonce": {
-                    "nonce": "1033654523790656264"
                   }
                 },
                 "durability": "temporary",
