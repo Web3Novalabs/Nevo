@@ -19,7 +19,32 @@
                   "string": "Medical Fund"
                 },
                 {
-                  "string": "Fund for medical expenses"
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "description"
+                      },
+                      "val": {
+                        "string": "Fund for medical expenses"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "external_url"
+                      },
+                      "val": {
+                        "string": "https://medical.example.com"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "image_hash"
+                      },
+                      "val": {
+                        "string": "hash123"
+                      }
+                    }
+                  ]
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
@@ -39,6 +64,7 @@
         }
       ]
     ],
+    [],
     []
   ],
   "ledger": {
@@ -51,6 +77,76 @@
     "min_temp_entry_ttl": 16,
     "max_entry_ttl": 6312000,
     "ledger_entries": [
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+            "key": {
+              "vec": [
+                {
+                  "symbol": "PoolMetadata"
+                },
+                {
+                  "u64": "1"
+                }
+              ]
+            },
+            "durability": "persistent"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "PoolMetadata"
+                    },
+                    {
+                      "u64": "1"
+                    }
+                  ]
+                },
+                "durability": "persistent",
+                "val": {
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "description"
+                      },
+                      "val": {
+                        "string": "Fund for medical expenses"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "external_url"
+                      },
+                      "val": {
+                        "string": "https://medical.example.com"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "image_hash"
+                      },
+                      "val": {
+                        "string": "hash123"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          4095
+        ]
+      ],
       [
         {
           "contract_data": {
@@ -105,14 +201,6 @@
                               },
                               "val": {
                                 "u64": "0"
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "description"
-                              },
-                              "val": {
-                                "string": "Fund for medical expenses"
                               }
                             },
                             {

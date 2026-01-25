@@ -2,7 +2,7 @@ use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 use crate::base::{
     errors::CrowdfundingError,
-    types::{CampaignDetails, DisbursementRequest, PoolConfig, PoolState},
+    types::{CampaignDetails, PoolConfig, PoolMetadata, PoolState},
 };
 
 pub trait CrowdfundingTrait {
@@ -35,10 +35,11 @@ pub trait CrowdfundingTrait {
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
 
+    #[allow(clippy::too_many_arguments)]
     fn save_pool(
         env: Env,
         name: String,
-        description: String,
+        metadata: PoolMetadata,
         creator: Address,
         target_amount: i128,
         deadline: u64,
@@ -47,6 +48,8 @@ pub trait CrowdfundingTrait {
     ) -> Result<u64, CrowdfundingError>;
 
     fn get_pool(env: Env, pool_id: u64) -> Option<PoolConfig>;
+
+    fn get_pool_metadata(env: Env, pool_id: u64) -> (String, String, String);
 
     fn update_pool_state(
         env: Env,

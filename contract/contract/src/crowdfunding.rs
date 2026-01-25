@@ -1,11 +1,13 @@
+#![allow(deprecated)]
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
 use crate::base::{
     errors::CrowdfundingError,
     events,
     types::{
-        CampaignDetails, CampaignMetrics, DisbursementRequest, MultiSigConfig, PoolConfig, PoolMetrics,
-        PoolState, StorageKey,
+        CampaignDetails, CampaignMetrics, DisbursementRequest, MultiSigConfig, PoolConfig, PoolMetadata,
+        PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH,
+        MAX_URL_LENGTH,
     },
 
 };
@@ -15,6 +17,7 @@ use crate::interfaces::crowdfunding::CrowdfundingTrait;
 pub struct CrowdfundingContract;
 
 #[contractimpl]
+#[allow(clippy::too_many_arguments)]
 impl CrowdfundingTrait for CrowdfundingContract {
     fn create_campaign(
         env: Env,
@@ -29,7 +32,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         }
         creator.require_auth();
 
-        if title.len() == 0 {
+        if title.is_empty() {
             return Err(CrowdfundingError::InvalidTitle);
         }
 
@@ -181,10 +184,11 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .ok_or(CrowdfundingError::CampaignNotFound)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn save_pool(
         env: Env,
         name: String,
-        description: String,
+        metadata: PoolMetadata,
         creator: Address,
         target_amount: i128,
         deadline: u64,
@@ -197,7 +201,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         creator.require_auth();
 
         // Validate inputs
-        if name.len() == 0 {
+        if name.is_empty() {
             return Err(CrowdfundingError::InvalidPoolName);
         }
 
@@ -209,14 +213,22 @@ impl CrowdfundingTrait for CrowdfundingContract {
             return Err(CrowdfundingError::InvalidPoolDeadline);
         }
 
+        // Validate metadata lengths
+        if metadata.description.len() > MAX_DESCRIPTION_LENGTH
+            || metadata.external_url.len() > MAX_URL_LENGTH
+            || metadata.image_hash.len() > MAX_HASH_LENGTH
+        {
+            return Err(CrowdfundingError::InvalidMetadata);
+        }
+
         // Validate multi-sig configuration if provided
         let multi_sig_config = match (required_signatures, signers) {
             (Some(req_sigs), Some(signer_list)) => {
-                let signer_count = signer_list.len() as u32;
+                let signer_count = signer_list.len();
                 if req_sigs == 0 || req_sigs > signer_count {
                     return Err(CrowdfundingError::InvalidMultiSigConfig);
                 }
-                if signer_list.len() == 0 {
+                if signer_list.is_empty() {
                     return Err(CrowdfundingError::InvalidSignerCount);
                 }
                 Some(MultiSigConfig {
@@ -246,7 +258,6 @@ impl CrowdfundingTrait for CrowdfundingContract {
         // Create pool configuration (persistent view)
         let pool_config = PoolConfig {
             name: name.clone(),
-            description: description.clone(),
             target_amount,
             is_private: false,
             duration,
@@ -255,6 +266,10 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         // Store pool configuration
         env.storage().instance().set(&pool_key, &pool_config);
+
+        // Store pool metadata in persistent storage
+        let metadata_key = StorageKey::PoolMetadata(pool_id);
+        env.storage().persistent().set(&metadata_key, &metadata);
 
         // Store multi-sig config separately if provided
         if let Some(config) = multi_sig_config {
@@ -279,7 +294,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             &env,
             pool_id,
             name,
-            description,
+            metadata.description.clone(),
             creator,
             target_amount,
             deadline,
@@ -291,6 +306,27 @@ impl CrowdfundingTrait for CrowdfundingContract {
     fn get_pool(env: Env, pool_id: u64) -> Option<PoolConfig> {
         let pool_key = StorageKey::Pool(pool_id);
         env.storage().instance().get(&pool_key)
+    }
+
+    fn get_pool_metadata(env: Env, pool_id: u64) -> (String, String, String) {
+        let metadata_key = StorageKey::PoolMetadata(pool_id);
+        if let Some(metadata) = env
+            .storage()
+            .persistent()
+            .get::<StorageKey, PoolMetadata>(&metadata_key)
+        {
+            (
+                metadata.description,
+                metadata.external_url,
+                metadata.image_hash,
+            )
+        } else {
+            (
+                String::from_str(&env, ""),
+                String::from_str(&env, ""),
+                String::from_str(&env, ""),
+            )
+        }
     }
 
     fn update_pool_state(
@@ -419,7 +455,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         // For this task we assume the token interface is available via soroban_sdk::token
         use soroban_sdk::token;
         let token_client = token::Client::new(&env, &asset);
-        token_client.transfer(&contributor, &env.current_contract_address(), &amount);
+        token_client.transfer(&contributor, env.current_contract_address(), &amount);
 
         // Update metrics
         let metrics_key = StorageKey::PoolMetrics(pool_id);

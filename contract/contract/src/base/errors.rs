@@ -33,4 +33,5 @@ pub enum CrowdfundingError {
     InvalidSignerCount = 27,
     NotInitialized = 28,
     Unauthorized = 29,
+    InvalidMetadata = 30,
 }
