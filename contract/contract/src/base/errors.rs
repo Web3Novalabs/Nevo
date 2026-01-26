@@ -34,4 +34,7 @@ pub enum CrowdfundingError {
     NotInitialized = 28,
     Unauthorized = 29,
     InvalidMetadata = 30,
+    CampaignExpired = 31,
+    InvalidDonationAmount = 32,
+    CampaignAlreadyFunded = 33,
 }
