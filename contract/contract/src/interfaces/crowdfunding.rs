@@ -82,4 +82,12 @@ pub trait CrowdfundingTrait {
         amount: i128,
         is_private: bool,
     ) -> Result<(), CrowdfundingError>;
+
+    fn request_emergency_withdraw(
+        env: Env,
+        token: Address,
+        amount: i128,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn execute_emergency_withdraw(env: Env) -> Result<(), CrowdfundingError>;
 }

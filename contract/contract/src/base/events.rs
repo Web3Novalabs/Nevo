@@ -44,21 +44,38 @@ pub fn contract_unpaused(env: &Env, admin: Address, timestamp: u64) {
     env.events().publish(topics, timestamp);
 }
 
-// pub fn contribution(
-//     env: &Env,
-//     pool_id: u64,
-//     contributor: Address,
-//     asset: Address,
-//     amount: i128,
-//     timestamp: u64,
-//     is_private: bool,
-// ) {
-//     let topics = (Symbol::new(env, "contribution"), pool_id);
-//     env.events()
-//         .publish(topics, (contributor, asset, amount, timestamp, is_private));
-// }
-
 pub fn donation_made(env: &Env, campaign_id: BytesN<32>, contributor: Address, amount: i128) {
     let topics = (Symbol::new(env, "donation_made"), campaign_id);
     env.events().publish(topics, (contributor, amount));
+
+}
+
+pub fn contribution(
+    env: &Env,
+    pool_id: u64,
+    contributor: Address,
+    asset: Address,
+    amount: i128,
+    timestamp: u64,
+    is_private: bool,
+) {
+    let topics = (Symbol::new(env, "contribution"), pool_id, contributor);
+    env.events()
+        .publish(topics, (asset, amount, timestamp, is_private));
+}
+
+pub fn emergency_withdraw_requested(
+    env: &Env,
+    admin: Address,
+    token: Address,
+    amount: i128,
+    unlock_time: u64,
+) {
+    let topics = (Symbol::new(env, "emergency_withdraw_requested"), admin);
+    env.events().publish(topics, (token, amount, unlock_time));
+}
+
+pub fn emergency_withdraw_executed(env: &Env, admin: Address, token: Address, amount: i128) {
+    let topics = (Symbol::new(env, "emergency_withdraw_executed"), admin);
+    env.events().publish(topics, (token, amount));
 }

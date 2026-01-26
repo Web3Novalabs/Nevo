@@ -48,6 +48,9 @@
                 },
                 {
                   "u64": "2000"
+                },
+                {
+                  "address": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL"
                 }
               ]
             }
@@ -305,6 +308,22 @@
                               "val": {
                                 "string": "Deadline Test"
                               }
+                            },
+                            {
+                              "key": {
+                                "symbol": "token_address"
+                              },
+                              "val": {
+                                "address": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "total_raised"
+                              },
+                              "val": {
+                                "i128": "100"
+                              }
                             }
                           ]
                         }
@@ -378,6 +397,49 @@
                               },
                               "val": {
                                 "i128": "100"
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "Contribution"
+                            },
+                            {
+                              "bytes": "6a00000000000000000000000000000000000000000000000000000000000000"
+                            },
+                            {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "map": [
+                            {
+                              "key": {
+                                "symbol": "amount"
+                              },
+                              "val": {
+                                "i128": "100"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "campaign_id"
+                              },
+                              "val": {
+                                "bytes": "6a00000000000000000000000000000000000000000000000000000000000000"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "contributor"
+                              },
+                              "val": {
+                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                               }
                             }
                           ]

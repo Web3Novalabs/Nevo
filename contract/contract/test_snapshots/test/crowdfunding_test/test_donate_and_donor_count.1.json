@@ -48,6 +48,9 @@
                 },
                 {
                   "u64": "1000"
+                },
+                {
+                  "address": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL"
                 }
               ]
             }
@@ -465,6 +468,22 @@
                               "val": {
                                 "string": "Donation Test"
                               }
+                            },
+                            {
+                              "key": {
+                                "symbol": "token_address"
+                              },
+                              "val": {
+                                "address": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "total_raised"
+                              },
+                              "val": {
+                                "i128": "350"
+                              }
                             }
                           ]
                         }
@@ -556,6 +575,92 @@
                               },
                               "val": {
                                 "i128": "350"
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "Contribution"
+                            },
+                            {
+                              "bytes": "6700000000000000000000000000000000000000000000000000000000000000"
+                            },
+                            {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "map": [
+                            {
+                              "key": {
+                                "symbol": "amount"
+                              },
+                              "val": {
+                                "i128": "150"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "campaign_id"
+                              },
+                              "val": {
+                                "bytes": "6700000000000000000000000000000000000000000000000000000000000000"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "contributor"
+                              },
+                              "val": {
+                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "Contribution"
+                            },
+                            {
+                              "bytes": "6700000000000000000000000000000000000000000000000000000000000000"
+                            },
+                            {
+                              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "map": [
+                            {
+                              "key": {
+                                "symbol": "amount"
+                              },
+                              "val": {
+                                "i128": "200"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "campaign_id"
+                              },
+                              "val": {
+                                "bytes": "6700000000000000000000000000000000000000000000000000000000000000"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "contributor"
+                              },
+                              "val": {
+                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
                               }
                             }
                           ]
