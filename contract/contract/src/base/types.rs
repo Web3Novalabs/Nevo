@@ -8,6 +8,16 @@ pub struct CampaignDetails {
     pub creator: Address,
     pub goal: i128,
     pub deadline: u64,
+    pub total_raised: i128,
+    pub token_address: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Contribution {
+    pub campaign_id: BytesN<32>,
+    pub contributor: Address,
+    pub amount: i128,
 }
 
 #[contracttype]
@@ -126,6 +136,7 @@ pub enum StorageKey {
     AllCampaigns,
     CampaignMetrics(BytesN<32>),
     CampaignDonor(BytesN<32>, Address),
+    Contribution(BytesN<32>, Address),
 
     NextPoolId,
     IsPaused,
