@@ -6,4 +6,4 @@ target
 .stellar
 
 
-**/test_snapshots/**
+test_snapshots/
