@@ -3,7 +3,7 @@
 use crate::{
     base::{
         errors::CrowdfundingError,
-        types::{PoolConfig, PoolState, MAX_DESCRIPTION_LENGTH},
+        types::{PoolConfig, MAX_DESCRIPTION_LENGTH},
     },
     crowdfunding::{CrowdfundingContract, CrowdfundingContractClient},
 };
