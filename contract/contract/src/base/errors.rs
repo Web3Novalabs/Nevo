@@ -39,5 +39,5 @@ pub enum CrowdfundingError {
     CampaignAlreadyFunded = 33,
     EmergencyWithdrawalAlreadyRequested = 34,
     EmergencyWithdrawalNotRequested = 35,
-    EmergencyWithdrawalPeriodNotPassed = 36
+    EmergencyWithdrawalPeriodNotPassed = 36,
 }

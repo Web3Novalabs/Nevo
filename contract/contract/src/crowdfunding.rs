@@ -5,9 +5,9 @@ use crate::base::{
     errors::CrowdfundingError,
     events,
     types::{
-        CampaignDetails, CampaignMetrics, Contribution, MultiSigConfig, PoolConfig, PoolMetadata,
-        EmergencyWithdrawal,PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH,
-        MAX_URL_LENGTH,
+        CampaignDetails, CampaignMetrics, Contribution, EmergencyWithdrawal, MultiSigConfig,
+        PoolConfig, PoolMetadata, PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH,
+        MAX_HASH_LENGTH, MAX_URL_LENGTH,
     },
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;
@@ -134,15 +134,15 @@ impl CrowdfundingTrait for CrowdfundingContract {
         Self::get_campaign(env.clone(), campaign_id.clone())?;
 
         let contribution_key = StorageKey::Contribution(campaign_id.clone(), contributor.clone());
-        let contribution: Contribution = env
-            .storage()
-            .instance()
-            .get(&contribution_key)
-            .unwrap_or(Contribution {
-                campaign_id: campaign_id.clone(),
-                contributor: contributor.clone(),
-                amount: 0,
-            });
+        let contribution: Contribution =
+            env.storage()
+                .instance()
+                .get(&contribution_key)
+                .unwrap_or(Contribution {
+                    campaign_id: campaign_id.clone(),
+                    contributor: contributor.clone(),
+                    amount: 0,
+                });
         Ok(contribution.amount)
     }
 
@@ -233,13 +233,15 @@ impl CrowdfundingTrait for CrowdfundingContract {
                 contributor: donor.clone(),
                 amount: 0,
             });
-        
+
         let updated_contribution = Contribution {
             campaign_id: campaign_id.clone(),
             contributor: donor.clone(),
             amount: existing_contribution.amount + amount,
         };
-        env.storage().instance().set(&contribution_key, &updated_contribution);
+        env.storage()
+            .instance()
+            .set(&contribution_key, &updated_contribution);
 
         // Emit DonationMade event
         events::donation_made(&env, campaign_id, donor, amount);
