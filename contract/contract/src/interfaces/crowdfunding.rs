@@ -35,6 +35,12 @@ pub trait CrowdfundingTrait {
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
 
+    fn create_pool(
+        env: Env,
+        creator: Address,
+        config: PoolConfig,
+    ) -> Result<u64, CrowdfundingError>;
+
     #[allow(clippy::too_many_arguments)]
     fn save_pool(
         env: Env,

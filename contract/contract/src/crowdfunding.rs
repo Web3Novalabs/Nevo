@@ -187,6 +187,65 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .ok_or(CrowdfundingError::CampaignNotFound)
     }
 
+    fn create_pool(
+        env: Env,
+        creator: Address,
+        config: PoolConfig,
+    ) -> Result<u64, CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+        creator.require_auth();
+
+        // Validate config
+        config.validate();
+
+        // Extra validation (if any, e.g. duration checks not covered by validate)
+        // For now relying on PoolConfig::validate
+
+        // Generate unique pool ID
+        let next_id_key = StorageKey::NextPoolId;
+        let pool_id = env.storage().instance().get(&next_id_key).unwrap_or(1u64);
+        let new_next_id = pool_id + 1;
+
+        // Check uniqueness (redundant with sequential IDs but safe)
+        let pool_key = StorageKey::Pool(pool_id);
+        if env.storage().instance().has(&pool_key) {
+            return Err(CrowdfundingError::PoolAlreadyExists);
+        }
+
+        // Store config
+        env.storage().instance().set(&pool_key, &config);
+
+        // Initialize state
+        let state_key = StorageKey::PoolState(pool_id);
+        env.storage().instance().set(&state_key, &PoolState::Active);
+
+        // Initialize metrics
+        let metrics_key = StorageKey::PoolMetrics(pool_id);
+        env.storage()
+            .instance()
+            .set(&metrics_key, &PoolMetrics::new());
+
+        // Update ID counter
+        env.storage().instance().set(&next_id_key, &new_next_id);
+
+        // Emit event
+        // Calculate deadline from creation time and duration for the event
+        let deadline = config.created_at + config.duration;
+        events::pool_created(
+            &env,
+            pool_id,
+            config.name,
+            config.description,
+            creator,
+            config.target_amount,
+            deadline,
+        );
+
+        Ok(pool_id)
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn save_pool(
         env: Env,
@@ -261,6 +320,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         // Create pool configuration (persistent view)
         let pool_config = PoolConfig {
             name: name.clone(),
+            description: metadata.description.clone(),
             target_amount,
             is_private: false,
             duration,
