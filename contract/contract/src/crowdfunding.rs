@@ -113,7 +113,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
     }
 
     fn get_crowdfunding_token(env: Env) -> Result<Address, CrowdfundingError> {
-         env.storage().instance().get(&StorageKey::CrowdfundingToken).ok_or(CrowdfundingError::NotInitialized)
+        env.storage().instance().get(&StorageKey::CrowdfundingToken).ok_or(CrowdfundingError::NotInitialized)
     }
 
     fn set_creation_fee(env: Env, fee: i128) -> Result<(), CrowdfundingError> {
@@ -121,7 +121,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         admin.require_auth();
 
         if fee < 0 {
-             return Err(CrowdfundingError::InvalidFee);
+            return Err(CrowdfundingError::InvalidFee);
         }
 
         env.storage().instance().set(&StorageKey::CreationFee, &fee);
