@@ -34,7 +34,10 @@ pub enum CrowdfundingError {
     NotInitialized = 28,
     Unauthorized = 29,
     InvalidMetadata = 30,
-    EmergencyWithdrawalAlreadyRequested = 31,
-    EmergencyWithdrawalNotRequested = 32,
-    EmergencyWithdrawalPeriodNotPassed = 33,
+    CampaignExpired = 31,
+    InvalidDonationAmount = 32,
+    CampaignAlreadyFunded = 33,
+    EmergencyWithdrawalAlreadyRequested = 34,
+    EmergencyWithdrawalNotRequested = 35,
+    EmergencyWithdrawalPeriodNotPassed = 36,
 }
