@@ -6,8 +6,8 @@ use crate::base::{
     events,
     types::{
         CampaignDetails, CampaignMetrics, Contribution, EmergencyWithdrawal, MultiSigConfig,
-        PoolConfig, PoolMetadata, PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH,
-        MAX_HASH_LENGTH, MAX_URL_LENGTH,
+        PoolConfig, PoolContribution, PoolMetadata, PoolMetrics, PoolState, StorageKey,
+        MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH, MAX_URL_LENGTH,
     },
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;
@@ -538,11 +538,39 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .get(&metrics_key)
             .unwrap_or(PoolMetrics::new());
 
+        // Track unique contributor
+        let contributor_key = StorageKey::PoolContribution(pool_id, contributor.clone());
+        let existing_contribution: PoolContribution = env
+            .storage()
+            .instance()
+            .get(&contributor_key)
+            .unwrap_or(PoolContribution {
+                pool_id,
+                contributor: contributor.clone(),
+                amount: 0,
+                asset: asset.clone(),
+            });
+
+        // Only increment contributor_count if this is a new contributor
+        if existing_contribution.amount == 0 {
+            metrics.contributor_count += 1;
+        }
+
         metrics.total_raised += amount;
-        metrics.contributor_count += 1;
         metrics.last_donation_at = env.ledger().timestamp();
 
         env.storage().instance().set(&metrics_key, &metrics);
+
+        // Update per-user contribution tracking
+        let updated_contribution = PoolContribution {
+            pool_id,
+            contributor: contributor.clone(),
+            amount: existing_contribution.amount + amount,
+            asset: asset.clone(),
+        };
+        env.storage()
+            .instance()
+            .set(&contributor_key, &updated_contribution);
 
         // Emit event
         events::contribution(
@@ -553,6 +581,115 @@ impl CrowdfundingTrait for CrowdfundingContract {
             amount,
             env.ledger().timestamp(),
             is_private,
+        );
+
+        Ok(())
+    }
+
+    fn refund(env: Env, pool_id: u64, contributor: Address) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+        contributor.require_auth();
+
+        // Validate pool exists
+        let pool_key = StorageKey::Pool(pool_id);
+        let pool: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(CrowdfundingError::PoolNotFound)?;
+
+        // Check if pool has a deadline (duration > 0)
+        if pool.duration == 0 {
+            return Err(CrowdfundingError::RefundNotAvailable);
+        }
+
+        // Calculate deadline: created_at + duration
+        let deadline = pool.created_at + pool.duration;
+        let now = env.ledger().timestamp();
+
+        // Check if deadline has passed
+        if now < deadline {
+            return Err(CrowdfundingError::PoolNotExpired);
+        }
+
+        // Check if pool is already disbursed
+        let state_key = StorageKey::PoolState(pool_id);
+        let state: PoolState = env
+            .storage()
+            .instance()
+            .get(&state_key)
+            .unwrap_or(PoolState::Active);
+
+        if state == PoolState::Disbursed {
+            return Err(CrowdfundingError::PoolAlreadyDisbursed);
+        }
+
+        // Grace period: 7 days (604800 seconds)
+        const REFUND_GRACE_PERIOD: u64 = 604800;
+        let refund_available_after = deadline + REFUND_GRACE_PERIOD;
+
+        // Check if grace period has passed
+        if now < refund_available_after {
+            return Err(CrowdfundingError::RefundGracePeriodNotPassed);
+        }
+
+        // Get contributor's contribution
+        let contribution_key = StorageKey::PoolContribution(pool_id, contributor.clone());
+        let contribution: PoolContribution = env
+            .storage()
+            .instance()
+            .get(&contribution_key)
+            .ok_or(CrowdfundingError::NoContributionToRefund)?;
+
+        if contribution.amount <= 0 {
+            return Err(CrowdfundingError::NoContributionToRefund);
+        }
+
+        // Transfer tokens back to contributor
+        use soroban_sdk::token;
+        let token_client = token::Client::new(&env, &contribution.asset);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &contributor,
+            &contribution.amount,
+        );
+
+        // Update pool metrics
+        let metrics_key = StorageKey::PoolMetrics(pool_id);
+        let mut metrics: PoolMetrics = env
+            .storage()
+            .instance()
+            .get(&metrics_key)
+            .unwrap_or(PoolMetrics::new());
+
+        metrics.total_raised -= contribution.amount;
+        // Note: We don't decrement contributor_count as the contributor may have other contributions
+        // or we want to keep historical data
+
+        env.storage().instance().set(&metrics_key, &metrics);
+
+        // Remove or zero out the contribution record
+        // We zero it out to prevent double refunds while keeping historical record
+        let zeroed_contribution = PoolContribution {
+            pool_id,
+            contributor: contributor.clone(),
+            amount: 0,
+            asset: contribution.asset.clone(),
+        };
+        env.storage()
+            .instance()
+            .set(&contribution_key, &zeroed_contribution);
+
+        // Emit refund event
+        events::refund(
+            &env,
+            pool_id,
+            contributor.clone(),
+            contribution.asset,
+            contribution.amount,
+            now,
         );
 
         Ok(())

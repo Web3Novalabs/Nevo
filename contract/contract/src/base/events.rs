@@ -78,3 +78,15 @@ pub fn emergency_withdraw_executed(env: &Env, admin: Address, token: Address, am
     let topics = (Symbol::new(env, "emergency_withdraw_executed"), admin);
     env.events().publish(topics, (token, amount));
 }
+
+pub fn refund(
+    env: &Env,
+    pool_id: u64,
+    contributor: Address,
+    asset: Address,
+    amount: i128,
+    timestamp: u64,
+) {
+    let topics = (Symbol::new(env, "refund"), pool_id, contributor);
+    env.events().publish(topics, (asset, amount, timestamp));
+}

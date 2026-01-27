@@ -1445,3 +1445,486 @@ fn test_donate_wrong_token() {
     let result = client.try_donate(&campaign_id, &donor, &token2_id, &100i128);
     assert_eq!(result, Err(Ok(CrowdfundingError::TokenTransferFailed)));
 }
+
+// Refund Tests
+
+#[test]
+fn test_refund_after_deadline_and_grace_period() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // Setup token
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id.address());
+    let token_client = soroban_sdk::token::Client::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    // Create pool with deadline
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Refund Test Pool");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test pool for refunds"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let now = 1000u64;
+    env.ledger().with_mut(|li| li.timestamp = now);
+    let deadline = now + 86400; // 1 day from now
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    // Mint tokens to contributor
+    token_admin_client.mint(&contributor, &5_000i128);
+
+    // Contribute
+    let contribution_amount = 2_000i128;
+    client.contribute(
+        &pool_id,
+        &contributor,
+        &token_id.address(),
+        &contribution_amount,
+        &false,
+    );
+
+    // Verify contribution
+    assert_eq!(token_client.balance(&contributor), 3_000i128);
+    assert_eq!(token_client.balance(&contract_id), contribution_amount);
+
+    // Advance time past deadline + grace period (7 days = 604800 seconds)
+    let grace_period = 604800u64;
+    env.ledger()
+        .with_mut(|li| li.timestamp = deadline + grace_period + 1);
+
+    // Refund
+    client.refund(&pool_id, &contributor);
+
+    // Verify refund
+    assert_eq!(token_client.balance(&contributor), 5_000i128);
+    assert_eq!(token_client.balance(&contract_id), 0);
+}
+
+#[test]
+fn test_refund_partial_contribution() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // Setup token
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id.address());
+    let token_client = soroban_sdk::token::Client::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    // Create pool
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Partial Refund Pool");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test partial refund"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let now = 1000u64;
+    env.ledger().with_mut(|li| li.timestamp = now);
+    let deadline = now + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    // Mint tokens
+    token_admin_client.mint(&contributor, &10_000i128);
+
+    // Make multiple contributions
+    client.contribute(
+        &pool_id,
+        &contributor,
+        &token_id.address(),
+        &1_000i128,
+        &false,
+    );
+    client.contribute(
+        &pool_id,
+        &contributor,
+        &token_id.address(),
+        &500i128,
+        &false,
+    );
+    client.contribute(
+        &pool_id,
+        &contributor,
+        &token_id.address(),
+        &750i128,
+        &false,
+    );
+
+    let total_contributed = 2_250i128;
+    assert_eq!(token_client.balance(&contributor), 7_750i128);
+    assert_eq!(token_client.balance(&contract_id), total_contributed);
+
+    // Advance time past deadline + grace period
+    let grace_period = 604800u64;
+    env.ledger()
+        .with_mut(|li| li.timestamp = deadline + grace_period + 1);
+
+    // Refund should return all contributions
+    client.refund(&pool_id, &contributor);
+
+    // Verify full refund
+    assert_eq!(token_client.balance(&contributor), 10_000i128);
+    assert_eq!(token_client.balance(&contract_id), 0);
+}
+
+#[test]
+fn test_refund_fails_before_deadline() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Early Refund Test");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let now = 1000u64;
+    env.ledger().with_mut(|li| li.timestamp = now);
+    let deadline = now + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    token_admin_client.mint(&contributor, &5_000i128);
+    client.contribute(
+        &pool_id,
+        &contributor,
+        &token_id.address(),
+        &1_000i128,
+        &false,
+    );
+
+    // Try to refund before deadline - should fail
+    let result = client.try_refund(&pool_id, &contributor);
+    assert_eq!(result, Err(Ok(CrowdfundingError::PoolNotExpired)));
+}
+
+#[test]
+fn test_refund_fails_before_grace_period() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Grace Period Test");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let now = 1000u64;
+    env.ledger().with_mut(|li| li.timestamp = now);
+    let deadline = now + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    token_admin_client.mint(&contributor, &5_000i128);
+    client.contribute(
+        &pool_id,
+        &contributor,
+        &token_id.address(),
+        &1_000i128,
+        &false,
+    );
+
+    // Advance time past deadline but before grace period
+    let grace_period = 604800u64;
+    env.ledger()
+        .with_mut(|li| li.timestamp = deadline + grace_period - 1);
+
+    // Try to refund - should fail
+    let result = client.try_refund(&pool_id, &contributor);
+    assert_eq!(result, Err(Ok(CrowdfundingError::RefundGracePeriodNotPassed)));
+}
+
+#[test]
+fn test_refund_fails_if_disbursed() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Disbursed Pool Test");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let now = 1000u64;
+    env.ledger().with_mut(|li| li.timestamp = now);
+    let deadline = now + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    token_admin_client.mint(&contributor, &5_000i128);
+    client.contribute(
+        &pool_id,
+        &contributor,
+        &token_id.address(),
+        &1_000i128,
+        &false,
+    );
+
+    // Mark pool as disbursed
+    client.update_pool_state(&pool_id, &PoolState::Disbursed);
+
+    // Advance time past deadline + grace period
+    let grace_period = 604800u64;
+    env.ledger()
+        .with_mut(|li| li.timestamp = deadline + grace_period + 1);
+
+    // Try to refund - should fail
+    let result = client.try_refund(&pool_id, &contributor);
+    assert_eq!(result, Err(Ok(CrowdfundingError::PoolAlreadyDisbursed)));
+}
+
+#[test]
+fn test_refund_fails_no_contribution() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "No Contribution Test");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let now = 1000u64;
+    env.ledger().with_mut(|li| li.timestamp = now);
+    let deadline = now + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    // Advance time past deadline + grace period
+    let grace_period = 604800u64;
+    env.ledger()
+        .with_mut(|li| li.timestamp = deadline + grace_period + 1);
+
+    // Try to refund without contributing - should fail
+    let result = client.try_refund(&pool_id, &contributor);
+    assert_eq!(result, Err(Ok(CrowdfundingError::NoContributionToRefund)));
+}
+
+#[test]
+fn test_multiple_contributors_refund_independently() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id.address());
+    let token_client = soroban_sdk::token::Client::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor1 = Address::generate(&env);
+    let contributor2 = Address::generate(&env);
+    let name = String::from_str(&env, "Multiple Refunds Test");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let now = 1000u64;
+    env.ledger().with_mut(|li| li.timestamp = now);
+    let deadline = now + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    // Both contributors contribute
+    token_admin_client.mint(&contributor1, &5_000i128);
+    token_admin_client.mint(&contributor2, &5_000i128);
+
+    client.contribute(
+        &pool_id,
+        &contributor1,
+        &token_id.address(),
+        &2_000i128,
+        &false,
+    );
+    client.contribute(
+        &pool_id,
+        &contributor2,
+        &token_id.address(),
+        &1_500i128,
+        &false,
+    );
+
+    assert_eq!(token_client.balance(&contract_id), 3_500i128);
+
+    // Advance time past deadline + grace period
+    let grace_period = 604800u64;
+    env.ledger()
+        .with_mut(|li| li.timestamp = deadline + grace_period + 1);
+
+    // Contributor1 refunds
+    client.refund(&pool_id, &contributor1);
+    assert_eq!(token_client.balance(&contributor1), 5_000i128);
+    assert_eq!(token_client.balance(&contract_id), 1_500i128);
+
+    // Contributor2 refunds
+    client.refund(&pool_id, &contributor2);
+    assert_eq!(token_client.balance(&contributor2), 5_000i128);
+    assert_eq!(token_client.balance(&contract_id), 0);
+}
+
+#[test]
+fn test_refund_fails_after_already_refunded() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Double Refund Test");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let now = 1000u64;
+    env.ledger().with_mut(|li| li.timestamp = now);
+    let deadline = now + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    token_admin_client.mint(&contributor, &5_000i128);
+    client.contribute(
+        &pool_id,
+        &contributor,
+        &token_id.address(),
+        &1_000i128,
+        &false,
+    );
+
+    // Advance time past deadline + grace period
+    let grace_period = 604800u64;
+    env.ledger()
+        .with_mut(|li| li.timestamp = deadline + grace_period + 1);
+
+    // First refund succeeds
+    client.refund(&pool_id, &contributor);
+
+    // Try to refund again - should fail
+    let result = client.try_refund(&pool_id, &contributor);
+    assert_eq!(result, Err(Ok(CrowdfundingError::NoContributionToRefund)));
+}
