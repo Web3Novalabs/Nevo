@@ -896,17 +896,7 @@ fn test_donate_and_donor_count() {
 
     let creator = Address::generate(&env);
     let campaign_id = create_test_campaign_id(&env, 103);
-<<<<<<< HEAD
     client.create_campaign(&campaign_id, &String::from_str(&env, "Donation Test"), &creator, &10000i128, &(env.ledger().timestamp() + 1000), &token_id.address());
-=======
-    client.create_campaign(
-        &campaign_id,
-        &String::from_str(&env, "Donation Test"),
-        &creator,
-        &10000i128,
-        &(env.ledger().timestamp() + 1000),
-    );
->>>>>>> main
 
     // 1. Returns 0 for campaign with no donors
     assert_eq!(client.get_donor_count(&campaign_id), 0);
@@ -949,19 +939,8 @@ fn test_get_campaign_goal() {
     let creator = Address::generate(&env);
     let id = create_test_campaign_id(&env, 104);
     let goal = 5555i128;
-<<<<<<< HEAD
     
     client.create_campaign(&id, &String::from_str(&env, "Goal Test"), &creator, &goal, &(env.ledger().timestamp() + 100), &token_id);
-=======
-
-    client.create_campaign(
-        &id,
-        &String::from_str(&env, "Goal Test"),
-        &creator,
-        &goal,
-        &(env.ledger().timestamp() + 100),
-    );
->>>>>>> main
 
     assert_eq!(client.get_campaign_goal(&id), goal);
 }
@@ -981,19 +960,8 @@ fn test_is_campaign_completed() {
     let creator = Address::generate(&env);
     let id = create_test_campaign_id(&env, 105);
     let goal = 1000i128;
-<<<<<<< HEAD
     
     client.create_campaign(&id, &String::from_str(&env, "Completion Test"), &creator, &goal, &(env.ledger().timestamp() + 1000), &token_id.address());
-=======
-
-    client.create_campaign(
-        &id,
-        &String::from_str(&env, "Completion Test"),
-        &creator,
-        &goal,
-        &(env.ledger().timestamp() + 1000),
-    );
->>>>>>> main
 
     // 1. Returns false for new campaign
     assert!(!client.is_campaign_completed(&id));
@@ -1009,14 +977,8 @@ fn test_is_campaign_completed() {
     client.donate(&id, &donor, &token_id.address(), &100i128); // Total 1000
     assert!(client.is_campaign_completed(&id));
 
-<<<<<<< HEAD
     // 4. Campaign remains completed after goal is reached
     assert_eq!(client.get_total_raised(&id), 1000i128);
-=======
-    // 4. Returns true when goal is exceeded
-    client.donate(&id, &donor, &token_id.address(), &100i128); // Total 1100
-    assert!(client.is_campaign_completed(&id));
->>>>>>> main
 }
 
 #[test]
@@ -1035,19 +997,8 @@ fn test_donate_deadline_passed() {
     let creator = Address::generate(&env);
     let id = create_test_campaign_id(&env, 106);
     let deadline = 2000u64;
-<<<<<<< HEAD
     
     client.create_campaign(&id, &String::from_str(&env, "Deadline Test"), &creator, &1000i128, &deadline, &token_id.address());
-=======
-
-    client.create_campaign(
-        &id,
-        &String::from_str(&env, "Deadline Test"),
-        &creator,
-        &1000i128,
-        &deadline,
-    );
->>>>>>> main
 
     let donor = Address::generate(&env);
     token_admin_client.mint(&donor, &5000i128);
@@ -1060,7 +1011,6 @@ fn test_donate_deadline_passed() {
 
     // Donate after deadline - should fail
     let result = client.try_donate(&id, &donor, &token_id.address(), &100i128);
-<<<<<<< HEAD
     assert_eq!(result, Err(Ok(CrowdfundingError::CampaignExpired)));
 }
 
@@ -1429,7 +1379,4 @@ fn test_donate_wrong_token() {
     // Try to donate with wrong token - should fail
     let result = client.try_donate(&campaign_id, &donor, &token2_id, &100i128);
     assert_eq!(result, Err(Ok(CrowdfundingError::TokenTransferFailed)));
-=======
-    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidDeadline)));
->>>>>>> main
 }
