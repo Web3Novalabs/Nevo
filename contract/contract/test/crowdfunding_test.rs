@@ -1697,7 +1697,10 @@ fn test_refund_fails_before_grace_period() {
 
     // Try to refund - should fail
     let result = client.try_refund(&pool_id, &contributor);
-    assert_eq!(result, Err(Ok(CrowdfundingError::RefundGracePeriodNotPassed)));
+    assert_eq!(
+        result,
+        Err(Ok(CrowdfundingError::RefundGracePeriodNotPassed))
+    );
 }
 
 #[test]
