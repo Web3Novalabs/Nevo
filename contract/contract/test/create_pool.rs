@@ -23,7 +23,7 @@ fn test_create_pool_success() {
     let target_amount = 50_000i128; // 50000 cents or relevant unit
     let duration = 30 * 24 * 60 * 60; // 30 days
     let created_at = env.ledger().timestamp();
-    
+
     let config = PoolConfig {
         name: name.clone(),
         description: description.clone(),
@@ -42,8 +42,8 @@ fn test_create_pool_success() {
     assert_eq!(saved_pool.name, name);
     assert_eq!(saved_pool.description, description);
     assert_eq!(saved_pool.target_amount, target_amount);
-    
-    // Note: create_pool in contract generates IDs and stores config. 
+
+    // Note: create_pool in contract generates IDs and stores config.
     // It does NOT verify that the stored config matches the passed config ID-wise because ID is generated.
 }
 
@@ -56,7 +56,7 @@ fn test_create_pool_invalid_description_length() {
     let client = CrowdfundingContractClient::new(&env, &contract_id);
 
     let creator = Address::generate(&env);
-    
+
     // Create a really long description
     let mut script = std::vec![];
     for _ in 0..(MAX_DESCRIPTION_LENGTH + 1) {
@@ -76,16 +76,16 @@ fn test_create_pool_invalid_description_length() {
         created_at: env.ledger().timestamp(),
     };
 
-    // Should panic because validate() calls panic! in the contract implementation or returns error if Result? 
-    // Wait, the `validate` method in inputs panics in typical Soroban patterns if it's just `assert!`. 
+    // Should panic because validate() calls panic! in the contract implementation or returns error if Result?
+    // Wait, the `validate` method in inputs panics in typical Soroban patterns if it's just `assert!`.
     // Let's check `types.rs` implementation of `validate`.
     // It uses `assert!`, so it panics.
-    // However, `create_pool` calls `config.validate()`. 
+    // However, `create_pool` calls `config.validate()`.
     // Testing panic in Soroban is done with `#[should_panic]`.
-    
+
     // BUT checking the code I wrote: I updated `PoolConfig::validate` with `assert!`.
     // So distinct test cases for failures need `#[should_panic]`.
-    
+
     let result = client.try_create_pool(&creator, &config);
     // Since it panics, `try_create_pool` might catch it if it's a contract error, but `assert!` panics the wasm.
     // In test env, it should panic the test.
