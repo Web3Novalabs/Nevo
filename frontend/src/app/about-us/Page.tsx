@@ -1,5 +1,5 @@
-import { Navigation } from "@/components/Navigation";
-import { Footer } from "@/components/Footer";
+import Navigation from "@/components/Navigation";
+import Footer from "@/components/Footer";
 import { Shield, Zap, Eye, TrendingUp, Lock, Heart } from "lucide-react";
 
 export default function AboutUsPage() {
