@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 // import "./globals.css";
 // import { Anton } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
 
 
 // const geistSans = Geist({
@@ -116,6 +117,7 @@ export default function RootLayout({
         suppressHydrationWarning={true}
       >
         <main className="mt-28 ">{children}</main>
+        <Toaster />
       </body>
     </html>
   );
