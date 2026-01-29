@@ -14,7 +14,7 @@ export default function AboutUsPage() {
             About <span className="bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">Nevo</span>
           </h1>
           <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed">
-            We're reimagining charitable giving through blockchain technology, making donations more transparent, efficient, and impactful.
+            We&apos;re reimagining charitable giving through blockchain technology, making donations more transparent, efficient, and impactful.
           </p>
         </div>
       </section>
@@ -58,7 +58,7 @@ export default function AboutUsPage() {
               Why Stellar & Soroban?
             </h2>
             <p className="text-xl text-slate-600 dark:text-slate-400">
-              We built Nevo on Stellar's smart contract platform for good reasons
+              We built Nevo on Stellar&apos;s smart contract platform for good reasons
             </p>
           </div>
 
@@ -95,7 +95,7 @@ export default function AboutUsPage() {
                 Battle-Tested
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Built on Stellar's proven network infrastructure, which has been securing billions in transactions since 2014.
+                Built on Stellar&apos;s proven network infrastructure, which has been securing billions in transactions since 2014.
               </p>
             </div>
 
@@ -131,7 +131,7 @@ export default function AboutUsPage() {
                 DeFi Integration
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Seamless access to Stellar's growing DeFi ecosystem, enabling yield generation on pooled donations.
+                Seamless access to Stellar&apos;s growing DeFi ecosystem, enabling yield generation on pooled donations.
               </p>
             </div>
           </div>
@@ -174,7 +174,7 @@ export default function AboutUsPage() {
                 DeFi Yield Generation
               </h3>
               <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                Idle funds in donation pools can generate passive yield through Stellar's DeFi ecosystem. This means your donations can grow over time, increasing their impact without requiring additional fundraising.
+                Idle funds in donation pools can generate passive yield through Stellar&apos;s DeFi ecosystem. This means your donations can grow over time, increasing their impact without requiring additional fundraising.
               </p>
             </div>
 
