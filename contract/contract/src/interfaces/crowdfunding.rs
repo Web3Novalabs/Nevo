@@ -13,6 +13,7 @@ pub trait CrowdfundingTrait {
         creator: Address,
         goal: i128,
         deadline: u64,
+        token_address: Address,
     ) -> Result<(), CrowdfundingError>;
 
     fn get_campaign(env: Env, id: BytesN<32>) -> Result<CampaignDetails, CrowdfundingError>;
@@ -22,6 +23,14 @@ pub trait CrowdfundingTrait {
     fn get_donor_count(env: Env, campaign_id: BytesN<32>) -> Result<u32, CrowdfundingError>;
 
     fn get_campaign_balance(env: Env, campaign_id: BytesN<32>) -> Result<i128, CrowdfundingError>;
+
+    fn get_total_raised(env: Env, campaign_id: BytesN<32>) -> Result<i128, CrowdfundingError>;
+
+    fn get_contribution(
+        env: Env,
+        campaign_id: BytesN<32>,
+        contributor: Address,
+    ) -> Result<i128, CrowdfundingError>;
 
     fn get_campaign_goal(env: Env, campaign_id: BytesN<32>) -> Result<i128, CrowdfundingError>;
 
@@ -73,4 +82,12 @@ pub trait CrowdfundingTrait {
         amount: i128,
         is_private: bool,
     ) -> Result<(), CrowdfundingError>;
+
+    fn request_emergency_withdraw(
+        env: Env,
+        token: Address,
+        amount: i128,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn execute_emergency_withdraw(env: Env) -> Result<(), CrowdfundingError>;
 }

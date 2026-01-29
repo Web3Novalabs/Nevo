@@ -8,6 +8,16 @@ pub struct CampaignDetails {
     pub creator: Address,
     pub goal: i128,
     pub deadline: u64,
+    pub total_raised: i128,
+    pub token_address: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Contribution {
+    pub campaign_id: BytesN<32>,
+    pub contributor: Address,
+    pub amount: i128,
 }
 
 #[contracttype]
@@ -119,6 +129,16 @@ pub struct DisbursementRequest {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyWithdrawal {
+    pub recipient: Address,
+    pub amount: i128,
+    pub token: Address,
+    pub requested_at: u64,
+    pub executed: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StorageKey {
     Pool(u64),
     PoolState(u64),
@@ -126,6 +146,7 @@ pub enum StorageKey {
     AllCampaigns,
     CampaignMetrics(BytesN<32>),
     CampaignDonor(BytesN<32>, Address),
+    Contribution(BytesN<32>, Address),
 
     NextPoolId,
     IsPaused,
@@ -134,6 +155,7 @@ pub enum StorageKey {
     DisbursementRequest(u64, u64),
     PoolMetadata(u64),
     NextDisbursementId(u64),
+    EmergencyWithdrawal,
 }
 
 #[cfg(test)]

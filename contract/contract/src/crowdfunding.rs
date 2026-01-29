@@ -5,11 +5,10 @@ use crate::base::{
     errors::CrowdfundingError,
     events,
     types::{
-        CampaignDetails, CampaignMetrics, DisbursementRequest, MultiSigConfig, PoolConfig, PoolMetadata,
-        PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH,
-        MAX_URL_LENGTH,
+        CampaignDetails, CampaignMetrics, Contribution, EmergencyWithdrawal, MultiSigConfig,
+        PoolConfig, PoolMetadata, PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH,
+        MAX_HASH_LENGTH, MAX_URL_LENGTH,
     },
-
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;
 
@@ -26,6 +25,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         creator: Address,
         goal: i128,
         deadline: u64,
+        token_address: Address,
     ) -> Result<(), CrowdfundingError> {
         if Self::is_paused(env.clone()) {
             return Err(CrowdfundingError::ContractPaused);
@@ -55,13 +55,17 @@ impl CrowdfundingTrait for CrowdfundingContract {
             creator: creator.clone(),
             goal,
             deadline,
+            total_raised: 0,
+            token_address: token_address.clone(),
         };
 
         env.storage().instance().set(&campaign_key, &campaign);
 
         // Initialize metrics
         let metrics_key = StorageKey::CampaignMetrics(id.clone());
-        env.storage().instance().set(&metrics_key, &CampaignMetrics::new());
+        env.storage()
+            .instance()
+            .set(&metrics_key, &CampaignMetrics::new());
 
         // Update AllCampaigns list
         let mut all_campaigns = env
@@ -70,7 +74,9 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .get(&StorageKey::AllCampaigns)
             .unwrap_or(Vec::new(&env));
         all_campaigns.push_back(id.clone());
-        env.storage().instance().set(&StorageKey::AllCampaigns, &all_campaigns);
+        env.storage()
+            .instance()
+            .set(&StorageKey::AllCampaigns, &all_campaigns);
 
         events::campaign_created(&env, id, title, creator, goal, deadline);
 
@@ -114,6 +120,32 @@ impl CrowdfundingTrait for CrowdfundingContract {
         Ok(metrics.total_raised)
     }
 
+    fn get_total_raised(env: Env, campaign_id: BytesN<32>) -> Result<i128, CrowdfundingError> {
+        let campaign = Self::get_campaign(env, campaign_id)?;
+        Ok(campaign.total_raised)
+    }
+
+    fn get_contribution(
+        env: Env,
+        campaign_id: BytesN<32>,
+        contributor: Address,
+    ) -> Result<i128, CrowdfundingError> {
+        // Validate campaign exists
+        Self::get_campaign(env.clone(), campaign_id.clone())?;
+
+        let contribution_key = StorageKey::Contribution(campaign_id.clone(), contributor.clone());
+        let contribution: Contribution =
+            env.storage()
+                .instance()
+                .get(&contribution_key)
+                .unwrap_or(Contribution {
+                    campaign_id: campaign_id.clone(),
+                    contributor: contributor.clone(),
+                    amount: 0,
+                });
+        Ok(contribution.amount)
+    }
+
     fn get_campaign_goal(env: Env, campaign_id: BytesN<32>) -> Result<i128, CrowdfundingError> {
         let campaign = Self::get_campaign(env, campaign_id)?;
         Ok(campaign.goal)
@@ -137,21 +169,38 @@ impl CrowdfundingTrait for CrowdfundingContract {
         }
         donor.require_auth();
 
+        // Validate donation amount
         if amount <= 0 {
-            return Err(CrowdfundingError::InvalidAmount);
+            return Err(CrowdfundingError::InvalidDonationAmount);
         }
 
-        let campaign = Self::get_campaign(env.clone(), campaign_id.clone())?;
+        // Get campaign and validate it exists
+        let mut campaign = Self::get_campaign(env.clone(), campaign_id.clone())?;
 
-        // Check if campaign is still active (deadline)
+        // Check if campaign is still active (deadline hasn't passed)
         if env.ledger().timestamp() >= campaign.deadline {
-             return Err(CrowdfundingError::InvalidDeadline);
+            return Err(CrowdfundingError::CampaignExpired);
         }
 
-        // Transfer tokens
+        // Check if campaign is already fully funded
+        if campaign.total_raised >= campaign.goal {
+            return Err(CrowdfundingError::CampaignAlreadyFunded);
+        }
+
+        // Verify the asset matches the campaign's token
+        if asset != campaign.token_address {
+            return Err(CrowdfundingError::TokenTransferFailed);
+        }
+
+        // Transfer tokens from donor to contract
         use soroban_sdk::token;
         let token_client = token::Client::new(&env, &asset);
         token_client.transfer(&donor, &env.current_contract_address(), &amount);
+
+        // Update campaign's total_raised
+        campaign.total_raised += amount;
+        let campaign_key = (campaign_id.clone(),);
+        env.storage().instance().set(&campaign_key, &campaign);
 
         // Update metrics
         let metrics_key = StorageKey::CampaignMetrics(campaign_id.clone());
@@ -165,13 +214,37 @@ impl CrowdfundingTrait for CrowdfundingContract {
         metrics.last_donation_at = env.ledger().timestamp();
 
         // Track unique donor
-        let donor_key = StorageKey::CampaignDonor(campaign_id, donor.clone());
+        let donor_key = StorageKey::CampaignDonor(campaign_id.clone(), donor.clone());
         if !env.storage().instance().has(&donor_key) {
             metrics.contributor_count += 1;
             env.storage().instance().set(&donor_key, &true);
         }
 
         env.storage().instance().set(&metrics_key, &metrics);
+
+        // Store individual contribution
+        let contribution_key = StorageKey::Contribution(campaign_id.clone(), donor.clone());
+        let existing_contribution: Contribution = env
+            .storage()
+            .instance()
+            .get(&contribution_key)
+            .unwrap_or(Contribution {
+                campaign_id: campaign_id.clone(),
+                contributor: donor.clone(),
+                amount: 0,
+            });
+
+        let updated_contribution = Contribution {
+            campaign_id: campaign_id.clone(),
+            contributor: donor.clone(),
+            amount: existing_contribution.amount + amount,
+        };
+        env.storage()
+            .instance()
+            .set(&contribution_key, &updated_contribution);
+
+        // Emit DonationMade event
+        events::donation_made(&env, campaign_id, donor, amount);
 
         Ok(())
     }
@@ -472,17 +545,95 @@ impl CrowdfundingTrait for CrowdfundingContract {
         env.storage().instance().set(&metrics_key, &metrics);
 
         // Emit event
-        let topics = (soroban_sdk::Symbol::new(&env, "contribution"), pool_id);
-        env.events().publish(
-            topics,
-            (
-                contributor,
-                asset,
-                amount,
-                env.ledger().timestamp(),
-                is_private,
-            ),
+        events::contribution(
+            &env,
+            pool_id,
+            contributor,
+            asset,
+            amount,
+            env.ledger().timestamp(),
+            is_private,
         );
+
+        Ok(())
+    }
+
+    fn request_emergency_withdraw(
+        env: Env,
+        token: Address,
+        amount: i128,
+    ) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::CampaignNotFound)?;
+        admin.require_auth();
+
+        if env
+            .storage()
+            .instance()
+            .has(&StorageKey::EmergencyWithdrawal)
+        {
+            return Err(CrowdfundingError::EmergencyWithdrawalAlreadyRequested);
+        }
+
+        let now = env.ledger().timestamp();
+        let grace_period = 86400; // 24 hours
+
+        let request = EmergencyWithdrawal {
+            recipient: admin.clone(),
+            amount,
+            token: token.clone(),
+            requested_at: now,
+            executed: false,
+        };
+
+        env.storage()
+            .instance()
+            .set(&StorageKey::EmergencyWithdrawal, &request);
+
+        events::emergency_withdraw_requested(&env, admin, token, amount, now + grace_period);
+
+        Ok(())
+    }
+
+    fn execute_emergency_withdraw(env: Env) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::CampaignNotFound)?;
+        admin.require_auth();
+
+        let key = StorageKey::EmergencyWithdrawal;
+        let request: EmergencyWithdrawal = env
+            .storage()
+            .instance()
+            .get(&key)
+            .ok_or(CrowdfundingError::EmergencyWithdrawalNotRequested)?;
+
+        // If for some reason it's already executed but not removed (shouldn't happen with remove)
+        if request.executed {
+            return Err(CrowdfundingError::EmergencyWithdrawalAlreadyRequested);
+        }
+
+        let now = env.ledger().timestamp();
+        let grace_period = 86400; // 24 hours
+        if now < request.requested_at + grace_period {
+            return Err(CrowdfundingError::EmergencyWithdrawalPeriodNotPassed);
+        }
+
+        use soroban_sdk::token;
+        let token_client = token::Client::new(&env, &request.token);
+        token_client.transfer(&env.current_contract_address(), &admin, &request.amount);
+
+        // Remove the request to allow future requests (or keep it as history? Requirement says "Define clear rules in storage to prevent abuse".
+        // Removing it clears the storage. If we want history, we should use a map or log events.
+        // Events are logged. Clearing storage prevents double withdrawal and clutter.
+        env.storage().instance().remove(&key);
+
+        events::emergency_withdraw_executed(&env, admin, request.token, request.amount);
 
         Ok(())
     }
