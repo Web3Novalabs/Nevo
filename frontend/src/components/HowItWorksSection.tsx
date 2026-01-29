@@ -9,7 +9,7 @@ interface StepProps {
 const Step: React.FC<StepProps> = ({ number, title, description }) => (
   <div className="relative">
     <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl border border-slate-200 dark:border-slate-700 h-full">
-      <div className="absolute -top-5 -left-5 w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+      <div className="absolute -top-5 -left-5 w-12 h-12 bg-[#50C878] rounded-full flex items-center justify-center text-white font-bold text-lg">
         {number}
       </div>
       <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3 mt-2">

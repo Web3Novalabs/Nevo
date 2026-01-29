@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import ConnectWallet from "./ConnectWallet";
+import Link from "next/link";
 
-export const Navigation = () => {
+export default function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
 
   const toggleMenu = () => {
@@ -22,14 +23,16 @@ export const Navigation = () => {
   };
 
   return (
-    <nav className="fixed top-0 w-full bg-white/80 dark:bg-slate-950/80 backdrop-blur-md z-50 border-b border-slate-200 dark:border-slate-800">
+    <nav className="fixed top-0 w-full bg-[#1E293B]  border-b border-[#50C878]/40 z-50 ">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
         {/* Logo */}
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg"></div>
-          <span className="text-xl font-bold text-slate-900 dark:text-white">
-            Nevo
-          </span>
+          <div className="w-8 h-8 bg-[#50C878] rounded-lg"></div>
+          <Link href="/">
+            <span className="text-xl font-bold text-slate-900 dark:text-white">
+              Nevo
+            </span>
+          </Link>
         </div>
 
         {/* Desktop Menu */}
@@ -38,12 +41,12 @@ export const Navigation = () => {
             <a
               key={link.href}
               href={link.href}
-              className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
+              className="text-sm text-[#E2E8F0] 0 hover:text-slate-900 dark:hover:text-white transition"
             >
               {link.label}
             </a>
           ))}
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium">
+          <button className="bg-[#50C878] hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium">
             Launch App
           </button>
           <ConnectWallet />
@@ -85,4 +88,4 @@ export const Navigation = () => {
       )}
     </nav>
   );
-};
+}
