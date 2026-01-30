@@ -44,6 +44,12 @@ pub trait CrowdfundingTrait {
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
 
+    fn create_pool(
+        env: Env,
+        creator: Address,
+        config: PoolConfig,
+    ) -> Result<u64, CrowdfundingError>;
+
     #[allow(clippy::too_many_arguments)]
     fn save_pool(
         env: Env,
@@ -66,7 +72,20 @@ pub trait CrowdfundingTrait {
         new_state: PoolState,
     ) -> Result<(), CrowdfundingError>;
 
-    fn initialize(env: Env, admin: Address) -> Result<(), CrowdfundingError>;
+    fn set_crowdfunding_token(env: Env, token: Address) -> Result<(), CrowdfundingError>;
+
+    fn get_crowdfunding_token(env: Env) -> Result<Address, CrowdfundingError>;
+
+    fn set_creation_fee(env: Env, fee: i128) -> Result<(), CrowdfundingError>;
+
+    fn get_creation_fee(env: Env) -> Result<i128, CrowdfundingError>;
+
+    fn initialize(
+        env: Env,
+        admin: Address,
+        token: Address,
+        creation_fee: i128,
+    ) -> Result<(), CrowdfundingError>;
 
     fn pause(env: Env) -> Result<(), CrowdfundingError>;
 
@@ -83,6 +102,8 @@ pub trait CrowdfundingTrait {
         is_private: bool,
     ) -> Result<(), CrowdfundingError>;
 
+    fn refund(env: Env, pool_id: u64, contributor: Address) -> Result<(), CrowdfundingError>;
+
     fn request_emergency_withdraw(
         env: Env,
         token: Address,
@@ -90,4 +111,8 @@ pub trait CrowdfundingTrait {
     ) -> Result<(), CrowdfundingError>;
 
     fn execute_emergency_withdraw(env: Env) -> Result<(), CrowdfundingError>;
+
+    fn close_pool(env: Env, pool_id: u64, caller: Address) -> Result<(), CrowdfundingError>;
+
+    fn is_closed(env: Env, pool_id: u64) -> Result<bool, CrowdfundingError>;
 }

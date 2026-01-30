@@ -7,7 +7,7 @@ export const HeroSection = () => {
         <div>
           <h1 className="text-5xl sm:text-6xl font-bold text-slate-900 dark:text-white mb-6 leading-tight">
             Secure, Transparent Donation Pools on{" "}
-            <span className="bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
+            <span className="bg-[#50C878] bg-clip-text text-transparent">
               Stellar
             </span>
           </h1>
@@ -17,10 +17,10 @@ export const HeroSection = () => {
             dollar counts.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition transform hover:scale-105">
+            <button className="bg-[#50C878] text-black px-8 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition transform hover:scale-105 cursor-pointer">
               Start Creating Pools <ArrowRight size={20} />
             </button>
-            <button className="border-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 px-8 py-3 rounded-lg font-semibold transition">
+            <button className="border-2 border-gray-600 text-gray-100  hover:bg-blue-50 hover:text-[#50C878] px-8 py-3 rounded-lg font-semibold transition cursor-pointer">
               Learn More
             </button>
           </div>
@@ -53,7 +53,10 @@ export const HeroSection = () => {
         </div>
         <div className="relative h-96 sm:h-full min-h-96">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-3xl blur-3xl"></div>
-          <div className="relative bg-gradient-to-br from-blue-500 to-cyan-500 rounded-3xl h-full flex items-center justify-center">
+          <div
+            className="relative bg-gradient-to-br from-[#50C878] to-[#14B8A6]
+               rounded-3xl h-full flex items-center justify-center"
+          >
             <div className="text-center text-white">
               <Shield size={80} className="mx-auto mb-4 opacity-90" />
               <p className="text-lg font-semibold">Secured on Stellar</p>
