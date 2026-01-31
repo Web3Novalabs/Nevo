@@ -19,7 +19,7 @@ fn create_test_campaign_id(env: &Env, seed: u8) -> BytesN<32> {
     BytesN::from_array(env, &bytes)
 }
 
-fn setup_test(env: &Env) -> (CrowdfundingContractClient, Address, Address) {
+fn setup_test(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
     env.mock_all_auths();
     let contract_id = env.register(CrowdfundingContract, ());
     let client = CrowdfundingContractClient::new(env, &contract_id);
@@ -2131,4 +2131,481 @@ fn test_refund_fails_after_already_refunded() {
     // Try to refund again - should fail
     let result = client.try_refund(&pool_id, &contributor);
     assert_eq!(result, Err(Ok(CrowdfundingError::NoContributionToRefund)));
+}
+
+// Emergency Withdrawal Tests
+
+#[test]
+fn test_request_emergency_withdraw_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_address = token_contract.address();
+
+    client.initialize(&admin, &token_address, &0);
+
+    let amount = 1_000i128;
+    client.request_emergency_withdraw(&token_address, &amount);
+}
+
+#[test]
+fn test_request_emergency_withdraw_duplicate() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_address = token_contract.address();
+
+    client.initialize(&admin, &token_address, &0);
+
+    let amount = 1_000i128;
+    client.request_emergency_withdraw(&token_address, &amount);
+
+    let result = client.try_request_emergency_withdraw(&token_address, &amount);
+    assert_eq!(
+        result,
+        Err(Ok(CrowdfundingError::EmergencyWithdrawalAlreadyRequested))
+    );
+}
+
+#[test]
+fn test_execute_emergency_withdraw_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_address = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_address);
+    let token_client = token::Client::new(&env, &token_address);
+
+    client.initialize(&admin, &token_address, &0);
+
+    token_admin_client.mint(&contract_id, &5_000i128);
+
+    let amount = 1_000i128;
+    let now = 1000u64;
+    env.ledger().with_mut(|li| li.timestamp = now);
+
+    client.request_emergency_withdraw(&token_address, &amount);
+
+    env.ledger().with_mut(|li| li.timestamp = now + 86400 + 1);
+
+    client.execute_emergency_withdraw();
+
+    assert_eq!(token_client.balance(&admin), amount);
+    assert_eq!(token_client.balance(&contract_id), 4_000i128);
+}
+
+#[test]
+fn test_execute_emergency_withdraw_before_grace_period() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_address = token_contract.address();
+
+    client.initialize(&admin, &token_address, &0);
+
+    let amount = 1_000i128;
+    let now = 1000u64;
+    env.ledger().with_mut(|li| li.timestamp = now);
+
+    client.request_emergency_withdraw(&token_address, &amount);
+
+    env.ledger().with_mut(|li| li.timestamp = now + 86399);
+
+    let result = client.try_execute_emergency_withdraw();
+    assert_eq!(
+        result,
+        Err(Ok(CrowdfundingError::EmergencyWithdrawalPeriodNotPassed))
+    );
+}
+
+#[test]
+fn test_execute_emergency_withdraw_not_requested() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_address = token_contract.address();
+
+    client.initialize(&admin, &token_address, &0);
+
+    let result = client.try_execute_emergency_withdraw();
+    assert_eq!(
+        result,
+        Err(Ok(CrowdfundingError::EmergencyWithdrawalNotRequested))
+    );
+}
+
+// Pool Contribution Tests
+
+#[test]
+fn test_contribute_to_pool_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
+    let token_client = token::Client::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Test Pool");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test pool"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    token_admin_client.mint(&contributor, &5_000i128);
+
+    let contribution_amount = 1_000i128;
+    client.contribute(
+        &pool_id,
+        &contributor,
+        &token_id.address(),
+        &contribution_amount,
+        &false,
+    );
+
+    assert_eq!(token_client.balance(&contributor), 4_000i128);
+    assert_eq!(token_client.balance(&contract_id), contribution_amount);
+}
+
+#[test]
+fn test_contribute_to_paused_pool() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_address = token_contract.address();
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_address);
+
+    client.initialize(&admin, &token_address, &0);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Paused Pool");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    client.pause();
+
+    token_admin_client.mint(&contributor, &5_000i128);
+
+    let result = client.try_contribute(&pool_id, &contributor, &token_address, &1_000i128, &false);
+    assert_eq!(result, Err(Ok(CrowdfundingError::ContractPaused)));
+}
+
+#[test]
+fn test_contribute_to_non_active_pool() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Completed Pool");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    client.update_pool_state(&pool_id, &PoolState::Completed);
+
+    token_admin_client.mint(&contributor, &5_000i128);
+
+    let result = client.try_contribute(
+        &pool_id,
+        &contributor,
+        &token_id.address(),
+        &1_000i128,
+        &false,
+    );
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidPoolState)));
+}
+
+#[test]
+fn test_contribute_zero_amount() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Test Pool");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    let result = client.try_contribute(&pool_id, &contributor, &token_id.address(), &0i128, &false);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidAmount)));
+}
+
+#[test]
+fn test_contribute_to_nonexistent_pool() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let contributor = Address::generate(&env);
+
+    let result = client.try_contribute(
+        &999u64,
+        &contributor,
+        &token_id.address(),
+        &1_000i128,
+        &false,
+    );
+    assert_eq!(result, Err(Ok(CrowdfundingError::PoolNotFound)));
+}
+
+#[test]
+fn test_contribute_multiple_contributors() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor1 = Address::generate(&env);
+    let contributor2 = Address::generate(&env);
+    let contributor3 = Address::generate(&env);
+
+    let name = String::from_str(&env, "Multi Contributor Pool");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    token_admin_client.mint(&contributor1, &5_000i128);
+    token_admin_client.mint(&contributor2, &5_000i128);
+    token_admin_client.mint(&contributor3, &5_000i128);
+
+    client.contribute(
+        &pool_id,
+        &contributor1,
+        &token_id.address(),
+        &1_000i128,
+        &false,
+    );
+    client.contribute(
+        &pool_id,
+        &contributor2,
+        &token_id.address(),
+        &2_000i128,
+        &false,
+    );
+    client.contribute(
+        &pool_id,
+        &contributor3,
+        &token_id.address(),
+        &500i128,
+        &false,
+    );
+}
+
+#[test]
+fn test_contribute_private_contribution() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Private Pool");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    token_admin_client.mint(&contributor, &5_000i128);
+
+    client.contribute(
+        &pool_id,
+        &contributor,
+        &token_id.address(),
+        &1_000i128,
+        &true,
+    );
+}
+
+// Configuration Tests
+
+#[test]
+fn test_set_crowdfunding_token_unauthorized() {
+    let env = Env::default();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let non_admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_address = token_contract.address();
+
+    client
+        .mock_auths(&[])
+        .initialize(&admin, &token_address, &0);
+
+    let new_token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let new_token = new_token_contract.address();
+
+    let result = client
+        .mock_auths(&[soroban_sdk::testutils::MockAuth {
+            address: &non_admin,
+            invoke: &soroban_sdk::testutils::MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "set_crowdfunding_token",
+                args: soroban_sdk::vec![&env, new_token.into_val(&env)],
+                sub_invokes: &[],
+            },
+        }])
+        .try_set_crowdfunding_token(&new_token);
+
+    assert!(result.is_err());
 }
