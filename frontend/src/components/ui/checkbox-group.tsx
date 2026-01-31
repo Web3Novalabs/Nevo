@@ -103,7 +103,7 @@ function CheckboxGroupItem({
     >
       <Checkbox
         id={itemId}
-        aria-invalid={error}
+        // aria-invalid={error}
         aria-describedby={description ? `${itemId}-description` : undefined}
         {...props}
       />
