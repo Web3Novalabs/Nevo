@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import ConnectWallet from "./ConnectWallet";
+import { LOGO_SRC, LOGO_WIDTH, LOGO_HEIGHT } from "@/lib/images";
 
 export default function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
@@ -28,7 +30,15 @@ export default function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg"></div>
+          <Image
+            src={LOGO_SRC}
+            alt="Nevo"
+            width={LOGO_WIDTH}
+            height={LOGO_HEIGHT}
+            className="rounded-lg object-cover"
+            sizes="32px"
+            priority
+          />
           <span className="text-xl font-bold text-slate-900 dark:text-white">
             Nevo
           </span>
