@@ -1111,4 +1111,29 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         Ok(())
     }
+
+    fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+
+        admin.require_auth();
+
+        let key = StorageKey::EmergencyContact;
+        env.storage().instance().set(&key, &contact);
+
+        events::emergency_contact_updated(&env, admin.clone(), contact);
+
+        Ok(())
+    }
+
+    fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError> {
+        let key = StorageKey::EmergencyContact;
+        env.storage()
+            .instance()
+            .get(&key)
+            .ok_or(CrowdfundingError::NotInitialized)
+    }
 }

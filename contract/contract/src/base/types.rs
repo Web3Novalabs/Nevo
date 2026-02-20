@@ -226,6 +226,7 @@ pub enum StorageKey {
     PlatformFees,
     GlobalTotalRaised,
     CampaignCancelled(BytesN<32>),
+    EmergencyContact,
 }
 
 #[cfg(test)]

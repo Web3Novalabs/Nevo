@@ -2847,3 +2847,59 @@ fn test_withdraw_platform_fees_insufficient_fees() {
     let res = client.try_withdraw_platform_fees(&admin, &100);
     assert_eq!(res, Err(Ok(CrowdfundingError::InsufficientFees)));
 }
+#[test]
+fn test_set_emergency_contact_success() {
+    let env = Env::default();
+    let (client, admin, _) = setup_test(&env);
+
+    let emergency_contact = Address::generate(&env);
+
+    let result = client.try_set_emergency_contact(&emergency_contact);
+    assert!(result.is_ok());
+
+    let stored_contact = client.get_emergency_contact();
+    assert_eq!(stored_contact, emergency_contact);
+}
+
+#[test]
+fn test_set_emergency_contact_updates_existing() {
+    let env = Env::default();
+    let (client, admin, _) = setup_test(&env);
+
+    let contact1 = Address::generate(&env);
+    client.set_emergency_contact(&contact1);
+
+    let contact2 = Address::generate(&env);
+    client.set_emergency_contact(&contact2);
+
+    let stored_contact = client.get_emergency_contact();
+    assert_eq!(stored_contact, contact2);
+}
+
+#[test]
+fn test_get_emergency_contact_not_initialized() {
+    let env = Env::default();
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let result = client.try_get_emergency_contact();
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_emergency_contact_multiple_updates() {
+    let env = Env::default();
+    let (client, _admin, _) = setup_test(&env);
+
+    let contact1 = Address::generate(&env);
+    client.set_emergency_contact(&contact1);
+    assert_eq!(client.get_emergency_contact(), contact1);
+
+    let contact2 = Address::generate(&env);
+    client.set_emergency_contact(&contact2);
+    assert_eq!(client.get_emergency_contact(), contact2);
+
+    let contact3 = Address::generate(&env);
+    client.set_emergency_contact(&contact3);
+    assert_eq!(client.get_emergency_contact(), contact3);
+}
