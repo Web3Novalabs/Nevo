@@ -55,9 +55,12 @@ export default function Navigation() {
               </a>
             )
           )}
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium">
+          <Link
+            href="/dashboard"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition font-medium text-sm"
+          >
             Launch App
-          </button>
+          </Link>
           <ConnectWallet />
         </div>
 
@@ -100,9 +103,12 @@ export default function Navigation() {
                 </a>
               )
             )}
-            <button className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-medium">
+            <Link
+              href="/dashboard"
+              className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-medium text-sm"
+            >
               Launch App
-            </button>
+            </Link>
           </div>
         </div>
       )}
