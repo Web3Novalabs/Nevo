@@ -1017,6 +1017,27 @@ impl CrowdfundingTrait for CrowdfundingContract {
         Ok(current_state == PoolState::Closed)
     }
 
+    fn verify_cause(env: Env, cause: Address) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+        admin.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&StorageKey::VerifiedCause(cause), &true);
+        Ok(())
+    }
+
+    fn is_cause_verified(env: Env, cause: Address) -> bool {
+        env.storage()
+            .instance()
+            .get(&StorageKey::VerifiedCause(cause))
+            .unwrap_or(false)
+    }
+
     fn withdraw_platform_fees(
         env: Env,
         admin: Address,
