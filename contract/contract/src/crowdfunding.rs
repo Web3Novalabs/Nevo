@@ -1089,4 +1089,8 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         Ok(())
     }
+
+    fn get_contract_version(env: Env) -> String {
+        String::from_str(&env, "1.2.0")
+    }
 }

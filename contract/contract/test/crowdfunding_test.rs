@@ -2754,3 +2754,12 @@ fn test_withdraw_platform_fees_insufficient_fees() {
     let res = client.try_withdraw_platform_fees(&admin, &100);
     assert_eq!(res, Err(Ok(CrowdfundingError::InsufficientFees)));
 }
+
+#[test]
+fn test_get_contract_version() {
+    let env = Env::default();
+    let (client, _, _) = setup_test(&env);
+
+    let version = client.get_contract_version();
+    assert_eq!(version, String::from_str(&env, "1.2.0"));
+}

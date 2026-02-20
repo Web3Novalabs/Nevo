@@ -127,4 +127,6 @@ pub trait CrowdfundingTrait {
         admin: Address,
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
+
+    fn get_contract_version(env: Env) -> String;
 }
