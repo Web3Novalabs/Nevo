@@ -1,4 +1,4 @@
-export default function Footer ()  {
+export default function Footer() {
   return (
     <footer className="bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
@@ -51,7 +51,7 @@ export default function Footer ()  {
           <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
             <li>
               <a
-                href="#"
+                href="/"
                 className="hover:text-slate-900 dark:hover:text-white transition"
               >
                 Documentation
@@ -59,7 +59,7 @@ export default function Footer ()  {
             </li>
             <li>
               <a
-                href="#"
+                href="/"
                 className="hover:text-slate-900 dark:hover:text-white transition"
               >
                 API Reference
@@ -67,7 +67,7 @@ export default function Footer ()  {
             </li>
             <li>
               <a
-                href="#"
+                href="/"
                 className="hover:text-slate-900 dark:hover:text-white transition"
               >
                 GitHub
@@ -82,7 +82,7 @@ export default function Footer ()  {
           <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
             <li>
               <a
-                href="#"
+                href="/"
                 className="hover:text-slate-900 dark:hover:text-white transition"
               >
                 Privacy
@@ -90,7 +90,7 @@ export default function Footer ()  {
             </li>
             <li>
               <a
-                href="#"
+                href="/"
                 className="hover:text-slate-900 dark:hover:text-white transition"
               >
                 Terms
