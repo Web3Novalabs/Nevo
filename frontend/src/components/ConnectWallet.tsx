@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Wallet, LogOut, ChevronDown } from "lucide-react";
+import { Loader2, Wallet, ChevronDown } from "lucide-react";
 import { useWallet } from "./hooks/useWallet";
 import { useStellarBalances } from "./hooks/useStellarBalances";
 import { cn } from "@/lib/utils";

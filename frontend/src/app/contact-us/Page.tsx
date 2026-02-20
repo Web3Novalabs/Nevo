@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import React, { useState } from "react";
 import { ArrowUpRight, ChevronDown } from "lucide-react";
 import Navigation from "../../components/Navigation";
 import Footer from "../../components/Footer";
@@ -27,7 +27,7 @@ export default function ContactPage() {
     setError("");
 
     // Simulate successful submission
-    console.log({ fullName, subject, message, email });
+    // console.log({ fullName, subject, message, email });
 
     setSuccess(true);
 
@@ -146,11 +146,10 @@ export default function ContactPage() {
                   type="submit"
                   disabled={!isFormValid}
                   className={`flex items-center justify-center gap-2 px-8 py-3 rounded-t-lg rounded-b-[18px] font-semibold transition-all duration-300
-    ${
-      isFormValid
-        ? "bg-[#50C878] text-[#0F172A] cursor-pointer"
-        : "bg-[#50C878]/60 text-[#0F172A]/70 cursor-not-allowed"
-    }`}
+    ${isFormValid
+                      ? "bg-[#50C878] text-[#0F172A] cursor-pointer"
+                      : "bg-[#50C878]/60 text-[#0F172A]/70 cursor-not-allowed"
+                    }`}
                 >
                   SEND MESSAGE
                   <ArrowUpRight size={16} aria-hidden={true} />

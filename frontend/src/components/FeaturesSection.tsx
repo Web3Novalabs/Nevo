@@ -1,3 +1,4 @@
+import React from "react";
 import { Lock, TrendingUp, Zap, Eye, CheckCircle, Shield } from "lucide-react";
 
 interface FeatureCardProps {

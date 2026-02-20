@@ -1,3 +1,4 @@
+import React from "react";
 import type { Metadata } from "next";
 // import { DM_Sans, Geist, Geist_Mono } from "next/font/google";
 // import "./globals.css";

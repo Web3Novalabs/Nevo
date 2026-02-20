@@ -1,3 +1,4 @@
+import React from "react";
 import { CheckCircle, Lock, Shield, Eye, Zap } from "lucide-react";
 
 interface TrustIndicatorProps {
