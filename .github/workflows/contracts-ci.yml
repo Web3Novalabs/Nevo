@@ -1,49 +1,73 @@
 name: Contract CI/CD Pipeline
 
 on:
-    push: 
-        branches: [main, develop]
-        paths: 
-            - 'contract/**'
-
-    pull_request:
-        branches: [ main, develop ]
-        paths:
-            - 'contract/**'
+  push:
+    branches: [main, develop]
+    paths:
+      - "contract/**"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "contract/**"
 
 jobs:
-  build:
+  build-and-test:
+    name: Contract Build & Test
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          profile: minimal
-          override: true
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            contract/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Install Stellar CLI
         run: |
           curl -s https://get.stellar.org | bash
+          echo "$HOME/.stellar/bin" >> $GITHUB_PATH
 
-      - name: Check formatting
+      - name: Check Formatting
         run: cargo fmt --all -- --check
-        working-directory: ./contract/contract
+        working-directory: ./contract
 
-      - name: Run contract tests
+      - name: Lint with Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+        working-directory: ./contract
+
+      - name: Run Contract Tests
         run: cargo test
-        working-directory: ./contract/contract
+        working-directory: ./contract
 
-      - name: Build contracts
-        run: cargo build --release
-        working-directory: ./contract/contract
+      - name: Build Contracts (WASM)
+        run: cargo build --target wasm32-unknown-unknown --release
+        working-directory: ./contract
 
-      - name: Deploy to Stellar testnet
+      - name: Verify WASM Build
+        run: |
+          ls -l target/wasm32-unknown-unknown/release/*.wasm
+        working-directory: ./contract
+
+      - name: Deploy to Stellar Testnet (Manual/Workflow Dispatch)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
         run: echo "Add Stellar deployment script here"
-        working-directory: ./contract/contract
+        working-directory: ./contract
         env:
           STELLAR_SECRET: ${{ secrets.STELLAR_SECRET }}

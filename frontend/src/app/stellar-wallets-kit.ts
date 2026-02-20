@@ -51,7 +51,7 @@ export async function connect(callback?: () => Promise<void>) {
         await setWallet(option.id);
         if (callback) await callback();
       } catch (e) {
-        console.error(e);
+        // console.error(e);
       }
       return option.id;
     },
