@@ -44,6 +44,11 @@ pub fn contract_unpaused(env: &Env, admin: Address, timestamp: u64) {
     env.events().publish(topics, timestamp);
 }
 
+pub fn donation_made(env: &Env, campaign_id: BytesN<32>, contributor: Address, amount: i128) {
+    let topics = (Symbol::new(env, "donation_made"), campaign_id);
+    env.events().publish(topics, (contributor, amount));
+}
+
 pub fn contribution(
     env: &Env,
     pool_id: u64,
@@ -72,4 +77,41 @@ pub fn emergency_withdraw_requested(
 pub fn emergency_withdraw_executed(env: &Env, admin: Address, token: Address, amount: i128) {
     let topics = (Symbol::new(env, "emergency_withdraw_executed"), admin);
     env.events().publish(topics, (token, amount));
+}
+
+pub fn crowdfunding_token_set(env: &Env, admin: Address, token: Address) {
+    let topics = (Symbol::new(env, "crowdfunding_token_set"), admin);
+    env.events().publish(topics, token);
+}
+
+pub fn creation_fee_set(env: &Env, admin: Address, fee: i128) {
+    let topics = (Symbol::new(env, "creation_fee_set"), admin);
+    env.events().publish(topics, fee);
+}
+
+pub fn creation_fee_paid(env: &Env, creator: Address, amount: i128) {
+    let topics = (Symbol::new(env, "creation_fee_paid"), creator);
+    env.events().publish(topics, amount);
+}
+
+pub fn refund(
+    env: &Env,
+    pool_id: u64,
+    contributor: Address,
+    asset: Address,
+    amount: i128,
+    timestamp: u64,
+) {
+    let topics = (Symbol::new(env, "refund"), pool_id, contributor);
+    env.events().publish(topics, (asset, amount, timestamp));
+}
+
+pub fn pool_closed(env: &Env, pool_id: u64, closed_by: Address, timestamp: u64) {
+    let topics = (Symbol::new(env, "pool_closed"), pool_id, closed_by);
+    env.events().publish(topics, timestamp);
+}
+
+pub fn platform_fees_withdrawn(env: &Env, admin: Address, amount: i128) {
+    let topics = (Symbol::new(env, "platform_fees_withdrawn"), admin);
+    env.events().publish(topics, amount);
 }

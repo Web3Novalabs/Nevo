@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 // import "./globals.css";
 // import { Anton } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
 
 
 // const geistSans = Geist({
@@ -93,10 +94,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`bg-no-repeat bg-fixed bg h-full bg-cover py-7 antialiased font-dmsans`}
+        className={`bg-no-repeat bg-fixed bg h-full bg-cover antialiased font-dmsans`}
         suppressHydrationWarning={true}
       >
         <main className="mt-28 ">{children}</main>
+        <Toaster />
       </body>
     </html>
   );

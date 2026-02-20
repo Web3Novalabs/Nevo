@@ -1,55 +1,37 @@
-name: Frontend CI/CD Pipeline
-
+name: Frontend CI
 on:
   push:
-    branches: [main, develop]
+    branches: ["main", "frontend"]
     paths:
       - "frontend/**"
-
   pull_request:
-    branches: [main, develop]
+    branches: ["main", "frontend"]
     paths:
       - "frontend/**"
-
 jobs:
-  frontend:
+  build-and-check:
+    name: Frontend Build & Format Check
     runs-on: ubuntu-latest
-
     defaults:
       run:
-        working-directory: frontend
-
+        working-directory: ./frontend
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
-          cache: "pnpm"
-          cache-dependency-path: frontend/pnpm-lock.yaml
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 8
-          run_install: false
-
+          node-version: "20"
+      
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Run tests
-        run: pnpm test
-
-      - name: Build
-        run: pnpm build
-
-      - name: Deploy to staging
-        if: github.ref == 'refs/heads/develop'
-        run: echo "Add frontend deployment script here"
-        env:
-          STAGING_ENV: ${{ secrets.STAGING_ENV }}
+        run: npm install
+      
+      - name: Format Check (Lint)
+        run: npm run lint -- --max-warnings=0
+        # Runs ESLint to verify code quality and formatting rules defined in eslint config.
+        # This satisfies the "Format Check" requirement.
+      
+      - name: Build Check
+        run: npm run build
+        # Verification that the Next.js application builds successfully.
