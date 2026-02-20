@@ -51,4 +51,6 @@ pub enum CrowdfundingError {
     PoolAlreadyClosed = 45,
     PoolNotDisbursedOrRefunded = 46,
     InsufficientFees = 47,
+    /// Basis points must be in the range [0, 10_000] (i.e. 0–100 %)
+    InvalidFeeBasisPoints = 48,
 }
