@@ -1,10 +1,20 @@
+import Image from "next/image";
+import { LOGO_SRC, LOGO_WIDTH, LOGO_HEIGHT } from "@/lib/images";
+
 export default function Footer ()  {
   return (
     <footer className="bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-[#50C878] rounded-lg"></div>
+            <Image
+              src={LOGO_SRC}
+              alt="Nevo"
+              width={LOGO_WIDTH}
+              height={LOGO_HEIGHT}
+              className="rounded-lg object-cover"
+              sizes="32px"
+            />
             <span className="text-lg font-bold text-slate-900 dark:text-white">
               Nevo
             </span>
