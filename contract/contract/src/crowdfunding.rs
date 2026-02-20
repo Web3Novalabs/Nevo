@@ -112,6 +112,18 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .set(&StorageKey::AllCampaigns, &all_campaigns);
 
+        // Update CreatorCampaigns list
+        let creator_key = StorageKey::CreatorCampaigns(creator.clone());
+        let mut creator_campaigns = env
+            .storage()
+            .instance()
+            .get(&creator_key)
+            .unwrap_or(Vec::new(&env));
+        creator_campaigns.push_back(id.clone());
+        env.storage()
+            .instance()
+            .set(&creator_key, &creator_campaigns);
+
         events::campaign_created(&env, id, title, creator, goal, deadline);
 
         Ok(())
@@ -175,6 +187,14 @@ impl CrowdfundingTrait for CrowdfundingContract {
         env.storage()
             .instance()
             .get(&StorageKey::AllCampaigns)
+            .unwrap_or(Vec::new(&env))
+    }
+
+    fn get_campaigns_by_creator(env: Env, creator: Address) -> Vec<BytesN<32>> {
+        let creator_key = StorageKey::CreatorCampaigns(creator);
+        env.storage()
+            .instance()
+            .get(&creator_key)
             .unwrap_or(Vec::new(&env))
     }
 
