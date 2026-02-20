@@ -15,6 +15,11 @@ pub fn campaign_created(
     env.events().publish(topics, (title, goal, deadline));
 }
 
+pub fn campaign_goal_updated(env: &Env, id: BytesN<32>, new_goal: i128) {
+    let topics = (Symbol::new(env, "campaign_goal_updated"), id);
+    env.events().publish(topics, new_goal);
+}
+
 pub fn pool_created(
     env: &Env,
     pool_id: u64,

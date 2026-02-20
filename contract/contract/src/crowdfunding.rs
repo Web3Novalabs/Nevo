@@ -226,6 +226,48 @@ impl CrowdfundingTrait for CrowdfundingContract {
         Ok(balance >= campaign.goal)
     }
 
+    fn update_campaign_goal(
+        env: Env,
+        campaign_id: BytesN<32>,
+        new_goal: i128,
+    ) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+
+        let mut campaign = Self::get_campaign(env.clone(), campaign_id.clone())?;
+        campaign.creator.require_auth();
+
+        // Check if campaign is active
+        if env.ledger().timestamp() >= campaign.deadline {
+            return Err(CrowdfundingError::CampaignExpired);
+        }
+
+        // Check if new goal is valid (positive)
+        if new_goal <= 0 {
+            return Err(CrowdfundingError::InvalidGoal);
+        }
+
+        // Prevent increasing the goal
+        if new_goal > campaign.goal {
+            return Err(CrowdfundingError::InvalidGoalUpdate);
+        }
+
+        // Ensure new goal covers raised amount
+        if new_goal < campaign.total_raised {
+            return Err(CrowdfundingError::InvalidGoalUpdate);
+        }
+
+        // Update goal
+        campaign.goal = new_goal;
+        let campaign_key = (campaign_id.clone(),);
+        env.storage().instance().set(&campaign_key, &campaign);
+
+        events::campaign_goal_updated(&env, campaign_id, new_goal);
+
+        Ok(())
+    }
+
     fn donate(
         env: Env,
         campaign_id: BytesN<32>,
