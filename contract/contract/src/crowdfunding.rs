@@ -767,14 +767,40 @@ impl CrowdfundingTrait for CrowdfundingContract {
             return Err(CrowdfundingError::InvalidPoolState);
         }
 
+        // Calculate platform fee with discount
+        let base_fee_bps = Self::get_platform_fee_percentage(env.clone());
+        let discount_bps = Self::get_asset_discount(env.clone(), asset.clone());
+        
+        // Apply discount: effective_fee = base_fee * (1 - discount/10000)
+        let effective_fee_bps = if discount_bps > 0 {
+            base_fee_bps.saturating_sub((base_fee_bps * discount_bps) / 10000)
+        } else {
+            base_fee_bps
+        };
+
+        // Calculate fee amount: fee = amount * effective_fee_bps / 10000
+        let platform_fee = (amount * effective_fee_bps as i128) / 10000;
+        let net_contribution = amount - platform_fee;
+
         // Transfer tokens
-        // Note: In a real implementation we would use the token client.
-        // For this task we assume the token interface is available via soroban_sdk::token
         use soroban_sdk::token;
         let token_client = token::Client::new(&env, &asset);
         token_client.transfer(&contributor, env.current_contract_address(), &amount);
 
-        // Update metrics
+        // Track platform fees if any
+        if platform_fee > 0 {
+            let platform_fees_key = StorageKey::PlatformFees;
+            let current_fees: i128 = env
+                .storage()
+                .instance()
+                .get(&platform_fees_key)
+                .unwrap_or(0);
+            env.storage()
+                .instance()
+                .set(&platform_fees_key, &(current_fees + platform_fee));
+        }
+
+        // Update metrics with net contribution
         let metrics_key = StorageKey::PoolMetrics(pool_id);
         let mut metrics: PoolMetrics = env
             .storage()
@@ -800,16 +826,16 @@ impl CrowdfundingTrait for CrowdfundingContract {
             metrics.contributor_count += 1;
         }
 
-        metrics.total_raised += amount;
+        metrics.total_raised += net_contribution;
         metrics.last_donation_at = env.ledger().timestamp();
 
         env.storage().instance().set(&metrics_key, &metrics);
 
-        // Update per-user contribution tracking
+        // Update per-user contribution tracking with net contribution
         let updated_contribution = PoolContribution {
             pool_id,
             contributor: contributor.clone(),
-            amount: existing_contribution.amount + amount,
+            amount: existing_contribution.amount + net_contribution,
             asset: asset.clone(),
         };
         env.storage()
@@ -822,7 +848,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             pool_id,
             contributor,
             asset,
-            amount,
+            net_contribution,
             env.ledger().timestamp(),
             is_private,
         );
@@ -1186,5 +1212,61 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .get(&key)
             .ok_or(CrowdfundingError::NotInitialized)
+    }
+
+    fn set_asset_discount(
+        env: Env,
+        asset: Address,
+        discount_bps: u32,
+    ) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+        admin.require_auth();
+
+        // Validate discount is not more than 100% (10000 basis points)
+        if discount_bps > 10000 {
+            return Err(CrowdfundingError::InvalidFee);
+        }
+
+        let key = StorageKey::AssetDiscount(asset.clone());
+        env.storage().instance().set(&key, &discount_bps);
+
+        events::asset_discount_set(&env, admin, asset, discount_bps);
+
+        Ok(())
+    }
+
+    fn get_asset_discount(env: Env, asset: Address) -> u32 {
+        let key = StorageKey::AssetDiscount(asset);
+        env.storage().instance().get(&key).unwrap_or(0)
+    }
+
+    fn set_platform_fee_percentage(env: Env, fee_bps: u32) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+        admin.require_auth();
+
+        // Validate fee is not more than 100% (10000 basis points)
+        if fee_bps > 10000 {
+            return Err(CrowdfundingError::InvalidFee);
+        }
+
+        let key = StorageKey::PlatformFeePercentage;
+        env.storage().instance().set(&key, &fee_bps);
+
+        events::platform_fee_percentage_set(&env, admin, fee_bps);
+
+        Ok(())
+    }
+
+    fn get_platform_fee_percentage(env: Env) -> u32 {
+        let key = StorageKey::PlatformFeePercentage;
+        env.storage().instance().get(&key).unwrap_or(0)
     }
 }

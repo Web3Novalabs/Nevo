@@ -120,3 +120,13 @@ pub fn platform_fees_withdrawn(env: &Env, admin: Address, amount: i128) {
     let topics = (Symbol::new(env, "platform_fees_withdrawn"), admin);
     env.events().publish(topics, amount);
 }
+
+pub fn asset_discount_set(env: &Env, admin: Address, asset: Address, discount_bps: u32) {
+    let topics = (Symbol::new(env, "asset_discount_set"), admin, asset);
+    env.events().publish(topics, discount_bps);
+}
+
+pub fn platform_fee_percentage_set(env: &Env, admin: Address, fee_bps: u32) {
+    let topics = (Symbol::new(env, "platform_fee_percentage_set"), admin);
+    env.events().publish(topics, fee_bps);
+}
