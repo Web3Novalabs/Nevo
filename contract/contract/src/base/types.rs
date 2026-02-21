@@ -18,6 +18,7 @@ pub struct Contribution {
     pub campaign_id: BytesN<32>,
     pub contributor: Address,
     pub amount: i128,
+    pub last_ledger: u32,
 }
 
 #[contracttype]
@@ -202,6 +203,7 @@ pub struct PoolContribution {
     pub contributor: Address,
     pub amount: i128,
     pub asset: Address,
+    pub last_ledger: u32,
 }
 
 #[contracttype]

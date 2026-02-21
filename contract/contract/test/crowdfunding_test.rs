@@ -3088,3 +3088,72 @@ fn test_emergency_contact_multiple_updates() {
     client.set_emergency_contact(&contact3);
     assert_eq!(client.get_emergency_contact(), contact3);
 }
+
+#[test]
+fn test_refund_fails_in_same_ledger() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // Setup token
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    // Create pool
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Flash Donation Test");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Test"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000i128;
+    let now = 1000u64;
+    env.ledger().with_mut(|li| li.timestamp = now);
+    let deadline = now + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    token_admin_client.mint(&contributor, &5_000i128);
+    
+    // Set ledger sequence
+    env.ledger().with_mut(|li| li.sequence = 100);
+    
+    // Contribute
+    client.contribute(
+        &pool_id,
+        &contributor,
+        &token_id.address(),
+        &1_000i128,
+        &false,
+    );
+
+    // Advance time past deadline + grace period but keep same ledger sequence
+    let grace_period = 604800u64;
+    env.ledger().with_mut(|li| {
+        li.timestamp = deadline + grace_period + 1;
+        // li.sequence remains 100
+    });
+
+    // Try to refund in same ledger - should fail
+    let result = client.try_refund(&pool_id, &contributor);
+    assert_eq!(result, Err(Ok(CrowdfundingError::FlashDonationDetected)));
+
+    // Advance ledger sequence
+    env.ledger().with_mut(|li| li.sequence = 101);
+
+    // Try to refund in next ledger - should succeed
+    client.refund(&pool_id, &contributor);
+}
