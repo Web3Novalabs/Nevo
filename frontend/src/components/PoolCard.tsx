@@ -37,9 +37,9 @@ export const PoolCard: React.FC<PoolCardProps> = ({
           <Image
             src={imageUrl}
             alt={title}
-            width={800}
-            height={400}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
           {/* Category Badge over image */}
           <div className="absolute top-4 left-4">

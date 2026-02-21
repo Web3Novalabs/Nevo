@@ -18,6 +18,8 @@ pub trait CrowdfundingTrait {
 
     fn get_campaign(env: Env, id: BytesN<32>) -> Result<CampaignDetails, CrowdfundingError>;
 
+    fn get_campaigns(env: Env, ids: Vec<BytesN<32>>) -> Vec<CampaignDetails>;
+
     fn get_all_campaigns(env: Env) -> Vec<BytesN<32>>;
 
     fn get_donor_count(env: Env, campaign_id: BytesN<32>) -> Result<u32, CrowdfundingError>;
@@ -48,6 +50,11 @@ pub trait CrowdfundingTrait {
         asset: Address,
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
+
+    fn get_campaign_fee_history(
+        env: Env,
+        campaign_id: BytesN<32>,
+    ) -> Result<i128, CrowdfundingError>;
 
     fn create_pool(
         env: Env,
@@ -127,6 +134,8 @@ pub trait CrowdfundingTrait {
     fn close_pool(env: Env, pool_id: u64, caller: Address) -> Result<(), CrowdfundingError>;
 
     fn is_closed(env: Env, pool_id: u64) -> Result<bool, CrowdfundingError>;
+
+    fn renounce_admin(env: Env) -> Result<(), CrowdfundingError>;
 
     fn get_active_campaign_count(env: Env) -> u32;
     fn verify_cause(env: Env, cause: Address) -> Result<(), CrowdfundingError>;
