@@ -709,9 +709,12 @@ export default function DiscoveryPage() {
             collecting contributions with full transparency and DeFi yield.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="bg-[#50C878] text-black px-8 py-3 rounded-lg font-semibold transition transform hover:scale-105 hover:shadow-lg hover:shadow-[#50C878]/20">
+            <Link
+              href="/create-pool"
+              className="bg-[#50C878] text-black px-8 py-3 rounded-lg font-semibold transition transform hover:scale-105 hover:shadow-lg hover:shadow-[#50C878]/20"
+            >
               Create a Pool
-            </button>
+            </Link>
             <Link
               href="/"
               className="border-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white px-8 py-3 rounded-lg font-semibold transition"
