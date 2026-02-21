@@ -2,7 +2,7 @@ use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 use crate::base::{
     errors::CrowdfundingError,
-    types::{CampaignDetails, PoolConfig, PoolMetadata, PoolState},
+    types::{CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolMetadata, PoolState},
 };
 
 pub trait CrowdfundingTrait {
@@ -17,6 +17,8 @@ pub trait CrowdfundingTrait {
     ) -> Result<(), CrowdfundingError>;
 
     fn get_campaign(env: Env, id: BytesN<32>) -> Result<CampaignDetails, CrowdfundingError>;
+
+    fn get_campaigns(env: Env, ids: Vec<BytesN<32>>) -> Vec<CampaignDetails>;
 
     fn get_all_campaigns(env: Env) -> Vec<BytesN<32>>;
 
@@ -35,6 +37,11 @@ pub trait CrowdfundingTrait {
     fn get_campaign_goal(env: Env, campaign_id: BytesN<32>) -> Result<i128, CrowdfundingError>;
 
     fn is_campaign_completed(env: Env, campaign_id: BytesN<32>) -> Result<bool, CrowdfundingError>;
+
+    fn get_campaign_status(
+        env: Env,
+        campaign_id: BytesN<32>,
+    ) -> Result<CampaignLifecycleStatus, CrowdfundingError>;
 
     fn donate(
         env: Env,
@@ -82,6 +89,11 @@ pub trait CrowdfundingTrait {
 
     fn get_global_raised_total(env: Env) -> i128;
 
+    fn get_top_contributor_for_campaign(
+        env: Env,
+        campaign_id: BytesN<32>,
+    ) -> Result<Address, CrowdfundingError>;
+
     fn initialize(
         env: Env,
         admin: Address,
@@ -118,6 +130,9 @@ pub trait CrowdfundingTrait {
 
     fn is_closed(env: Env, pool_id: u64) -> Result<bool, CrowdfundingError>;
 
+    fn renounce_admin(env: Env) -> Result<(), CrowdfundingError>;
+
+    fn get_active_campaign_count(env: Env) -> u32;
     fn verify_cause(env: Env, cause: Address) -> Result<(), CrowdfundingError>;
 
     fn is_cause_verified(env: Env, cause: Address) -> bool;
@@ -128,5 +143,7 @@ pub trait CrowdfundingTrait {
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
 
-    fn get_contract_version(env: Env) -> String;
+    fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError>;
+
+    fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;
 }
