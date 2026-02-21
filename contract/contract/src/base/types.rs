@@ -191,6 +191,7 @@ pub enum StorageKey {
     VerifiedCause(Address),
     PlatformFees,
     GlobalTotalRaised,
+    CreatorCampaigns(Address),
 }
 
 #[cfg(test)]

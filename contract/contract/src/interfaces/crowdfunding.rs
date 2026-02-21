@@ -127,4 +127,6 @@ pub trait CrowdfundingTrait {
         admin: Address,
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
+
+    fn get_campaigns_by_creator(env: Env, creator: Address) -> Vec<BytesN<32>>;
 }
