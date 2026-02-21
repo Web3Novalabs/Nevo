@@ -159,4 +159,10 @@ pub trait CrowdfundingTrait {
     fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;
 
     fn get_contract_version(env: Env) -> String;
+
+    fn blacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
+
+    fn unblacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
+
+    fn is_blacklisted(env: Env, address: Address) -> bool;
 }

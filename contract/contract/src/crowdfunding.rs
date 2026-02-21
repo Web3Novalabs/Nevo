@@ -33,6 +33,11 @@ impl CrowdfundingTrait for CrowdfundingContract {
         }
         creator.require_auth();
 
+        // Check if creator is blacklisted
+        if Self::is_blacklisted(env.clone(), creator.clone()) {
+            return Err(CrowdfundingError::UserBlacklisted);
+        }
+
         if title.is_empty() {
             return Err(CrowdfundingError::InvalidTitle);
         }
@@ -323,6 +328,11 @@ impl CrowdfundingTrait for CrowdfundingContract {
             return Err(CrowdfundingError::ContractPaused);
         }
         donor.require_auth();
+
+        // Check if donor is blacklisted
+        if Self::is_blacklisted(env.clone(), donor.clone()) {
+            return Err(CrowdfundingError::UserBlacklisted);
+        }
 
         // Validate donation amount
         if amount <= 0 {
@@ -1303,5 +1313,45 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
     fn get_contract_version(env: Env) -> String {
         String::from_str(&env, "1.2.0")
+    }
+
+    fn blacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+        admin.require_auth();
+
+        let blacklist_key = StorageKey::Blacklist(address.clone());
+        env.storage().persistent().set(&blacklist_key, &true);
+
+        events::address_blacklisted(&env, admin, address);
+
+        Ok(())
+    }
+
+    fn unblacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+        admin.require_auth();
+
+        let blacklist_key = StorageKey::Blacklist(address.clone());
+        env.storage().persistent().remove(&blacklist_key);
+
+        events::address_unblacklisted(&env, admin, address);
+
+        Ok(())
+    }
+
+    fn is_blacklisted(env: Env, address: Address) -> bool {
+        let blacklist_key = StorageKey::Blacklist(address);
+        env.storage()
+            .persistent()
+            .get(&blacklist_key)
+            .unwrap_or(false)
     }
 }
