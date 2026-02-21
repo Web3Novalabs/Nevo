@@ -12,10 +12,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref,
   ) => {
     const baseStyles =
-      "font-semibold transition transform hover:scale-105 rounded-lg";
+      "font-semibold transition-all duration-300 hover:-translate-y-1 active:scale-95 rounded-lg";
 
     const variants = {
-      primary: "bg-blue-600 hover:bg-blue-700 text-white",
+      primary: "bg-blue-600 hover:bg-blue-700 text-white active:shadow-[0_0_20px_rgba(37,99,235,0.6)]",
       secondary: "bg-white text-blue-600 hover:bg-slate-50",
       outline:
         "border-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950",

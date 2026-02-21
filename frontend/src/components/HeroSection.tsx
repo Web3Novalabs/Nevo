@@ -1,4 +1,5 @@
-import { ArrowRight, Shield } from "lucide-react";
+import { ArrowRight, Shield, Compass } from "lucide-react";
+import Link from "next/link";
 
 export const HeroSection = () => {
   return (
@@ -17,12 +18,12 @@ export const HeroSection = () => {
             dollar counts.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <button className="bg-[#50C878] text-black px-8 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition transform hover:scale-105 cursor-pointer">
+            <button className="bg-[#50C878] text-black px-8 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all duration-300 hover:-translate-y-1 active:scale-95 active:shadow-[0_0_20px_rgba(80,200,120,0.6)] cursor-pointer">
               Start Creating Pools <ArrowRight size={20} />
             </button>
-            <button className="border-2 border-gray-600 text-gray-100  hover:bg-blue-50 hover:text-[#50C878] px-8 py-3 rounded-lg font-semibold transition cursor-pointer">
-              Learn More
-            </button>
+            <Link href="/discovery" className="border-2 border-gray-600 text-gray-100  hover:bg-blue-50 hover:text-[#50C878] px-8 py-3 rounded-lg font-semibold transition cursor-pointer flex items-center justify-center gap-2">
+              <Compass size={20} /> Discover Pools
+            </Link>
           </div>
           <div className="mt-12 flex gap-8">
             <div>
