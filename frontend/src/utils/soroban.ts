@@ -6,9 +6,7 @@ import {
   Address,
   nativeToScVal,
   scValToNative,
-  StrKey,
   TransactionBuilder,
-  Operation,
 } from "@stellar/stellar-sdk";
 import { signTransaction, getPublicKey } from "@/app/stellar-wallets-kit";
 
@@ -122,8 +120,8 @@ export async function createPool(formData: {
     xdr.ScVal.scvVoid(), // signers: None (void for Option::None)
   ];
 
-  // Build the transaction
-  const builder = new SorobanRpc.TransactionBuilder(sourceAccount, {
+  // Build the transaction using TransactionBuilder
+  const builder = new TransactionBuilder(sourceAccount, {
     fee: "100",
     networkPassphrase: NETWORK_PASSPHRASE,
   });
@@ -158,11 +156,8 @@ export async function createPool(formData: {
   ).build();
 
   // Sign the transaction using the wallet kit
-  // The signTransaction function from wallet kit expects XDR string
-  const signedTxXdr = await signTransaction(restoredTx.toXDR(), {
-    network: NETWORK_PASSPHRASE,
-    accountToSign: publicKey,
-  });
+  // The signTransaction function from wallet kit expects XDR string and returns signed XDR string
+  const signedTxXdr = await signTransaction(restoredTx.toXDR());
 
   // Parse the signed transaction
   const signedTx = TransactionBuilder.fromXDR(signedTxXdr, NETWORK_PASSPHRASE);
