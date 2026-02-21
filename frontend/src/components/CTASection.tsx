@@ -10,7 +10,7 @@ export const CTASection = () => {
           collective giving.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <button className="bg-white text-black hover:bg-slate-50 px-8 py-3 rounded-lg font-semibold transition transform hover:scale-105">
+          <button className="bg-white text-black hover:bg-slate-50 px-8 py-3 rounded-lg font-semibold transition-all duration-300 hover:-translate-y-1 active:scale-95 active:shadow-[0_0_20px_rgba(255,255,255,0.6)]">
             Launch Application
           </button>
           <button className="border-2 border-white hover:bg-white/10 text-white px-8 py-3 rounded-lg font-semibold transition">

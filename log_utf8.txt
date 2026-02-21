@@ -1,0 +1,72 @@
+﻿commit ca47259a910a3b5a2b8779a8ac56045c976ebacf
+Author: Sundayabel222 <abel123sunday@gmail.com>
+Date:   Fri Feb 20 09:10:44 2026 +0100
+
+    fix: resolve TS1117 and JSX any type errors
+
+commit 44e04ea9ccf8838289b360b4df5e34c8d6ce1bb1
+Author: Otowo Samuel <samuelotowo@gmail.com>
+Date:   Fri Jan 23 14:26:07 2026 +0100
+
+    Multi-Signature Disbursement Implementation (#32)
+    
+    * feat: Add multi-signature or admin threshold verification for disbursement
+    
+    * fix: resolved issues
+
+commit 38bc4f0efbecfb1eaa693de24876e318757f8327
+Author: Ayomide Adeniran <141429949+ayomideadeniran@users.noreply.github.com>
+Date:   Fri Jan 23 12:00:30 2026 +0100
+
+    feat: implement contribution receipt event emission (#36)
+
+commit c5edf47e66bbaf527db5c1da5c9e2c10218470df
+Merge: 5707dfb bfc56f1
+Author: Akinshola <114211385+Akshola00@users.noreply.github.com>
+Date:   Thu Jan 22 20:45:33 2026 +0100
+
+    Merge pull request #34 from Jemiiah/main
+    
+      Implement Emergency Pause/Unpause Functionality
+
+commit bfc56f1b8f3ba127ab6aae9af8662bd5604218ab
+Author: Jemiiah <ram@Jemiiah-MacBook-Pro.local>
+Date:   Thu Jan 22 09:35:32 2026 -0800
+
+     implemented admin functionality to pause and unpause the crowdfunding contract
+
+commit 5707dfbffd9011929ed3260323045645673b721d
+Merge: b5380d4 28f76f0
+Author: Akinshola <114211385+Akshola00@users.noreply.github.com>
+Date:   Thu Jan 22 16:56:28 2026 +0100
+
+    Merge pull request #33 from EDOHWARES/feature/pool-data-structures
+    
+    Add Nevo donation pool data structures and adjust crowdfunding logic
+
+commit 28f76f04f2c59f7845713206f62e881fbf370353
+Author: EDOHWARES <edohemmanuel4real@gmail.com>
+Date:   Thu Jan 22 16:08:11 2026 +0100
+
+    Add Nevo donation pool data structures and adjust crowdfunding logic
+
+commit b5380d40f03648e143d02cc728fbdad01be7bbf5
+Author: Oshioke Salaki <salaki1902@gmail.com>
+Date:   Thu Jan 22 10:05:21 2026 +0100
+
+    feat: wallets (#31)
+
+commit 753263757c883d4ec555d05e0a0291651c17b16e
+Merge: 950fc50 8c237e0
+Author: Akinshola <114211385+Akshola00@users.noreply.github.com>
+Date:   Thu Jan 22 09:28:23 2026 +0100
+
+    Merge pull request #29 from anonfedora/feat/stellar_pool_storage_management
+    
+    feat: Stellar pool storage management
+
+commit 8c237e02338cbb1fe0fb0337e9272c823a601ebf
+Author: Anonfedora <musaeleazar090@gmail.com>
+Date:   Thu Jan 22 06:02:52 2026 +0100
+
+    feat: Stellar pool storage management

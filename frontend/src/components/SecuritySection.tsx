@@ -13,7 +13,7 @@ const TrustIndicator: React.FC<TrustIndicatorProps> = ({
   value,
   label,
 }) => (
-  <div className={`${bgColor} p-8 rounded-2xl border`}>
+  <div className={`${bgColor} p-8 rounded-2xl border transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl`}>
     {icon}
     <div className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
       {value}

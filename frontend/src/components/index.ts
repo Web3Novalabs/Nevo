@@ -5,3 +5,4 @@ export * from "./ui/input";
 export * from "./ui/label";
 export * from "./ui/sonner";
 export * from "./ui/tooltip";
+export { default as GlobalSearch } from "./GlobalSearch";
