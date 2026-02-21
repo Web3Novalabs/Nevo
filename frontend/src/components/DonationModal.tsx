@@ -1,25 +1,55 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, DollarSign, Wallet } from "lucide-react";
+import { X, DollarSign, Wallet, Loader2 } from "lucide-react";
+import { getPublicKey } from "@/app/stellar-wallets-kit";
+import { executeDonation } from "@/lib/stellar-transaction";
+import { DonationReceipt } from "./DonationReceipt";
 
 interface DonationModalProps {
   isOpen: boolean;
   onClose: () => void;
   poolTitle: string;
+  poolAddress?: string;
 }
 
 type Asset = "XLM" | "USDC";
+
+interface ReceiptData {
+  amount: string;
+  asset: Asset;
+  transactionHash: string;
+  timestamp: Date;
+  donorAddress: string;
+}
 
 export const DonationModal: React.FC<DonationModalProps> = ({
   isOpen,
   onClose,
   poolTitle,
+  poolAddress = "GCZYLNGU4CA5NAWBAVTHMZH4JKXRCN3XWWIL3KIJMZ6QDMRKFZYQUD7Z",
 }) => {
   const [amount, setAmount] = useState<string>("");
   const [asset, setAsset] = useState<Asset>("XLM");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
 
   if (!isOpen) return null;
+
+  if (receiptData) {
+    return (
+      <DonationReceipt
+        isOpen={true}
+        onClose={handleCloseReceipt}
+        poolTitle={poolTitle}
+        amount={receiptData.amount}
+        asset={receiptData.asset}
+        transactionHash={receiptData.transactionHash}
+        timestamp={receiptData.timestamp}
+        donorAddress={receiptData.donorAddress}
+      />
+    );
+  }
 
   const quickAmounts = ["10", "50", "100"];
   const estimatedFee = asset === "XLM" ? "0.00001 XLM" : "0.00 USDC (Covered)";
@@ -35,9 +65,47 @@ export const DonationModal: React.FC<DonationModalProps> = ({
     }
   };
 
-  const handleDonate = () => {
-    // Implement actual donation logic here later
-    console.log(`Donating ${amount} ${asset} to ${poolTitle}`);
+  const handleDonate = async () => {
+    if (!amount || parseFloat(amount) <= 0) return;
+
+    setIsProcessing(true);
+    try {
+      const donorAddress = await getPublicKey();
+      if (!donorAddress) {
+        alert("Please connect your wallet first");
+        setIsProcessing(false);
+        return;
+      }
+
+      const result = await executeDonation({
+        amount,
+        asset,
+        poolAddress,
+        donorAddress,
+      });
+
+      if (result.success && result.hash) {
+        setReceiptData({
+          amount,
+          asset,
+          transactionHash: result.hash,
+          timestamp: new Date(),
+          donorAddress,
+        });
+      } else {
+        alert(`Transaction failed: ${result.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Donation error:", error);
+      alert("Failed to process donation");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCloseReceipt = () => {
+    setReceiptData(null);
+    setAmount("");
     onClose();
   };
 
@@ -154,10 +222,17 @@ export const DonationModal: React.FC<DonationModalProps> = ({
         <div className="p-6 border-t border-slate-200 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900/20">
           <button
             onClick={handleDonate}
-            disabled={!amount || parseFloat(amount) <= 0}
-            className="w-full py-4 text-lg font-semibold rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/25 transition-all"
+            disabled={!amount || parseFloat(amount) <= 0 || isProcessing}
+            className="w-full py-4 text-lg font-semibold rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2"
           >
-            Confirm Donation
+            {isProcessing ? (
+              <>
+                <Loader2 className="animate-spin" size={20} />
+                Processing...
+              </>
+            ) : (
+              "Confirm Donation"
+            )}
           </button>
         </div>
       </div>
