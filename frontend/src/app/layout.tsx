@@ -97,7 +97,7 @@ export default function RootLayout({
         className={`bg-no-repeat bg-fixed bg h-full bg-cover antialiased font-dmsans`}
         suppressHydrationWarning={true}
       >
-        <main className="mt-28 ">{children}</main>
+        <main className="">{children}</main>
         <Toaster />
       </body>
     </html>
