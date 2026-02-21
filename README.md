@@ -40,13 +40,22 @@ Traditional donation platforms charge high fees and lack transparency. Nevo solv
 
 ## Getting Started
 
+### Quick Links
+
+- 📖 [Complete Setup Guide](SETUP.md) - Detailed setup instructions
+- 🚀 [Deployment Checklist](DEPLOYMENT_CHECKLIST.md) - Pre-deployment verification
+- 🔗 [Integration Guide](INTEGRATION_GUIDE.md) - Frontend-contract integration
+- 📊 [Project Status](PROJECT_STATUS.md) - Current development status
+- 📝 [Completion Summary](COMPLETION_SUMMARY.md) - Recent updates
+
 ### Prerequisites
 
 - Node.js >= 16.x
 - Rust (for smart contract development)
+- Soroban CLI
 - Stellar account (testnet or mainnet)
 
-### Development
+### Quick Start
 
 ```bash
 # Clone the repository
@@ -56,12 +65,46 @@ cd Nevo
 # Smart contract development
 cd contract
 cargo build --target wasm32-unknown-unknown --release
+cargo test
 
 # Frontend development
 cd frontend
 npm install
 npm run dev
 ```
+
+For detailed setup instructions, see [SETUP.md](SETUP.md).
+
+## Project Structure
+
+```
+Nevo/
+├── contract/              # Soroban smart contract
+│   ├── contract/
+│   │   ├── src/          # Contract source code
+│   │   └── test/         # Comprehensive test suite
+│   └── README.md         # Contract documentation
+├── frontend/             # Next.js frontend application
+│   ├── src/
+│   │   ├── app/         # Next.js pages
+│   │   ├── components/  # React components
+│   │   └── lib/         # Utilities and hooks
+│   └── package.json
+├── SETUP.md             # Complete setup guide
+├── DEPLOYMENT_CHECKLIST.md  # Deployment procedures
+├── INTEGRATION_GUIDE.md     # Integration instructions
+├── PROJECT_STATUS.md        # Current project status
+└── README.md            # This file
+```
+
+## Documentation
+
+- **[Contract Documentation](contract/README.md)** - Smart contract API and features
+- **[Setup Guide](SETUP.md)** - Environment setup and configuration
+- **[Integration Guide](INTEGRATION_GUIDE.md)** - Connect frontend to contract
+- **[Deployment Checklist](DEPLOYMENT_CHECKLIST.md)** - Production deployment steps
+- **[Project Status](PROJECT_STATUS.md)** - Development progress tracking
+- **[Contributing Guidelines](contributor.md)** - How to contribute
 
 ## Contributing
 
