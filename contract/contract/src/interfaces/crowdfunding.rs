@@ -142,4 +142,16 @@ pub trait CrowdfundingTrait {
     fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError>;
 
     fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;
+
+    fn set_asset_discount(
+        env: Env,
+        asset: Address,
+        discount_bps: u32,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn get_asset_discount(env: Env, asset: Address) -> u32;
+
+    fn set_platform_fee_percentage(env: Env, fee_bps: u32) -> Result<(), CrowdfundingError>;
+
+    fn get_platform_fee_percentage(env: Env) -> u32;
 }
