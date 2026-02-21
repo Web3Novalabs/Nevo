@@ -44,6 +44,11 @@ pub fn contract_unpaused(env: &Env, admin: Address, timestamp: u64) {
     env.events().publish(topics, timestamp);
 }
 
+pub fn emergency_contact_updated(env: &Env, admin: Address, contact: Address) {
+    let topics = (Symbol::new(env, "emergency_contact_updated"), admin);
+    env.events().publish(topics, contact);
+}
+
 pub fn donation_made(env: &Env, campaign_id: BytesN<32>, contributor: Address, amount: i128) {
     let topics = (Symbol::new(env, "donation_made"), campaign_id);
     env.events().publish(topics, (contributor, amount));
