@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
+import { OptimizedImage } from "@/components/OptimizedImage";
 import ConnectWallet from "./ConnectWallet";
 import { LOGO_SRC, LOGO_WIDTH, LOGO_HEIGHT } from "@/lib/images";
 
@@ -30,7 +30,7 @@ export default function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <Image
+          <OptimizedImage
             src={LOGO_SRC}
             alt="Nevo"
             width={LOGO_WIDTH}

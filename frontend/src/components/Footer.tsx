@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { OptimizedImage } from "@/components/OptimizedImage";
 import { LOGO_SRC, LOGO_WIDTH, LOGO_HEIGHT } from "@/lib/images";
 
 export default function Footer ()  {
@@ -7,7 +7,7 @@ export default function Footer ()  {
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <Image
+            <OptimizedImage
               src={LOGO_SRC}
               alt="Nevo"
               width={LOGO_WIDTH}
