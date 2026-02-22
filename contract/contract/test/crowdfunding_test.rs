@@ -3052,6 +3052,117 @@ fn test_set_crowdfunding_token_unauthorized() {
 }
 
 #[test]
+fn test_update_campaign_goal_success() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 100);
+    let title = String::from_str(&env, "Goal Update Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Mock auth for update
+    client.update_campaign_goal(&campaign_id, &5_000i128);
+
+    let campaign = client.get_campaign(&campaign_id);
+    assert_eq!(campaign.goal, 5_000i128);
+}
+
+#[test]
+fn test_update_campaign_goal_increase_fails() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 101);
+    let title = String::from_str(&env, "Goal Increase Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Try to increase goal - should fail
+    let result = client.try_update_campaign_goal(&campaign_id, &15_000i128);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidGoalUpdate)));
+}
+
+#[test]
+fn test_update_campaign_goal_below_raised_fails() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 102);
+    let title = String::from_str(&env, "Goal Below Raised Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Donate
+    let donor = Address::generate(&env);
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_address);
+    token_admin_client.mint(&donor, &8_000i128);
+
+    client.donate(&campaign_id, &donor, &token_address, &6_000i128);
+
+    // Try to lower goal below raised amount - should fail
+    let result = client.try_update_campaign_goal(&campaign_id, &5_000i128);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidGoalUpdate)));
+}
+
+#[test]
+fn test_update_campaign_goal_expired_fails() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 103);
+    let title = String::from_str(&env, "Expired Update Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Advance time past deadline
+    env.ledger().with_mut(|li| li.timestamp = deadline + 1);
+
+    let result = client.try_update_campaign_goal(&campaign_id, &5_000i128);
+    assert_eq!(result, Err(Ok(CrowdfundingError::CampaignExpired)));
+}
+
+#[test]
 fn test_get_active_campaign_count() {
     let env = Env::default();
     let (client, _, token_address) = setup_test(&env);
