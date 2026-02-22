@@ -131,11 +131,10 @@ export const DonationModal: React.FC<DonationModalProps> = ({
                 <button
                   key={a}
                   onClick={() => setAsset(a)}
-                  className={`flex items-center justify-center space-x-2 py-3 px-4 rounded-xl border transition-all ${
-                    asset === a
+                  className={`flex items-center justify-center space-x-2 py-3 px-4 rounded-xl border transition-all ${asset === a
                       ? "border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
                       : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400"
-                  }`}
+                    }`}
                 >
                   <Wallet size={16} />
                   <span className="font-semibold">{a}</span>
