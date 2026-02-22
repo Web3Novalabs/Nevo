@@ -233,6 +233,8 @@ pub enum StorageKey {
     EmergencyContact,
     AssetDiscount(Address),
     PlatformFeePercentage,
+    CampaignFeeHistory(BytesN<32>),
+    Blacklist(Address),
 }
 
 #[cfg(test)]
