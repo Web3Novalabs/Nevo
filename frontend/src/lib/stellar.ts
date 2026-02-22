@@ -29,11 +29,11 @@ export async function executeDonation(
   const assetAddress =
     asset === "XLM"
       ? StellarSdk.Address.fromString(
-          "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
-        )
+        "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
+      )
       : StellarSdk.Address.fromString(
-          "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA"
-        );
+        "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA"
+      );
 
   const tx = new StellarSdk.TransactionBuilder(account, {
     fee: StellarSdk.BASE_FEE,
@@ -71,4 +71,41 @@ export async function executeDonation(
     success: result.successful,
     ledger: result.ledger,
   };
+}
+
+export interface AccountBalances {
+  XLM: string;
+  USDC: string;
+}
+
+export async function getAccountBalances(address: string): Promise<AccountBalances> {
+  try {
+    const account = await server.loadAccount(address);
+    const balances = account.balances;
+
+    let xlmBalance = "0";
+    let usdcBalance = "0";
+
+    const nativeBalance = balances.find(b => b.asset_type === "native");
+    if (nativeBalance) {
+      xlmBalance = nativeBalance.balance;
+    }
+
+    // Checking for USDC (Circle) on Mainnet
+    const usdc = balances.find(b => {
+      const asset = b as StellarSdk.Horizon.HorizonApi.BalanceLineAsset;
+      return (
+        asset.asset_code === "USDC" &&
+        asset.asset_issuer === "GA5ZSEJYB37JRC5AVCIAZBA2C3FSYV36AVH6C6X5S5F5TH6I2N7VCO3UP"
+      );
+    });
+    if (usdc) {
+      usdcBalance = usdc.balance;
+    }
+
+    return { XLM: xlmBalance, USDC: usdcBalance };
+  } catch (error) {
+    console.error("Error fetching account balances:", error);
+    return { XLM: "0", USDC: "0" };
+  }
 }
