@@ -1,0 +1,61 @@
+﻿On branch fix-nextjs-jsx-metadata-errors
+Your branch is up to date with 'origin/fix-nextjs-jsx-metadata-errors'.
+
+You have unmerged paths.
+  (fix conflicts and run "git commit")
+  (use "git merge --abort" to abort the merge)
+
+Changes to be committed:
+	modified:   contract/Cargo.lock
+	modified:   contract/contract/src/base/errors.rs
+	modified:   contract/contract/src/base/events.rs
+	modified:   contract/contract/src/base/types.rs
+	modified:   contract/contract/src/crowdfunding.rs
+	modified:   contract/contract/src/interfaces/crowdfunding.rs
+	modified:   contract/contract/test/crowdfunding_test.rs
+	modified:   contract/contract/test_snapshots/test/crowdfunding_test/test_contribute_and_event_emission.1.json
+	modified:   contract/contract/test_snapshots/test/crowdfunding_test/test_create_campaign.1.json
+	modified:   contract/contract/test_snapshots/test/crowdfunding_test/test_create_duplicate_campaign.1.json
+	new file:   contract/contract/test_snapshots/test/crowdfunding_test/test_donate_and_donor_count.1.json
+	new file:   contract/contract/test_snapshots/test/crowdfunding_test/test_donate_deadline_passed.1.json
+	new file:   contract/contract/test_snapshots/test/crowdfunding_test/test_emergency_withdraw.1.json
+	new file:   contract/contract/test_snapshots/test/crowdfunding_test/test_get_all_campaigns.1.json
+	modified:   contract/contract/test_snapshots/test/crowdfunding_test/test_get_campaign.1.json
+	new file:   contract/contract/test_snapshots/test/crowdfunding_test/test_get_campaign_goal.1.json
+	modified:   contract/contract/test_snapshots/test/crowdfunding_test/test_get_pool.1.json
+	new file:   contract/contract/test_snapshots/test/crowdfunding_test/test_get_pool_metadata_nonexistent.1.json
+	modified:   contract/contract/test_snapshots/test/crowdfunding_test/test_getters_work_when_paused.1.json
+	new file:   contract/contract/test_snapshots/test/crowdfunding_test/test_is_campaign_completed.1.json
+	modified:   contract/contract/test_snapshots/test/crowdfunding_test/test_multiple_campaigns.1.json
+	modified:   contract/contract/test_snapshots/test/crowdfunding_test/test_multiple_pools.1.json
+	modified:   contract/contract/test_snapshots/test/crowdfunding_test/test_operations_enabled_after_unpause.1.json
+	modified:   contract/contract/test_snapshots/test/crowdfunding_test/test_save_pool.1.json
+	modified:   contract/contract/test_snapshots/test/crowdfunding_test/test_update_pool_state.1.json
+	new file:   contract/contract/test_snapshots/test/crowdfunding_test/test_update_pool_state_blocked_when_paused.1.json
+	modified:   contract/contract/test_snapshots/test/crowdfunding_test/test_update_pool_state_invalid_transition.1.json
+	modified:   frontend/src/app/stellar-wallets-kit.ts
+	new file:   frontend/src/app/waitlist/page.tsx
+	new file:   frontend/src/components/waitlist/index.ts
+	new file:   frontend/src/components/waitlist/signup-form.tsx
+
+Unmerged paths:
+  (use "git add <file>..." to mark resolution)
+	both modified:   frontend/src/app/layout.tsx
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   frontend/src/components/HeroSection.tsx
+	modified:   frontend/src/components/Navigation.tsx
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	frontend/src/app/explore/
+	frontend/src/components/ExplorePools.tsx
+	log.txt
+	log_utf8.txt
+	prs.json
+	prs_all.json
+	status.txt
+	status_utf8.txt
+

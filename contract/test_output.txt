@@ -1,0 +1,235 @@
+warning: use of deprecated method `soroban_sdk::Env::register_contract`: use `register`
+  --> contract/src/../test/verify_cause.rs:11:27
+   |
+11 | ...nv.register_contract(No...
+   |       ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: unused import: `crate::interfaces::crowdfunding::CrowdfundingTrait`
+ --> contract/src/../test/verify_cause.rs:6:5
+  |
+6 | use cra...undingTrait;
+  |     ^^^...^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `admin`
+   --> contract/src/../test/close_pool_test.rs:166:18
+    |
+166 | ...t, admin, _) = ...
+    |       ^^^^^ help: if this is intentional, prefix it with an underscore: `_admin`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `admin`
+   --> contract/src/../test/crowdfunding_test.rs:283:18
+    |
+283 | ...t, admin, token...
+    |       ^^^^^ help: if this is intentional, prefix it with an underscore: `_admin`
+
+warning: unused variable: `token_admin`
+   --> contract/src/../test/crowdfunding_test.rs:286:9
+    |
+286 | ...et token_admin = ...
+    |       ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_token_admin`
+
+warning: unused variable: `token_client`
+   --> contract/src/../test/crowdfunding_test.rs:287:9
+    |
+287 | ...et token_client = ...
+    |       ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_token_client`
+
+warning: unused variable: `admin`
+    --> contract/src/../test/crowdfunding_test.rs:3105:18
+     |
+3105 | ...t, admin, _) =...
+     |       ^^^^^ help: if this is intentional, prefix it with an underscore: `_admin`
+
+warning: unused variable: `admin`
+    --> contract/src/../test/crowdfunding_test.rs:3119:18
+     |
+3119 | ...t, admin, _) =...
+     |       ^^^^^ help: if this is intentional, prefix it with an underscore: `_admin`
+
+warning: function `test_withdraw_platform_fees_success` is never used
+    --> contract/src/../test/crowdfunding_test.rs:2945:4
+     |
+2945 | fn test_withdraw_platform_fees_success() {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> contract/src/../test/close_pool_test.rs:13:20
+   |
+13 | ...v: &Env) -> (CrowdfundingContractClient, A...
+   |       ^^^^      ^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |       |
+   |       the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+   = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+   |
+13 | fn setup_test(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
+   |                                                        ++++
+
+warning: `hello-world` (lib test) generated 10 warnings (run `cargo fix --lib -p hello-world --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running unittests src/lib.rs (target/debug/deps/hello_world-cc9f683f0ba24cc3)
+
+running 124 tests
+test base::types::tests::campaign_lifecycle_status_discriminants_correct ... ok
+test base::types::tests::campaign_status_cancelled_takes_precedence_over_live ... ok
+test base::types::tests::campaign_status_cancelled_when_manually_cancelled ... ok
+test base::types::tests::campaign_status_cancelled_takes_precedence_over_successful ... ok
+test base::types::tests::campaign_status_expired_when_at_deadline_unmet ... ok
+test base::types::tests::campaign_status_expired_when_deadline_passed ... ok
+test base::types::tests::campaign_status_large_numbers ... ok
+test base::types::tests::campaign_status_live_when_active ... ok
+test base::types::tests::campaign_status_successful_takes_precedence_over_expired ... ok
+test base::types::tests::campaign_status_successful_when_goal_exactly_reached ... ok
+test base::types::tests::campaign_status_successful_when_goal_reached ... ok
+test base::types::tests::campaign_status_zero_raised_zero_goal ... ok
+test base::types::tests::pool_metrics_new_is_zero_initialized ... ok
+test base::types::tests::pool_state_variants_have_expected_discriminants ... ok
+test base::types::tests::pool_config_validation_success ... ok
+test base::types::tests::pool_config_invalid_target_amount_panics - should panic ... ok
+test test::close_pool_test::test_close_pool_already_closed ... ok
+test test::close_pool_test::test_close_pool_completed_state ... ok
+test test::close_pool_test::test_close_pool_after_refund_scenario ... ok
+test test::close_pool_test::test_close_pool_nonexistent ... ok
+test test::close_pool_test::test_close_pool_not_disbursed_or_cancelled ... ok
+test test::close_pool_test::test_close_pool_paused_state ... ok
+test test::close_pool_test::test_close_pool_emits_event ... ok
+test test::close_pool_test::test_close_pool_success_after_cancellation ... ok
+test test::close_pool_test::test_close_pool_state_transition_sequence ... ok
+test test::create_pool::test_create_pool_invalid_description_length ... ok
+test test::create_pool::test_create_pool_panic_description_length - should panic ... ok
+test test::close_pool_test::test_close_pool_success_after_disbursement ... ok
+test test::close_pool_test::test_close_pool_multiple_pools ... ok
+test test::close_pool_test::test_close_pool_unauthorized ... ok
+test test::close_pool_test::test_is_closed_nonexistent_pool ... ok
+test test::close_pool_test::test_is_closed_for_closed_pool ... ok
+test test::create_pool::test_create_pool_success ... ok
+test test::close_pool_test::test_is_closed_for_active_pool ... ok
+test test::create_pool::test_create_pool_validation_logic ... ok
+test test::crowdfunding_test::test_admin_auth_for_pause ... ok
+test test::crowdfunding_test::test_cannot_unpause_already_unpaused ... ok
+test test::crowdfunding_test::test_cannot_pause_already_paused ... ok
+test test::crowdfunding_test::test_contribute_to_nonexistent_pool ... ok
+test test::crowdfunding_test::test_configuration_functions ... ok
+test test::crowdfunding_test::test_contribute_to_non_active_pool ... ok
+test test::crowdfunding_test::test_contribute_and_event_emission ... ok
+test test::crowdfunding_test::test_contribute_private_contribution ... ok
+test test::crowdfunding_test::test_contribute_to_paused_pool ... ok
+test test::crowdfunding_test::test_contribute_zero_amount ... ok
+test test::crowdfunding_test::test_create_campaign_insufficient_balance ... ok
+test test::crowdfunding_test::test_contribute_to_pool_success ... ok
+test test::crowdfunding_test::test_create_campaign_uninitialized ... ok
+test test::close_pool_test::test_is_closed_for_different_states ... ok
+test test::crowdfunding_test::test_create_campaign ... ok
+test test::crowdfunding_test::test_create_campaign_with_empty_title ... ok
+test test::crowdfunding_test::test_contribute_multiple_contributors ... ok
+test test::crowdfunding_test::test_create_campaign_with_past_deadline ... ok
+test test::crowdfunding_test::test_create_campaign_with_zero_goal ... ok
+test test::crowdfunding_test::test_create_campaign_with_fee ... ok
+test test::crowdfunding_test::test_create_campaign_with_negative_goal ... ok
+test test::crowdfunding_test::test_donate_after_deadline ... ok
+test test::crowdfunding_test::test_create_duplicate_campaign ... ok
+test test::crowdfunding_test::test_donate_campaign_already_funded ... ok
+test test::crowdfunding_test::test_donate_deadline_passed ... ok
+test test::crowdfunding_test::test_donate_zero_amount ... ok
+test test::crowdfunding_test::test_donate_wrong_token ... ok
+test test::crowdfunding_test::test_donate_to_nonexistent_campaign ... ok
+test test::crowdfunding_test::test_donate_insufficient_balance ... ok
+test test::crowdfunding_test::test_contribution_tracked_per_user ... ok
+test test::crowdfunding_test::test_donate_and_donor_count ... ok
+test test::crowdfunding_test::test_execute_emergency_withdraw_not_requested ... ok
+test test::crowdfunding_test::test_execute_emergency_withdraw_before_grace_period ... ok
+test test::crowdfunding_test::test_emergency_contact_multiple_updates ... ok
+test test::crowdfunding_test::test_get_active_campaign_count_empty ... ok
+test test::crowdfunding_test::test_execute_emergency_withdraw_success ... ok
+test test::crowdfunding_test::test_get_active_campaign_count ... ok
+test test::crowdfunding_test::test_donation_updates_total_raised ... ok
+test test::crowdfunding_test::test_get_active_campaign_count_all_expired ... ok
+test test::crowdfunding_test::test_get_active_campaign_count_decreases_over_time ... ok
+test test::crowdfunding_test::test_get_active_campaign_count_all_active ... ok
+test test::crowdfunding_test::test_get_active_campaign_count_unaffected_by_donation_status ... ok
+test test::crowdfunding_test::test_get_emergency_contact_not_initialized ... ok
+test test::crowdfunding_test::test_get_campaign_fee_history ... FAILED
+test test::crowdfunding_test::test_get_nonexistent_pool ... ok
+test test::crowdfunding_test::test_get_campaign ... ok
+test test::crowdfunding_test::test_get_all_campaigns ... ok
+test test::crowdfunding_test::test_get_nonexistent_campaign ... ok
+test test::crowdfunding_test::test_get_pool_metadata_nonexistent ... ok
+test test::crowdfunding_test::test_get_campaign_goal ... ok
+test test::crowdfunding_test::test_get_pool ... ok
+test test::crowdfunding_test::test_get_campaign_status_successful ... ok
+test test::crowdfunding_test::test_get_campaign_status_expired ... ok
+test test::crowdfunding_test::test_get_campaign_status_live ... ok
+test test::crowdfunding_test::test_getters_work_when_paused ... ok
+test test::crowdfunding_test::test_multiple_campaigns ... ok
+test test::crowdfunding_test::test_non_admin_cannot_pause - should panic ... ok
+test test::crowdfunding_test::test_multiple_pools ... ok
+test test::crowdfunding_test::test_is_campaign_completed ... ok
+test test::crowdfunding_test::test_pause_unpause_full_cycle ... ok
+test test::crowdfunding_test::test_operations_disabled_when_paused ... ok
+test test::crowdfunding_test::test_multiple_donations_same_campaign ... ok
+test test::crowdfunding_test::test_multiple_contributors_refund_independently ... ok
+test test::crowdfunding_test::test_global_raised_total_increases_across_campaigns ... ok
+test test::crowdfunding_test::test_refund_fails_no_contribution ... ok
+test test::crowdfunding_test::test_operations_enabled_after_unpause ... ok
+test test::crowdfunding_test::test_refund_fails_before_deadline ... ok
+test test::crowdfunding_test::test_request_emergency_withdraw_duplicate ... ok
+test test::crowdfunding_test::test_refund_fails_after_already_refunded ... ok
+test test::crowdfunding_test::test_refund_fails_before_grace_period ... ok
+test test::crowdfunding_test::test_refund_fails_if_disbursed ... ok
+test test::crowdfunding_test::test_refund_after_deadline_and_grace_period ... ok
+test test::crowdfunding_test::test_request_emergency_withdraw_success ... ok
+test test::crowdfunding_test::test_save_pool_validation ... ok
+test test::crowdfunding_test::test_save_pool ... ok
+test test::crowdfunding_test::test_refund_partial_contribution ... ok
+test test::crowdfunding_test::test_set_emergency_contact_success ... ok
+test test::crowdfunding_test::test_set_emergency_contact_updates_existing ... ok
+test test::crowdfunding_test::test_update_pool_state_nonexistent ... ok
+test test::crowdfunding_test::test_update_pool_state ... ok
+test test::verify_cause::test_verify_cause_not_initialized - should panic ... ok
+test test::crowdfunding_test::test_set_crowdfunding_token_unauthorized ... ok
+test test::crowdfunding_test::test_update_pool_state_invalid_transition ... ok
+test test::verify_cause::test_verify_cause_success ... ok
+test test::crowdfunding_test::test_withdraw_platform_fees_insufficient_fees ... ok
+test test::verify_cause::test_verify_cause_unauthorized - should panic ... ok
+test test::crowdfunding_test::test_update_pool_state_blocked_when_paused ... ok
+test test::crowdfunding_test::test_successful_donation ... ok
+test test::crowdfunding_test::test_withdraw_platform_fees_non_admin_fails ... ok
+
+failures:
+
+---- test::crowdfunding_test::test_get_campaign_fee_history stdout ----
+
+thread 'test::crowdfunding_test::test_get_campaign_fee_history' (240083) panicked at /home/edohwares/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-env-host-23.0.1/src/host.rs:861:9:
+HostError: Error(Auth, InvalidAction)
+
+Event log (newest first):
+   0: [Diagnostic Event] topics:[error, Error(Auth, InvalidAction)], data:"escalating error to panic"
+   1: [Diagnostic Event] topics:[error, Error(Auth, InvalidAction)], data:["contract call failed", donate, [Bytes(0c00000000000000000000000000000000000000000000000000000000000000), CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM, CCABDO7UZXYE4W6GVSEGSNNZTKSLFQGKXXQTH6OX7M7GKZ4Z6CUJNGZN, 500000]]
+   2: [Failed Diagnostic Event (not emitted)] contract:CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM, topics:[error, Error(Auth, InvalidAction)], data:"caught error from function"
+   3: [Failed Diagnostic Event (not emitted)] contract:CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM, topics:[error, Error(Auth, InvalidAction)], data:"escalating error to panic"
+   4: [Failed Diagnostic Event (not emitted)] contract:CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM, topics:[error, Error(Auth, InvalidAction)], data:["contract call failed", transfer, [CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM, CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM, 500000]]
+   5: [Failed Diagnostic Event (not emitted)] contract:CCABDO7UZXYE4W6GVSEGSNNZTKSLFQGKXXQTH6OX7M7GKZ4Z6CUJNGZN, topics:[error, Error(Auth, InvalidAction)], data:["Unauthorized function call for address", CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM]
+   6: [Failed Diagnostic Event (not emitted)] contract:CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM, topics:[fn_call, CCABDO7UZXYE4W6GVSEGSNNZTKSLFQGKXXQTH6OX7M7GKZ4Z6CUJNGZN, transfer], data:[CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM, CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM, 500000]
+   7: [Failed Diagnostic Event (not emitted)] contract:CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM, topics:[fn_return, __check_auth], data:Void
+   8: [Failed Diagnostic Event (not emitted)] contract:CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM, topics:[fn_call, CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM, __check_auth], data:[Bytes(3a36954315725b4170c7d7b548b65a87017afd50fcb127612c0e7f6fabd3f3de), Void, [[Contract, {args: [Bytes(0c00000000000000000000000000000000000000000000000000000000000000), CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM, CCABDO7UZXYE4W6GVSEGSNNZTKSLFQGKXXQTH6OX7M7GKZ4Z6CUJNGZN, 500000], contract: CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM, fn_name: donate}]]]
+   9: [Diagnostic Event] topics:[fn_call, CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM, donate], data:[Bytes(0c00000000000000000000000000000000000000000000000000000000000000), CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM, CCABDO7UZXYE4W6GVSEGSNNZTKSLFQGKXXQTH6OX7M7GKZ4Z6CUJNGZN, 500000]
+
+Writing test snapshot file for test "test::crowdfunding_test::test_get_campaign_fee_history" to "test_snapshots/test/crowdfunding_test/test_get_campaign_fee_history.1.json".
+
+
+failures:
+    test::crowdfunding_test::test_get_campaign_fee_history
+
+test result: FAILED. 123 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.30s
+
+error: test failed, to rerun pass `--lib`

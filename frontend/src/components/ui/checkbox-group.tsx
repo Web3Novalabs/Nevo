@@ -57,7 +57,6 @@ function CheckboxGroup({
         role="group"
         aria-labelledby={label ? groupId : undefined}
         aria-describedby={cn(descriptionId, errorId)}
-        aria-invalid={error ? "true" : undefined}
         className="space-y-2"
       >
         {children}

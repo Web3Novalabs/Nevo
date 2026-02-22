@@ -2,7 +2,7 @@ use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 use crate::base::{
     errors::CrowdfundingError,
-    types::{CampaignDetails, PoolConfig, PoolMetadata, PoolState},
+    types::{CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolMetadata, PoolState},
 };
 
 pub trait CrowdfundingTrait {
@@ -17,6 +17,8 @@ pub trait CrowdfundingTrait {
     ) -> Result<(), CrowdfundingError>;
 
     fn get_campaign(env: Env, id: BytesN<32>) -> Result<CampaignDetails, CrowdfundingError>;
+
+    fn get_campaigns(env: Env, ids: Vec<BytesN<32>>) -> Vec<CampaignDetails>;
 
     fn get_all_campaigns(env: Env) -> Vec<BytesN<32>>;
 
@@ -36,6 +38,11 @@ pub trait CrowdfundingTrait {
 
     fn is_campaign_completed(env: Env, campaign_id: BytesN<32>) -> Result<bool, CrowdfundingError>;
 
+    fn get_campaign_status(
+        env: Env,
+        campaign_id: BytesN<32>,
+    ) -> Result<CampaignLifecycleStatus, CrowdfundingError>;
+
     fn donate(
         env: Env,
         campaign_id: BytesN<32>,
@@ -43,6 +50,23 @@ pub trait CrowdfundingTrait {
         asset: Address,
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
+
+    fn update_campaign_goal(
+        env: Env,
+        campaign_id: BytesN<32>,
+        new_goal: i128,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn extend_campaign_deadline(
+        env: Env,
+        campaign_id: BytesN<32>,
+        new_deadline: u64,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn get_campaign_fee_history(
+        env: Env,
+        campaign_id: BytesN<32>,
+    ) -> Result<i128, CrowdfundingError>;
 
     fn create_pool(
         env: Env,
@@ -82,6 +106,11 @@ pub trait CrowdfundingTrait {
 
     fn get_global_raised_total(env: Env) -> i128;
 
+    fn get_top_contributor_for_campaign(
+        env: Env,
+        campaign_id: BytesN<32>,
+    ) -> Result<Address, CrowdfundingError>;
+
     fn initialize(
         env: Env,
         admin: Address,
@@ -118,6 +147,9 @@ pub trait CrowdfundingTrait {
 
     fn is_closed(env: Env, pool_id: u64) -> Result<bool, CrowdfundingError>;
 
+    fn renounce_admin(env: Env) -> Result<(), CrowdfundingError>;
+
+    fn get_active_campaign_count(env: Env) -> u32;
     fn verify_cause(env: Env, cause: Address) -> Result<(), CrowdfundingError>;
 
     fn is_cause_verified(env: Env, cause: Address) -> bool;
@@ -127,4 +159,16 @@ pub trait CrowdfundingTrait {
         admin: Address,
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
+
+    fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError>;
+
+    fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;
+
+    fn get_contract_version(env: Env) -> String;
+
+    fn blacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
+
+    fn unblacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
+
+    fn is_blacklisted(env: Env, address: Address) -> bool;
 }
