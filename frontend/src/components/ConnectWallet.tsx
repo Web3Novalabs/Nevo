@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getPublicKey, connect, disconnect } from "../app/stellar-wallets-kit";
 import { getAccountBalances, AccountBalances } from "../lib/stellar";
 import { LogOut, Wallet } from "lucide-react";
+import { toast } from "sonner";
 
 export default function ConnectWallet() {
   const [publicKey, setPublicKey] = useState<string | null>(null);
@@ -24,7 +25,10 @@ export default function ConnectWallet() {
 
   async function showConnected() {
     const key = await getPublicKey();
-    await updateState(key);
+    if (key) {
+      await updateState(key);
+      toast.success("Wallet connected successfully!");
+    }
   }
 
   async function handleDisconnect() {
@@ -32,6 +36,7 @@ export default function ConnectWallet() {
       setPublicKey(null);
       setBalances(null);
       setLoading(false);
+      toast.info("Wallet disconnected.");
     });
   }
 
