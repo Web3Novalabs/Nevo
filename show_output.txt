@@ -1,0 +1,13 @@
+﻿commit 3e0d13eb758c89c55fe63e3f44a866756c6f7b76
+Author: Alex PC <benalex8797@gmail.com>
+Date:   Fri Feb 20 09:23:41 2026 +0100
+
+    added changes
+
+frontend/src/app/dashboard/contributions/page.tsx
+frontend/src/app/dashboard/layout.tsx
+frontend/src/app/dashboard/my-pools/page.tsx
+frontend/src/app/dashboard/page.tsx
+frontend/src/app/dashboard/settings/page.tsx
+frontend/src/components/dashboard/DashboardShell.tsx
+frontend/src/components/dashboard/DashboardSidebar.tsx
