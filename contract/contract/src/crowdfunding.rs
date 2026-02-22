@@ -452,12 +452,14 @@ impl CrowdfundingTrait for CrowdfundingContract {
                 campaign_id: campaign_id.clone(),
                 contributor: donor.clone(),
                 amount: 0,
+                last_ledger: env.ledger().sequence(),
             });
 
         let updated_contribution = Contribution {
             campaign_id: campaign_id.clone(),
             contributor: donor.clone(),
             amount: existing_contribution.amount + amount,
+            last_ledger: env.ledger().sequence(),
         };
         env.storage()
             .instance()
@@ -958,6 +960,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
                 contributor: contributor.clone(),
                 amount: 0,
                 asset: asset.clone(),
+                last_ledger: env.ledger().sequence(),
             });
 
         // Only increment contributor_count if this is a new contributor
@@ -976,6 +979,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             contributor: contributor.clone(),
             amount: existing_contribution.amount + amount,
             asset: asset.clone(),
+            last_ledger: env.ledger().sequence(),
         };
         env.storage()
             .instance()
@@ -1056,6 +1060,9 @@ impl CrowdfundingTrait for CrowdfundingContract {
             return Err(CrowdfundingError::NoContributionToRefund);
         }
 
+        // Verify ledger age to prevent flash donations
+        Self::verify_ledger_age(&env, contribution.last_ledger)?;
+
         // Transfer tokens back to contributor
         use soroban_sdk::token;
         let token_client = token::Client::new(&env, &contribution.asset);
@@ -1086,6 +1093,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             contributor: contributor.clone(),
             amount: 0,
             asset: contribution.asset.clone(),
+            last_ledger: contribution.last_ledger,
         };
         env.storage()
             .instance()
@@ -1352,7 +1360,13 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .get(&key)
             .ok_or(CrowdfundingError::NotInitialized)
     }
-
+  
+   fn verify_ledger_age(env: &Env, last_ledger: u32) -> Result<(), CrowdfundingError> {
+        if env.ledger().sequence() <= last_ledger {
+            return Err(CrowdfundingError::FlashDonationDetected);
+        }
+        Ok(())
+    }
     fn get_contract_version(env: Env) -> String {
         String::from_str(&env, "1.2.0")
     }
