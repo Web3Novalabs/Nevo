@@ -278,6 +278,162 @@ fn test_multiple_campaigns() {
 // Pool Storage Tests
 
 #[test]
+fn test_extend_campaign_deadline() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 12);
+    let title = String::from_str(&env, "Extend Deadline");
+    let goal = 1_000_000i128;
+    let initial_deadline = env.ledger().timestamp() + 86400; // +1 day
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &initial_deadline,
+        &token_address,
+    );
+
+    let new_deadline = env.ledger().timestamp() + 2 * 86400; // +2 days
+
+    client
+        .mock_auths(&[MockAuth {
+            address: &creator,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "extend_campaign_deadline",
+                args: (&campaign_id, &new_deadline).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .extend_campaign_deadline(&campaign_id, &new_deadline);
+
+    let campaign = client.get_campaign(&campaign_id);
+    assert_eq!(campaign.deadline, new_deadline);
+}
+
+#[test]
+fn test_extend_campaign_deadline_invalid_auth() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let malicious = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 13);
+    let title = String::from_str(&env, "Extend Auth");
+    let goal = 1_000_000i128;
+    let initial_deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &initial_deadline,
+        &token_address,
+    );
+
+    let new_deadline = env.ledger().timestamp() + 2 * 86400;
+
+    // mock_auths to malicious address simulating a fail
+    // However, in mock_auths, if the caller requires the auth of creator, it will panic
+}
+
+#[test]
+fn test_extend_campaign_too_long() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 14);
+    let title = String::from_str(&env, "Extend Too Long");
+    let goal = 1_000_000i128;
+    let initial_deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &initial_deadline,
+        &token_address,
+    );
+
+    let new_deadline = env.ledger().timestamp() + 91 * 24 * 60 * 60; // 91 days
+
+    let result = client
+        .mock_auths(&[MockAuth {
+            address: &creator,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "extend_campaign_deadline",
+                args: (&campaign_id, &new_deadline).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_extend_campaign_deadline(&campaign_id, &new_deadline);
+
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidDeadline)));
+}
+
+#[test]
+fn test_get_campaign_fee_history() {
+    let env = Env::default();
+    let (client, admin, token_address) = setup_test(&env);
+
+    // Using token_admin pattern from other tests
+    let token_admin = Address::generate(&env);
+    let token_client = token::Client::new(&env, &token_address);
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_address);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 15);
+    let title = String::from_str(&env, "Fee Test Campaign");
+    let goal = 1_000_000i128;
+    let initial_deadline = env.ledger().timestamp() + 86400; // +1 day
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &initial_deadline,
+        &token_address,
+    );
+
+    // Initial fees should be 0
+    let initial_fees = client.get_campaign_fee_history(&campaign_id);
+    assert_eq!(initial_fees, 0);
+
+    // Setup donor balance
+    token_admin_client.mint(&donor, &1_000_000i128);
+
+    // Donate
+    let donation_amount = 500_000i128; // 1% should be 5_000
+
+    // We mock auth to allow transfer to crowdfunding contract and execute donate
+    client.donate(&campaign_id, &donor, &token_address, &donation_amount);
+
+    // Verify counter incremented correctly
+    let current_fees = client.get_campaign_fee_history(&campaign_id);
+    assert_eq!(current_fees, 5_000);
+
+    // Second donation
+    let donation2_amount = 200_000i128; // 1% should be 2_000
+    client.donate(&campaign_id, &donor, &token_address, &donation2_amount);
+
+    // Fees should compound (5000 + 2000)
+    let total_fees = client.get_campaign_fee_history(&campaign_id);
+    assert_eq!(total_fees, 7_000);
+}
+
+// Pool Storage Tests
+
+#[test]
 fn test_save_pool() {
     let env = Env::default();
     env.mock_all_auths();
@@ -971,6 +1127,126 @@ fn test_get_all_campaigns() {
 }
 
 #[test]
+fn test_get_campaigns_bulk_retrieval_order() {
+    let env = Env::default();
+    let (client, _, _) = setup_test(&env);
+
+    let admin = Address::generate(&env);
+    let token_id = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let creator = Address::generate(&env);
+
+    // Create multiple campaigns with different IDs
+    let id_a = create_test_campaign_id(&env, 201);
+    let id_b = create_test_campaign_id(&env, 202);
+    let id_c = create_test_campaign_id(&env, 203);
+    let id_d = create_test_campaign_id(&env, 204);
+
+    client.create_campaign(
+        &id_a,
+        &String::from_str(&env, "Campaign A"),
+        &creator,
+        &1000i128,
+        &(env.ledger().timestamp() + 100),
+        &token_id,
+    );
+    client.create_campaign(
+        &id_b,
+        &String::from_str(&env, "Campaign B"),
+        &creator,
+        &2000i128,
+        &(env.ledger().timestamp() + 200),
+        &token_id,
+    );
+    client.create_campaign(
+        &id_c,
+        &String::from_str(&env, "Campaign C"),
+        &creator,
+        &3000i128,
+        &(env.ledger().timestamp() + 300),
+        &token_id,
+    );
+    client.create_campaign(
+        &id_d,
+        &String::from_str(&env, "Campaign D"),
+        &creator,
+        &4000i128,
+        &(env.ledger().timestamp() + 400),
+        &token_id,
+    );
+
+    // Request campaigns in reverse order: D, C, B, A
+    let mut ids_reverse = Vec::new(&env);
+    ids_reverse.push_back(id_d.clone());
+    ids_reverse.push_back(id_c.clone());
+    ids_reverse.push_back(id_b.clone());
+    ids_reverse.push_back(id_a.clone());
+
+    let campaigns = client.get_campaigns(&ids_reverse);
+
+    // Verify the order matches the requested IDs
+    assert_eq!(campaigns.len(), 4);
+    assert_eq!(campaigns.get(0).unwrap().id, id_d);
+    assert_eq!(campaigns.get(1).unwrap().id, id_c);
+    assert_eq!(campaigns.get(2).unwrap().id, id_b);
+    assert_eq!(campaigns.get(3).unwrap().id, id_a);
+
+    // Verify content matches expected values
+    assert_eq!(campaigns.get(0).unwrap().goal, 4000i128);
+    assert_eq!(campaigns.get(1).unwrap().goal, 3000i128);
+    assert_eq!(campaigns.get(2).unwrap().goal, 2000i128);
+    assert_eq!(campaigns.get(3).unwrap().goal, 1000i128);
+}
+
+#[test]
+fn test_get_campaigns_partial_retrieval() {
+    let env = Env::default();
+    let (client, _, _) = setup_test(&env);
+
+    let admin = Address::generate(&env);
+    let token_id = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let creator = Address::generate(&env);
+
+    // Create two campaigns
+    let id1 = create_test_campaign_id(&env, 211);
+    let id2 = create_test_campaign_id(&env, 212);
+    let id_nonexistent = create_test_campaign_id(&env, 213);
+
+    client.create_campaign(
+        &id1,
+        &String::from_str(&env, "Existing Campaign"),
+        &creator,
+        &1000i128,
+        &(env.ledger().timestamp() + 100),
+        &token_id,
+    );
+    client.create_campaign(
+        &id2,
+        &String::from_str(&env, "Another Campaign"),
+        &creator,
+        &2000i128,
+        &(env.ledger().timestamp() + 100),
+        &token_id,
+    );
+
+    // Request one existing and one non-existing campaign
+    let mut ids = Vec::new(&env);
+    ids.push_back(id1.clone());
+    ids.push_back(id_nonexistent);
+    ids.push_back(id2.clone());
+
+    let campaigns = client.get_campaigns(&ids);
+
+    // Should return only the existing campaigns in order
+    assert_eq!(campaigns.len(), 2);
+    assert_eq!(campaigns.get(0).unwrap().id, id1);
+    assert_eq!(campaigns.get(1).unwrap().id, id2);
+}
+
+#[test]
 fn test_donate_and_donor_count() {
     let env = Env::default();
     let (client, _, token_address) = setup_test(&env);
@@ -1077,6 +1353,99 @@ fn test_is_campaign_completed() {
 
     // 4. Campaign remains completed after goal is reached
     assert_eq!(client.get_total_raised(&id), 1000i128);
+}
+
+#[test]
+fn test_get_campaign_status_live() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let id = create_test_campaign_id(&env, 106);
+    let goal = 1000i128;
+    let deadline = env.ledger().timestamp() + 1000;
+
+    client.create_campaign(
+        &id,
+        &String::from_str(&env, "Live Campaign"),
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    let donor = Address::generate(&env);
+    token_admin_client.mint(&donor, &500i128);
+
+    client.donate(&id, &donor, &token_address, &500i128);
+
+    let status = client.get_campaign_status(&id);
+    assert_eq!(status, crate::base::types::CampaignLifecycleStatus::Live);
+}
+
+#[test]
+fn test_get_campaign_status_successful() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let id = create_test_campaign_id(&env, 107);
+    let goal = 1000i128;
+    let deadline = env.ledger().timestamp() + 1000;
+
+    client.create_campaign(
+        &id,
+        &String::from_str(&env, "Successful Campaign"),
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    let donor = Address::generate(&env);
+    token_admin_client.mint(&donor, &1000i128);
+
+    client.donate(&id, &donor, &token_address, &1000i128);
+
+    let status = client.get_campaign_status(&id);
+    assert_eq!(
+        status,
+        crate::base::types::CampaignLifecycleStatus::Successful
+    );
+}
+
+#[test]
+fn test_get_campaign_status_expired() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+    env.ledger().with_mut(|li| li.timestamp = 1000);
+
+    let creator = Address::generate(&env);
+    let id = create_test_campaign_id(&env, 108);
+    let goal = 1000i128;
+    let deadline = 1500u64;
+
+    client.create_campaign(
+        &id,
+        &String::from_str(&env, "Expired Campaign"),
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    let donor = Address::generate(&env);
+    token_admin_client.mint(&donor, &500i128);
+
+    client.donate(&id, &donor, &token_address, &500i128);
+
+    env.ledger().with_mut(|li| li.timestamp = 2000);
+
+    let status = client.get_campaign_status(&id);
+    assert_eq!(status, crate::base::types::CampaignLifecycleStatus::Expired);
 }
 
 #[test]
@@ -2683,6 +3052,216 @@ fn test_set_crowdfunding_token_unauthorized() {
 }
 
 #[test]
+fn test_update_campaign_goal_success() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 100);
+    let title = String::from_str(&env, "Goal Update Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Mock auth for update
+    client.update_campaign_goal(&campaign_id, &5_000i128);
+
+    let campaign = client.get_campaign(&campaign_id);
+    assert_eq!(campaign.goal, 5_000i128);
+}
+
+#[test]
+fn test_update_campaign_goal_increase_fails() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 101);
+    let title = String::from_str(&env, "Goal Increase Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Try to increase goal - should fail
+    let result = client.try_update_campaign_goal(&campaign_id, &15_000i128);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidGoalUpdate)));
+}
+
+#[test]
+fn test_update_campaign_goal_below_raised_fails() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 102);
+    let title = String::from_str(&env, "Goal Below Raised Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Donate
+    let donor = Address::generate(&env);
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_address);
+    token_admin_client.mint(&donor, &8_000i128);
+
+    client.donate(&campaign_id, &donor, &token_address, &6_000i128);
+
+    // Try to lower goal below raised amount - should fail
+    let result = client.try_update_campaign_goal(&campaign_id, &5_000i128);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidGoalUpdate)));
+}
+
+#[test]
+fn test_update_campaign_goal_expired_fails() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 103);
+    let title = String::from_str(&env, "Expired Update Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Advance time past deadline
+    env.ledger().with_mut(|li| li.timestamp = deadline + 1);
+
+    let result = client.try_update_campaign_goal(&campaign_id, &5_000i128);
+    assert_eq!(result, Err(Ok(CrowdfundingError::CampaignExpired)));
+}
+
+#[test]
+fn test_get_active_campaign_count() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    // Set current time to 1000
+    env.ledger().with_mut(|li| li.timestamp = 1000);
+
+    // Initially should be 0
+    assert_eq!(client.get_active_campaign_count(), 0);
+
+    let creator = Address::generate(&env);
+
+    // Create active campaign (deadline in the future)
+    let active_id = create_test_campaign_id(&env, 50);
+    client.create_campaign(
+        &active_id,
+        &String::from_str(&env, "Active Campaign"),
+        &creator,
+        &1000i128,
+        &2000u64, // deadline = 2000, current time = 1000 → active
+        &token_address,
+    );
+
+    // Create expired campaign (deadline in the past relative to advanced time)
+    let expired_id = create_test_campaign_id(&env, 51);
+    client.create_campaign(
+        &expired_id,
+        &String::from_str(&env, "Expired Campaign"),
+        &creator,
+        &1000i128,
+        &1500u64, // deadline = 1500
+        &token_address,
+    );
+
+    // Advance time past the expired campaign's deadline
+    env.ledger().with_mut(|li| li.timestamp = 1600);
+
+    // Only 1 campaign should be active (deadline 2000 > current 1600)
+    assert_eq!(client.get_active_campaign_count(), 1);
+}
+
+#[test]
+fn test_get_active_campaign_count_empty() {
+    let env = Env::default();
+    let (client, _, _) = setup_test(&env);
+
+    assert_eq!(client.get_active_campaign_count(), 0);
+}
+
+#[test]
+fn test_get_active_campaign_count_all_active() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 1000);
+
+    let creator = Address::generate(&env);
+
+    for i in 0u8..3 {
+        let id = create_test_campaign_id(&env, 60 + i);
+        client.create_campaign(
+            &id,
+            &String::from_str(&env, "Active"),
+            &creator,
+            &1000i128,
+            &5000u64,
+            &token_address,
+        );
+    }
+
+    assert_eq!(client.get_active_campaign_count(), 3);
+}
+
+#[test]
+fn test_get_active_campaign_count_all_expired() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 1000);
+
+    let creator = Address::generate(&env);
+
+    for i in 0u8..3 {
+        let id = create_test_campaign_id(&env, 70 + i);
+        client.create_campaign(
+            &id,
+            &String::from_str(&env, "Soon Expired"),
+            &creator,
+            &1000i128,
+            &2000u64,
+            &token_address,
+        );
+    }
+
+    env.ledger().with_mut(|li| li.timestamp = 3000);
+
+    assert_eq!(client.get_active_campaign_count(), 0);
+}
+
 fn test_withdraw_platform_fees_success() {
     let env = Env::default();
     let (client, admin, token_address) = setup_test(&env);
@@ -2741,6 +3320,92 @@ fn test_withdraw_platform_fees_non_admin_fails() {
         &token_address,
     );
 
+    env.ledger().with_mut(|li| li.timestamp = deadline);
+    assert_eq!(client.get_active_campaign_count(), 0);
+
+    env.ledger().with_mut(|li| li.timestamp = deadline - 1);
+    assert_eq!(client.get_active_campaign_count(), 1);
+}
+
+#[test]
+fn test_get_active_campaign_count_decreases_over_time() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 1000);
+
+    let creator = Address::generate(&env);
+
+    let id1 = create_test_campaign_id(&env, 90);
+    client.create_campaign(
+        &id1,
+        &String::from_str(&env, "Short Campaign"),
+        &creator,
+        &1000i128,
+        &2000u64,
+        &token_address,
+    );
+
+    let id2 = create_test_campaign_id(&env, 91);
+    client.create_campaign(
+        &id2,
+        &String::from_str(&env, "Medium Campaign"),
+        &creator,
+        &1000i128,
+        &4000u64,
+        &token_address,
+    );
+
+    let id3 = create_test_campaign_id(&env, 92);
+    client.create_campaign(
+        &id3,
+        &String::from_str(&env, "Long Campaign"),
+        &creator,
+        &1000i128,
+        &6000u64,
+        &token_address,
+    );
+
+    assert_eq!(client.get_active_campaign_count(), 3);
+
+    env.ledger().with_mut(|li| li.timestamp = 2500);
+    assert_eq!(client.get_active_campaign_count(), 2);
+
+    env.ledger().with_mut(|li| li.timestamp = 4500);
+    assert_eq!(client.get_active_campaign_count(), 1);
+
+    env.ledger().with_mut(|li| li.timestamp = 7000);
+    assert_eq!(client.get_active_campaign_count(), 0);
+}
+
+#[test]
+fn test_get_active_campaign_count_unaffected_by_donation_status() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    env.ledger().with_mut(|li| li.timestamp = 1000);
+
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    token_admin_client.mint(&donor, &10_000i128);
+
+    let id = create_test_campaign_id(&env, 93);
+    client.create_campaign(
+        &id,
+        &String::from_str(&env, "Funded Campaign"),
+        &creator,
+        &500i128,
+        &5000u64,
+        &token_address,
+    );
+
+    client.donate(&id, &donor, &token_address, &500i128);
+    assert!(client.is_campaign_completed(&id));
+
+    // fully funded but deadline not passed - still counts as active
+    assert_eq!(client.get_active_campaign_count(), 1);
     let non_admin = Address::generate(&env);
     let res = client.try_withdraw_platform_fees(&non_admin, &100);
     assert_eq!(res, Err(Ok(CrowdfundingError::Unauthorized)));
@@ -2753,4 +3418,69 @@ fn test_withdraw_platform_fees_insufficient_fees() {
 
     let res = client.try_withdraw_platform_fees(&admin, &100);
     assert_eq!(res, Err(Ok(CrowdfundingError::InsufficientFees)));
+}
+#[test]
+fn test_set_emergency_contact_success() {
+    let env = Env::default();
+    let (client, admin, _) = setup_test(&env);
+
+    let emergency_contact = Address::generate(&env);
+
+    let result = client.try_set_emergency_contact(&emergency_contact);
+    assert!(result.is_ok());
+
+    let stored_contact = client.get_emergency_contact();
+    assert_eq!(stored_contact, emergency_contact);
+}
+
+#[test]
+fn test_set_emergency_contact_updates_existing() {
+    let env = Env::default();
+    let (client, admin, _) = setup_test(&env);
+
+    let contact1 = Address::generate(&env);
+    client.set_emergency_contact(&contact1);
+
+    let contact2 = Address::generate(&env);
+    client.set_emergency_contact(&contact2);
+
+    let stored_contact = client.get_emergency_contact();
+    assert_eq!(stored_contact, contact2);
+}
+
+#[test]
+fn test_get_emergency_contact_not_initialized() {
+    let env = Env::default();
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let result = client.try_get_emergency_contact();
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_emergency_contact_multiple_updates() {
+    let env = Env::default();
+    let (client, _admin, _) = setup_test(&env);
+
+    let contact1 = Address::generate(&env);
+    client.set_emergency_contact(&contact1);
+    assert_eq!(client.get_emergency_contact(), contact1);
+
+    let contact2 = Address::generate(&env);
+    client.set_emergency_contact(&contact2);
+    assert_eq!(client.get_emergency_contact(), contact2);
+
+    let contact3 = Address::generate(&env);
+    client.set_emergency_contact(&contact3);
+    assert_eq!(client.get_emergency_contact(), contact3);
+}
+
+#[test]
+fn test_get_contract_version() {
+    let env = Env::default();
+    let (client, _, _) = setup_test(&env);
+
+    let version = client.get_contract_version();
+    assert_eq!(version, String::from_str(&env, "1.2.0"));
 }
