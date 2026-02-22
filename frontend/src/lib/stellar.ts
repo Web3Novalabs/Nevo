@@ -72,3 +72,37 @@ export async function executeDonation(
     ledger: result.ledger,
   };
 }
+
+export interface AccountBalances {
+  XLM: string;
+  USDC: string;
+}
+
+export async function getAccountBalances(address: string): Promise<AccountBalances> {
+  try {
+    const account = await server.loadAccount(address);
+    const balances = account.balances;
+    
+    let xlmBalance = "0";
+    let usdcBalance = "0";
+
+    const nativeBalance = balances.find(b => b.asset_type === "native");
+    if (nativeBalance) {
+      xlmBalance = nativeBalance.balance;
+    }
+
+    // Checking for USDC (Circle) on Mainnet
+    const usdc = balances.find(b => 
+      (b as any).asset_code === "USDC" && 
+      (b as any).asset_issuer === "GA5ZSEJYB37JRC5AVCIAZBA2C3FSYV36AVH6C6X5S5F5TH6I2N7VCO3UP"
+    );
+    if (usdc) {
+      usdcBalance = (usdc as any).balance;
+    }
+
+    return { XLM: xlmBalance, USDC: usdcBalance };
+  } catch (error) {
+    console.error("Error fetching account balances:", error);
+    return { XLM: "0", USDC: "0" };
+  }
+}
