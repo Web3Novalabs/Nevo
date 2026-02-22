@@ -15,6 +15,8 @@ export interface PoolCardProps {
   goalAmount: number;
   raisedAmount: number;
   contributorsCount: number;
+  poolId: string;
+  contractId: string;
 }
 
 export const PoolCard: React.FC<PoolCardProps> = ({
@@ -25,6 +27,8 @@ export const PoolCard: React.FC<PoolCardProps> = ({
   goalAmount,
   raisedAmount,
   contributorsCount,
+  poolId,
+  contractId,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const progressPercent = Math.min((raisedAmount / goalAmount) * 100, 100);
@@ -37,9 +41,9 @@ export const PoolCard: React.FC<PoolCardProps> = ({
           <Image
             src={imageUrl}
             alt={title}
-            width={800}
-            height={400}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
           {/* Category Badge over image */}
           <div className="absolute top-4 left-4">
@@ -114,6 +118,8 @@ export const PoolCard: React.FC<PoolCardProps> = ({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         poolTitle={title}
+        poolId={poolId}
+        contractId={contractId}
       />
     </>
   );
