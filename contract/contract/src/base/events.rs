@@ -130,3 +130,13 @@ pub fn platform_fee_percentage_set(env: &Env, admin: Address, fee_bps: u32) {
     let topics = (Symbol::new(env, "platform_fee_percentage_set"), admin);
     env.events().publish(topics, fee_bps);
 }
+
+pub fn address_blacklisted(env: &Env, admin: Address, address: Address) {
+    let topics = (Symbol::new(env, "address_blacklisted"), admin);
+    env.events().publish(topics, address);
+}
+
+pub fn address_unblacklisted(env: &Env, admin: Address, address: Address) {
+    let topics = (Symbol::new(env, "address_unblacklisted"), admin);
+    env.events().publish(topics, address);
+}
