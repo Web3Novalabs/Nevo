@@ -929,6 +929,20 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .set(&contributor_key, &updated_contribution);
 
+        // Track contributor in the list for pagination
+        if existing_contribution.amount == 0 {
+            let contributors_key = StorageKey::PoolContributors(pool_id);
+            let mut contributors: Vec<Address> = env
+                .storage()
+                .instance()
+                .get(&contributors_key)
+                .unwrap_or(Vec::new(&env));
+            contributors.push_back(contributor.clone());
+            env.storage()
+                .instance()
+                .set(&contributors_key, &contributors);
+        }
+
         // Emit event
         events::contribution(
             &env,
@@ -1303,5 +1317,53 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
     fn get_contract_version(env: Env) -> String {
         String::from_str(&env, "1.2.0")
+    }
+
+    fn get_pool_contributions_paginated(
+        env: Env,
+        pool_id: u64,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<PoolContribution>, CrowdfundingError> {
+        // Validate pool exists
+        let pool_key = StorageKey::Pool(pool_id);
+        if !env.storage().instance().has(&pool_key) {
+            return Err(CrowdfundingError::PoolNotFound);
+        }
+
+        // Get the list of contributors
+        let contributors_key = StorageKey::PoolContributors(pool_id);
+        let contributors: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&contributors_key)
+            .unwrap_or(Vec::new(&env));
+
+        let total_contributors = contributors.len();
+
+        // Validate offset
+        if offset >= total_contributors {
+            return Ok(Vec::new(&env));
+        }
+
+        // Calculate the end index
+        let end = (offset + limit).min(total_contributors);
+
+        // Collect contributions for the requested range
+        let mut result = Vec::new(&env);
+        for i in offset..end {
+            if let Some(contributor_addr) = contributors.get(i) {
+                let contribution_key = StorageKey::PoolContribution(pool_id, contributor_addr.clone());
+                if let Some(contribution) = env
+                    .storage()
+                    .instance()
+                    .get::<StorageKey, PoolContribution>(&contribution_key)
+                {
+                    result.push_back(contribution);
+                }
+            }
+        }
+
+        Ok(result)
     }
 }
