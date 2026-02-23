@@ -3484,3 +3484,185 @@ fn test_get_contract_version() {
     let version = client.get_contract_version();
     assert_eq!(version, String::from_str(&env, "1.2.0"));
 }
+
+#[test]
+fn test_cancel_campaign() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 100);
+    let title = String::from_str(&env, "Cancel Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Cancel the campaign
+    client
+        .mock_auths(&[soroban_sdk::testutils::MockAuth {
+            address: &creator,
+            invoke: &soroban_sdk::testutils::MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "cancel_campaign",
+                args: soroban_sdk::vec![&env, campaign_id.clone().into_val(&env)],
+                sub_invokes: &[],
+            },
+        }])
+        .cancel_campaign(&campaign_id);
+
+    // Verify it is cancelled
+    let status = client.get_campaign_status(&campaign_id);
+    assert_eq!(
+        status,
+        crate::base::types::CampaignLifecycleStatus::Cancelled
+    );
+}
+
+#[test]
+fn test_donate_to_cancelled_campaign_fails() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 101);
+    let title = String::from_str(&env, "Cancel Donation Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Cancel the campaign
+    client
+        .mock_auths(&[soroban_sdk::testutils::MockAuth {
+            address: &creator,
+            invoke: &soroban_sdk::testutils::MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "cancel_campaign",
+                args: soroban_sdk::vec![&env, campaign_id.clone().into_val(&env)],
+                sub_invokes: &[],
+            },
+        }])
+        .cancel_campaign(&campaign_id);
+
+    // Try donating
+    let donor = Address::generate(&env);
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    token_admin_client.mint(&donor, &5_000i128);
+
+    let result = client
+        .mock_auths(&[soroban_sdk::testutils::MockAuth {
+            address: &donor,
+            invoke: &soroban_sdk::testutils::MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "donate",
+                args: soroban_sdk::vec![
+                    &env,
+                    campaign_id.clone().into_val(&env),
+                    donor.clone().into_val(&env),
+                    token_address.clone().into_val(&env),
+                    1_000i128.into_val(&env),
+                ],
+                sub_invokes: &[],
+            },
+        }])
+        .try_donate(&campaign_id, &donor, &token_address, &1_000i128);
+
+    assert_eq!(result, Err(Ok(CrowdfundingError::CampaignCancelled)));
+}
+
+#[test]
+fn test_refund_campaign() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 102);
+    let title = String::from_str(&env, "Refund Campaign Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Mint and donate
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    let token_client = soroban_sdk::token::Client::new(&env, &token_address);
+    token_admin_client.mint(&donor, &5_000i128);
+
+    client
+        .mock_auths(&[soroban_sdk::testutils::MockAuth {
+            address: &donor,
+            invoke: &soroban_sdk::testutils::MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "donate",
+                args: soroban_sdk::vec![
+                    &env,
+                    campaign_id.clone().into_val(&env),
+                    donor.clone().into_val(&env),
+                    token_address.clone().into_val(&env),
+                    1_000i128.into_val(&env),
+                ],
+                sub_invokes: &[soroban_sdk::testutils::MockAuthInvoke {
+                    contract: &token_address,
+                    fn_name: "transfer",
+                    args: soroban_sdk::vec![
+                        &env,
+                        donor.clone().into_val(&env),
+                        client.address.clone().into_val(&env),
+                        1_000i128.into_val(&env),
+                    ],
+                    sub_invokes: &[],
+                }],
+            },
+        }])
+        .donate(&campaign_id, &donor, &token_address, &1_000i128);
+
+    assert_eq!(token_client.balance(&donor), 4_000i128);
+    assert_eq!(client.get_contribution(&campaign_id, &donor), 1_000i128);
+
+    // Need to use creator auth to cancel
+    client
+        .mock_auths(&[soroban_sdk::testutils::MockAuth {
+            address: &creator,
+            invoke: &soroban_sdk::testutils::MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "cancel_campaign",
+                args: soroban_sdk::vec![&env, campaign_id.clone().into_val(&env)],
+                sub_invokes: &[],
+            },
+        }])
+        .cancel_campaign(&campaign_id);
+
+    // Once cancelled, process refund
+    client.refund_campaign(&campaign_id, &donor);
+
+    // Check balances and state
+    assert_eq!(token_client.balance(&donor), 5_000i128);
+    assert_eq!(client.get_contribution(&campaign_id, &donor), 0i128);
+
+    // Trying second time fails
+    let result = client.try_refund_campaign(&campaign_id, &donor);
+    assert_eq!(result, Err(Ok(CrowdfundingError::NoContributionToRefund)));
+}
