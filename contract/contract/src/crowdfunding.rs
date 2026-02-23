@@ -708,6 +708,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             config.description,
             creator,
             config.target_amount,
+            config.min_contribution,
             deadline,
         );
 
@@ -790,6 +791,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             name: name.clone(),
             description: metadata.description.clone(),
             target_amount,
+            min_contribution: 0,
             is_private: false,
             duration,
             created_at: now,
@@ -828,6 +830,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             metadata.description.clone(),
             creator,
             target_amount,
+            0,
             deadline,
         );
 
@@ -868,10 +871,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         if Self::is_paused(env.clone()) {
             return Err(CrowdfundingError::ContractPaused);
         }
-        let pool_key = StorageKey::Pool(pool_id);
-        if !env.storage().instance().has(&pool_key) {
-            return Err(CrowdfundingError::PoolNotFound);
-        }
+        
 
         // Validate state transition (optional - could add more complex logic)
         let state_key = StorageKey::PoolState(pool_id);
@@ -1008,6 +1008,18 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         if state != PoolState::Active {
             return Err(CrowdfundingError::InvalidPoolState);
+        }
+
+        // Load pool configuration to enforce minimum contribution
+        let pool_key = StorageKey::Pool(pool_id);
+        let pool: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(CrowdfundingError::PoolNotFound)?;
+
+        if amount < pool.min_contribution {
+            return Err(CrowdfundingError::InvalidAmount);
         }
 
         // Transfer tokens
