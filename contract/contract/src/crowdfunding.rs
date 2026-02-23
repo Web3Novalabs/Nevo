@@ -371,6 +371,11 @@ impl CrowdfundingTrait for CrowdfundingContract {
         }
         donor.require_auth();
 
+        let cancellation_key = StorageKey::CampaignCancelled(campaign_id.clone());
+        if env.storage().instance().has(&cancellation_key) {
+            return Err(CrowdfundingError::CampaignCancelled);
+        }
+
         // Check if donor is blacklisted
         if Self::is_blacklisted(env.clone(), donor.clone()) {
             return Err(CrowdfundingError::UserBlacklisted);
@@ -520,6 +525,79 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .get(&campaign_key)
             .ok_or(CrowdfundingError::CampaignNotFound)
+    }
+
+    fn cancel_campaign(env: Env, campaign_id: BytesN<32>) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+
+        let campaign = Self::get_campaign(env.clone(), campaign_id.clone())?;
+        campaign.creator.require_auth();
+
+        let cancellation_key = StorageKey::CampaignCancelled(campaign_id.clone());
+        if env.storage().instance().has(&cancellation_key) {
+            return Err(CrowdfundingError::CampaignCancelled);
+        }
+
+        // Mark it as cancelled
+        env.storage().instance().set(&cancellation_key, &true);
+
+        events::campaign_cancelled(&env, campaign_id);
+
+        Ok(())
+    }
+
+    fn refund_campaign(
+        env: Env,
+        campaign_id: BytesN<32>,
+        contributor: Address,
+    ) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+
+        // Verify the campaign is indeed cancelled
+        let cancellation_key = StorageKey::CampaignCancelled(campaign_id.clone());
+        if !env.storage().instance().has(&cancellation_key) {
+            return Err(CrowdfundingError::RefundNotAvailable);
+        }
+
+        let contribution_key = StorageKey::Contribution(campaign_id.clone(), contributor.clone());
+        let existing_contribution: Contribution =
+            env.storage()
+                .instance()
+                .get(&contribution_key)
+                .ok_or(CrowdfundingError::NoContributionToRefund)?;
+
+        let refund_amount = existing_contribution.amount;
+        if refund_amount == 0 {
+            return Err(CrowdfundingError::NoContributionToRefund);
+        }
+
+        let campaign = Self::get_campaign(env.clone(), campaign_id.clone())?;
+
+        // Zero out the stored contribution amount to prevent multiple refunds while keeping the history
+        let updated_contribution = Contribution {
+            campaign_id: campaign_id.clone(),
+            contributor: contributor.clone(),
+            amount: 0,
+        };
+        env.storage()
+            .instance()
+            .set(&contribution_key, &updated_contribution);
+
+        use soroban_sdk::token;
+        let token_client = token::Client::new(&env, &campaign.token_address);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &contributor,
+            &refund_amount,
+        );
+
+        events::campaign_refunded(&env, campaign_id, contributor, refund_amount);
+
+        Ok(())
     }
 
     fn extend_campaign_deadline(
