@@ -179,4 +179,5 @@ pub trait CrowdfundingTrait {
     fn unblacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
 
     fn is_blacklisted(env: Env, address: Address) -> bool;
+    fn transfer_ownership(env: Env, new_admin: Address) -> Result<(), CrowdfundingError>;
 }

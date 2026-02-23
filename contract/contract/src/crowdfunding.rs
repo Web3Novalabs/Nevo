@@ -1490,4 +1490,16 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .get(&blacklist_key)
             .unwrap_or(false)
     }
+
+    fn transfer_ownership(env: Env, new_admin: Address) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+        admin.require_auth();
+        env.storage().instance().set(&StorageKey::Admin, &new_admin);
+        events::ownership_transferred(&env, admin, new_admin);
+        Ok(())
+    }
 }

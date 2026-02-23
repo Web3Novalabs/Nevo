@@ -153,3 +153,8 @@ pub fn address_unblacklisted(env: &Env, admin: Address, address: Address) {
     let topics = (Symbol::new(env, "address_unblacklisted"), admin);
     env.events().publish(topics, address);
 }
+
+pub fn ownership_transferred(env: &Env, old_admin: Address, new_admin: Address) {
+    let topics = (Symbol::new(env, "ownership_transferred"), old_admin);
+    env.events().publish(topics, new_admin);
+}

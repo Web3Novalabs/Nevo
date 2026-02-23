@@ -5,3 +5,4 @@ mod crowdfunding_test;
 mod min_contribution_test;
 mod renounce_admin_test;
 mod verify_cause;
+mod transfer_ownership_test;
