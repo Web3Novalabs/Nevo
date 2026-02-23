@@ -150,3 +150,8 @@ pub fn address_unblacklisted(env: &Env, admin: Address, address: Address) {
     let topics = (Symbol::new(env, "address_unblacklisted"), admin);
     env.events().publish(topics, address);
 }
+
+pub fn campaign_funds_claimed(env: &Env, campaign_id: BytesN<32>, creator: Address, amount: i128) {
+    let topics = (Symbol::new(env, "campaign_funds_claimed"), campaign_id, creator);
+    env.events().publish(topics, amount);
+}

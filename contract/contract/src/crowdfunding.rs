@@ -1474,4 +1474,55 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .get(&blacklist_key)
             .unwrap_or(false)
     }
+
+    fn claim_campaign_funds(
+        env: Env,
+        campaign_id: BytesN<32>,
+    ) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+
+        let campaign = Self::get_campaign(env.clone(), campaign_id.clone())?;
+        campaign.creator.require_auth();
+
+        let claimed_key = StorageKey::CampaignClaimed(campaign_id.clone());
+        if env.storage().instance().has(&claimed_key) {
+            return Err(CrowdfundingError::CampaignAlreadyFunded);
+        }
+
+        let status = Self::get_campaign_status(env.clone(), campaign_id.clone())?;
+        if status != CampaignLifecycleStatus::Successful {
+            return Err(CrowdfundingError::CampaignExpired);
+        }
+
+        let balance = Self::get_campaign_balance(env.clone(), campaign_id.clone())?;
+        if balance <= 0 {
+            return Err(CrowdfundingError::InvalidAmount);
+        }
+
+        env.storage().instance().set(&claimed_key, &true);
+
+        use soroban_sdk::token;
+        let token_client = token::Client::new(&env, &campaign.token_address);
+        token_client.transfer(&env.current_contract_address(), &campaign.creator, &balance);
+
+        events::campaign_funds_claimed(&env, campaign_id, campaign.creator, balance);
+
+        Ok(())
+    }
+
+    fn batch_claim_campaign_funds(
+        env: Env,
+        campaign_ids: Vec<BytesN<32>>,
+    ) -> Vec<Result<(), CrowdfundingError>> {
+        let mut results = Vec::new(&env);
+        
+        for campaign_id in campaign_ids.iter() {
+            let result = Self::claim_campaign_funds(env.clone(), campaign_id);
+            results.push_back(result);
+        }
+        
+        results
+    }
 }

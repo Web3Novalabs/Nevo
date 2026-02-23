@@ -1,3 +1,4 @@
+mod batch_claim_test;
 mod blacklist_test;
 mod close_pool_test;
 mod create_pool;
