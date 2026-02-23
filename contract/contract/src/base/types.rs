@@ -34,6 +34,8 @@ pub struct PoolConfig {
     pub name: String,
     pub description: String,
     pub target_amount: i128,
+    // Minimum contribution allowed for this pool (in token smallest units)
+    pub min_contribution: i128,
     pub is_private: bool,
     pub duration: u64,
     pub created_at: u64,
@@ -69,6 +71,13 @@ impl PoolConfig {
 
         // Target amount must be strictly positive
         assert!(self.target_amount > 0, "target_amount must be > 0");
+
+        // Minimum contribution must be non-negative and not exceed the target
+        assert!(self.min_contribution >= 0, "min_contribution must be >= 0");
+        assert!(
+            self.min_contribution <= self.target_amount,
+            "min_contribution must be <= target_amount"
+        );
 
         // Duration must be strictly positive (non-zero)
         assert!(self.duration > 0, "duration must be > 0");
@@ -247,6 +256,7 @@ mod tests {
             name: String::from_str(&env, "Education Fund"),
             description: String::from_str(&env, "Fund for student education materials"),
             target_amount: 1_000_000,
+            min_contribution: 0,
             is_private: false,
             duration: 30 * 24 * 60 * 60,
             created_at: 1,
@@ -263,6 +273,7 @@ mod tests {
             name: String::from_str(&env, "Invalid Target"),
             description: String::from_str(&env, "Description"),
             target_amount: 0,
+            min_contribution: 0,
             is_private: false,
             duration: 30 * 24 * 60 * 60,
             created_at: 1,
