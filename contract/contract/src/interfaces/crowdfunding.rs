@@ -168,6 +168,19 @@ pub trait CrowdfundingTrait {
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
 
+
+    /// Calculate the platform fee for a given `amount` using basis points.
+    ///
+    /// * `amount`       – raw token amount (must be ≥ 0)
+    /// * `basis_points` – fee rate in bps; 250 = 2.50 % (must be ≤ 10 000)
+    ///
+    /// Returns the fee to be retained, or an error if inputs are invalid.
+    fn calculate_platform_fee(
+        env: Env,
+        amount: i128,
+        basis_points: u32,
+    ) -> Result<i128, CrowdfundingError>;
+
     fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError>;
 
     fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;

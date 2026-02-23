@@ -1406,6 +1406,25 @@ impl CrowdfundingTrait for CrowdfundingContract {
         Ok(())
     }
 
+
+    /// Compute the platform fee for `amount` at the given `basis_points` rate.
+    ///
+    /// This is a **pure, read-only** function — it does not write any state.
+    /// Clients (frontend, other contracts) can call it to preview the fee that
+    /// will be deducted before crediting a pool.
+    ///
+    /// # Examples
+    /// ```text
+    /// 250 bps on 10_000 stroops → 25 stroops   (2.5 %)
+    /// 100 bps on 5_000  stroops → 50 stroops   (1.0 %)
+    /// ```
+    fn calculate_platform_fee(
+        _env: Env,
+        amount: i128,
+        basis_points: u32,
+    ) -> Result<i128, CrowdfundingError> {
+        crate::base::fees::calculate_platform_fee(amount, basis_points)
+
     fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError> {
         let admin: Address = env
             .storage()
