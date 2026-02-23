@@ -51,6 +51,18 @@ pub trait CrowdfundingTrait {
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
 
+    fn update_campaign_goal(
+        env: Env,
+        campaign_id: BytesN<32>,
+        new_goal: i128,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn extend_campaign_deadline(
+        env: Env,
+        campaign_id: BytesN<32>,
+        new_deadline: u64,
+    ) -> Result<(), CrowdfundingError>;
+
     fn get_campaign_fee_history(
         env: Env,
         campaign_id: BytesN<32>,
@@ -151,4 +163,12 @@ pub trait CrowdfundingTrait {
     fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError>;
 
     fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;
+
+    fn get_contract_version(env: Env) -> String;
+
+    fn blacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
+
+    fn unblacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
+
+    fn is_blacklisted(env: Env, address: Address) -> bool;
 }

@@ -33,6 +33,11 @@ impl CrowdfundingTrait for CrowdfundingContract {
         }
         creator.require_auth();
 
+        // Check if creator is blacklisted
+        if Self::is_blacklisted(env.clone(), creator.clone()) {
+            return Err(CrowdfundingError::UserBlacklisted);
+        }
+
         if title.is_empty() {
             return Err(CrowdfundingError::InvalidTitle);
         }
@@ -291,6 +296,48 @@ impl CrowdfundingTrait for CrowdfundingContract {
         Ok(balance >= campaign.goal)
     }
 
+    fn update_campaign_goal(
+        env: Env,
+        campaign_id: BytesN<32>,
+        new_goal: i128,
+    ) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+
+        let mut campaign = Self::get_campaign(env.clone(), campaign_id.clone())?;
+        campaign.creator.require_auth();
+
+        // Check if campaign is active
+        if env.ledger().timestamp() >= campaign.deadline {
+            return Err(CrowdfundingError::CampaignExpired);
+        }
+
+        // Check if new goal is valid (positive)
+        if new_goal <= 0 {
+            return Err(CrowdfundingError::InvalidGoal);
+        }
+
+        // Prevent increasing the goal
+        if new_goal > campaign.goal {
+            return Err(CrowdfundingError::InvalidGoalUpdate);
+        }
+
+        // Ensure new goal covers raised amount
+        if new_goal < campaign.total_raised {
+            return Err(CrowdfundingError::InvalidGoalUpdate);
+        }
+
+        // Update goal
+        campaign.goal = new_goal;
+        let campaign_key = (campaign_id.clone(),);
+        env.storage().instance().set(&campaign_key, &campaign);
+
+        events::campaign_goal_updated(&env, campaign_id, new_goal);
+
+        Ok(())
+    }
+
     fn get_campaign_status(
         env: Env,
         campaign_id: BytesN<32>,
@@ -323,6 +370,11 @@ impl CrowdfundingTrait for CrowdfundingContract {
             return Err(CrowdfundingError::ContractPaused);
         }
         donor.require_auth();
+
+        // Check if donor is blacklisted
+        if Self::is_blacklisted(env.clone(), donor.clone()) {
+            return Err(CrowdfundingError::UserBlacklisted);
+        }
 
         // Validate donation amount
         if amount <= 0 {
@@ -468,6 +520,46 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .get(&campaign_key)
             .ok_or(CrowdfundingError::CampaignNotFound)
+    }
+
+    fn extend_campaign_deadline(
+        env: Env,
+        campaign_id: BytesN<32>,
+        new_deadline: u64,
+    ) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+
+        let mut campaign = Self::get_campaign(env.clone(), campaign_id.clone())?;
+
+        // Must require creator's signature
+        campaign.creator.require_auth();
+
+        // if they haven't reached their goal yet
+        if campaign.total_raised >= campaign.goal {
+            return Err(CrowdfundingError::CampaignAlreadyFunded);
+        }
+
+        let current_time = env.ledger().timestamp();
+
+        if new_deadline <= campaign.deadline {
+            return Err(CrowdfundingError::InvalidDeadline);
+        }
+
+        // Extension must not exceed a maximum duration (e.g., 90 days total)
+        // Ensure new deadline is not more than 90 days from current time
+        let max_duration = 90 * 24 * 60 * 60;
+        if new_deadline.saturating_sub(current_time) > max_duration {
+            return Err(CrowdfundingError::InvalidDeadline);
+        }
+
+        campaign.deadline = new_deadline;
+
+        let campaign_key = (campaign_id.clone(),);
+        env.storage().instance().set(&campaign_key, &campaign);
+
+        Ok(())
     }
 
     fn get_campaigns(env: Env, ids: Vec<BytesN<32>>) -> Vec<CampaignDetails> {
@@ -1259,5 +1351,49 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .get(&key)
             .ok_or(CrowdfundingError::NotInitialized)
+    }
+
+    fn get_contract_version(env: Env) -> String {
+        String::from_str(&env, "1.2.0")
+    }
+
+    fn blacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+        admin.require_auth();
+
+        let blacklist_key = StorageKey::Blacklist(address.clone());
+        env.storage().persistent().set(&blacklist_key, &true);
+
+        events::address_blacklisted(&env, admin, address);
+
+        Ok(())
+    }
+
+    fn unblacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+        admin.require_auth();
+
+        let blacklist_key = StorageKey::Blacklist(address.clone());
+        env.storage().persistent().remove(&blacklist_key);
+
+        events::address_unblacklisted(&env, admin, address);
+
+        Ok(())
+    }
+
+    fn is_blacklisted(env: Env, address: Address) -> bool {
+        let blacklist_key = StorageKey::Blacklist(address);
+        env.storage()
+            .persistent()
+            .get(&blacklist_key)
+            .unwrap_or(false)
     }
 }

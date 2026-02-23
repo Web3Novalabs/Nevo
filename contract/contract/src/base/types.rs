@@ -232,6 +232,7 @@ pub enum StorageKey {
     CampaignCancelled(BytesN<32>),
     EmergencyContact,
     CampaignFeeHistory(BytesN<32>),
+    Blacklist(Address),
 }
 
 #[cfg(test)]

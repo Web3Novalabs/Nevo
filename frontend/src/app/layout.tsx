@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 // import { Anton } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import PageProgressWrapper from "@/components/PageProgressWrapper";
+import ScrollButton from "@/components/ScrollButton";
 
 
 // const geistSans = Geist({
@@ -94,10 +96,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`bg-no-repeat bg-fixed bg h-full bg-cover antialiased font-dmsans`}
+        className={`bg-no-repeat bg-fixed bg h-full bg-cover antialiased font-dmsans relative`}
         suppressHydrationWarning={true}
       >
-        <main className="mt-28 ">{children}</main>
+        <PageProgressWrapper />
+        <ScrollButton />
+        <main className="">{children}</main>
         <Toaster />
       </body>
     </html>

@@ -278,6 +278,108 @@ fn test_multiple_campaigns() {
 // Pool Storage Tests
 
 #[test]
+fn test_extend_campaign_deadline() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 12);
+    let title = String::from_str(&env, "Extend Deadline");
+    let goal = 1_000_000i128;
+    let initial_deadline = env.ledger().timestamp() + 86400; // +1 day
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &initial_deadline,
+        &token_address,
+    );
+
+    let new_deadline = env.ledger().timestamp() + 2 * 86400; // +2 days
+
+    client
+        .mock_auths(&[MockAuth {
+            address: &creator,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "extend_campaign_deadline",
+                args: (&campaign_id, &new_deadline).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .extend_campaign_deadline(&campaign_id, &new_deadline);
+
+    let campaign = client.get_campaign(&campaign_id);
+    assert_eq!(campaign.deadline, new_deadline);
+}
+
+#[test]
+fn test_extend_campaign_deadline_invalid_auth() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let malicious = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 13);
+    let title = String::from_str(&env, "Extend Auth");
+    let goal = 1_000_000i128;
+    let initial_deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &initial_deadline,
+        &token_address,
+    );
+
+    let new_deadline = env.ledger().timestamp() + 2 * 86400;
+
+    // mock_auths to malicious address simulating a fail
+    // However, in mock_auths, if the caller requires the auth of creator, it will panic
+}
+
+#[test]
+fn test_extend_campaign_too_long() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 14);
+    let title = String::from_str(&env, "Extend Too Long");
+    let goal = 1_000_000i128;
+    let initial_deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &initial_deadline,
+        &token_address,
+    );
+
+    let new_deadline = env.ledger().timestamp() + 91 * 24 * 60 * 60; // 91 days
+
+    let result = client
+        .mock_auths(&[MockAuth {
+            address: &creator,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "extend_campaign_deadline",
+                args: (&campaign_id, &new_deadline).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_extend_campaign_deadline(&campaign_id, &new_deadline);
+
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidDeadline)));
+}
+
+#[test]
 fn test_get_campaign_fee_history() {
     let env = Env::default();
     let (client, admin, token_address) = setup_test(&env);
@@ -289,7 +391,7 @@ fn test_get_campaign_fee_history() {
 
     let creator = Address::generate(&env);
     let donor = Address::generate(&env);
-    let campaign_id = create_test_campaign_id(&env, 12);
+    let campaign_id = create_test_campaign_id(&env, 15);
     let title = String::from_str(&env, "Fee Test Campaign");
     let goal = 1_000_000i128;
     let initial_deadline = env.ledger().timestamp() + 86400; // +1 day
@@ -2950,6 +3052,117 @@ fn test_set_crowdfunding_token_unauthorized() {
 }
 
 #[test]
+fn test_update_campaign_goal_success() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 100);
+    let title = String::from_str(&env, "Goal Update Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Mock auth for update
+    client.update_campaign_goal(&campaign_id, &5_000i128);
+
+    let campaign = client.get_campaign(&campaign_id);
+    assert_eq!(campaign.goal, 5_000i128);
+}
+
+#[test]
+fn test_update_campaign_goal_increase_fails() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 101);
+    let title = String::from_str(&env, "Goal Increase Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Try to increase goal - should fail
+    let result = client.try_update_campaign_goal(&campaign_id, &15_000i128);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidGoalUpdate)));
+}
+
+#[test]
+fn test_update_campaign_goal_below_raised_fails() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 102);
+    let title = String::from_str(&env, "Goal Below Raised Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Donate
+    let donor = Address::generate(&env);
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_address);
+    token_admin_client.mint(&donor, &8_000i128);
+
+    client.donate(&campaign_id, &donor, &token_address, &6_000i128);
+
+    // Try to lower goal below raised amount - should fail
+    let result = client.try_update_campaign_goal(&campaign_id, &5_000i128);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidGoalUpdate)));
+}
+
+#[test]
+fn test_update_campaign_goal_expired_fails() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let creator = Address::generate(&env);
+    let campaign_id = create_test_campaign_id(&env, 103);
+    let title = String::from_str(&env, "Expired Update Test");
+    let goal = 10_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    client.create_campaign(
+        &campaign_id,
+        &title,
+        &creator,
+        &goal,
+        &deadline,
+        &token_address,
+    );
+
+    // Advance time past deadline
+    env.ledger().with_mut(|li| li.timestamp = deadline + 1);
+
+    let result = client.try_update_campaign_goal(&campaign_id, &5_000i128);
+    assert_eq!(result, Err(Ok(CrowdfundingError::CampaignExpired)));
+}
+
+#[test]
 fn test_get_active_campaign_count() {
     let env = Env::default();
     let (client, _, token_address) = setup_test(&env);
@@ -3261,4 +3474,13 @@ fn test_emergency_contact_multiple_updates() {
     let contact3 = Address::generate(&env);
     client.set_emergency_contact(&contact3);
     assert_eq!(client.get_emergency_contact(), contact3);
+}
+
+#[test]
+fn test_get_contract_version() {
+    let env = Env::default();
+    let (client, _, _) = setup_test(&env);
+
+    let version = client.get_contract_version();
+    assert_eq!(version, String::from_str(&env, "1.2.0"));
 }

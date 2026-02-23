@@ -15,6 +15,8 @@ export interface PoolCardProps {
   goalAmount: number;
   raisedAmount: number;
   contributorsCount: number;
+  poolId: string;
+  contractId: string;
 }
 
 export const PoolCard: React.FC<PoolCardProps> = ({
@@ -25,6 +27,8 @@ export const PoolCard: React.FC<PoolCardProps> = ({
   goalAmount,
   raisedAmount,
   contributorsCount,
+  poolId,
+  contractId,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const progressPercent = Math.min((raisedAmount / goalAmount) * 100, 100);
@@ -114,6 +118,8 @@ export const PoolCard: React.FC<PoolCardProps> = ({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         poolTitle={title}
+        poolId={poolId}
+        contractId={contractId}
       />
     </>
   );
