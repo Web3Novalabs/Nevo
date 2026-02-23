@@ -729,7 +729,9 @@ impl CrowdfundingTrait for CrowdfundingContract {
         env.storage().instance().set(&state_key, &PoolState::Active);
 
         let metrics_key = StorageKey::PoolMetrics(pool_id);
-        env.storage().instance().set(&metrics_key, &PoolMetrics::new());
+        env.storage()
+            .instance()
+            .set(&metrics_key, &PoolMetrics::new());
 
         env.storage().instance().set(&next_id_key, &new_next_id);
 
