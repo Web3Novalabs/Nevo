@@ -55,3 +55,10 @@ pub enum CrowdfundingError {
     UserBlacklisted = 49,
     CampaignCancelled = 50,
 }
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum SecondCrowdfundingError {
+    StringTooLong = 1,
+}
