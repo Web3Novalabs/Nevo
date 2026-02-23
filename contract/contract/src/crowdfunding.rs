@@ -4,6 +4,7 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 use crate::base::{
     errors::CrowdfundingError,
     events,
+    reentrancy::{acquire_emergency_lock, release_emergency_lock, reentrancy_lock_logic, release_pool_lock},
     types::{
         CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
         EmergencyWithdrawal, MultiSigConfig, PoolConfig, PoolContribution, PoolMetadata,
@@ -890,7 +891,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             (PoolState::Completed, _) | (PoolState::Cancelled, _) => {
                 return Err(CrowdfundingError::InvalidPoolState);
             }
-            _ => {} // Allow other transitions
+            _ => {}
         }
 
         // Update state
@@ -1089,22 +1090,37 @@ impl CrowdfundingTrait for CrowdfundingContract {
         Ok(())
     }
 
+    // -------------------------------------------------------------------------
+    // MODIFIED: reentrancy lock added (issue #98)
+    // Path: contract/src/crowdfunding.rs → fn refund
+    // -------------------------------------------------------------------------
     fn refund(env: Env, pool_id: u64, contributor: Address) -> Result<(), CrowdfundingError> {
+        // ── 1. Acquire reentrancy lock ────────────────────────────────────────
+        // Must be the very first operation. Any re-entrant call arriving while
+        // this function is still executing will find the flag set and immediately
+        // receive ReentrancyLocked without touching any balances.
+        reentrancy_lock_logic(&env, pool_id)?;
+        // ─────────────────────────────────────────────────────────────────────
+
         if Self::is_paused(env.clone()) {
+            release_pool_lock(&env, pool_id);
             return Err(CrowdfundingError::ContractPaused);
         }
         contributor.require_auth();
 
         // Validate pool exists
         let pool_key = StorageKey::Pool(pool_id);
-        let pool: PoolConfig = env
-            .storage()
-            .instance()
-            .get(&pool_key)
-            .ok_or(CrowdfundingError::PoolNotFound)?;
+        let pool: PoolConfig = match env.storage().instance().get(&pool_key) {
+            Some(p) => p,
+            None => {
+                release_pool_lock(&env, pool_id);
+                return Err(CrowdfundingError::PoolNotFound);
+            }
+        };
 
         // Check if pool has a deadline (duration > 0)
         if pool.duration == 0 {
+            release_pool_lock(&env, pool_id);
             return Err(CrowdfundingError::RefundNotAvailable);
         }
 
@@ -1114,6 +1130,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         // Check if deadline has passed
         if now < deadline {
+            release_pool_lock(&env, pool_id);
             return Err(CrowdfundingError::PoolNotExpired);
         }
 
@@ -1126,6 +1143,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .unwrap_or(PoolState::Active);
 
         if state == PoolState::Disbursed {
+            release_pool_lock(&env, pool_id);
             return Err(CrowdfundingError::PoolAlreadyDisbursed);
         }
 
@@ -1133,48 +1151,29 @@ impl CrowdfundingTrait for CrowdfundingContract {
         const REFUND_GRACE_PERIOD: u64 = 604800;
         let refund_available_after = deadline + REFUND_GRACE_PERIOD;
 
-        // Check if grace period has passed
         if now < refund_available_after {
+            release_pool_lock(&env, pool_id);
             return Err(CrowdfundingError::RefundGracePeriodNotPassed);
         }
 
         // Get contributor's contribution
         let contribution_key = StorageKey::PoolContribution(pool_id, contributor.clone());
-        let contribution: PoolContribution = env
-            .storage()
-            .instance()
-            .get(&contribution_key)
-            .ok_or(CrowdfundingError::NoContributionToRefund)?;
+        let contribution: PoolContribution = match env.storage().instance().get(&contribution_key) {
+            Some(c) => c,
+            None => {
+                release_pool_lock(&env, pool_id);
+                return Err(CrowdfundingError::NoContributionToRefund);
+            }
+        };
 
         if contribution.amount <= 0 {
+            release_pool_lock(&env, pool_id);
             return Err(CrowdfundingError::NoContributionToRefund);
         }
 
-        // Transfer tokens back to contributor
-        use soroban_sdk::token;
-        let token_client = token::Client::new(&env, &contribution.asset);
-        token_client.transfer(
-            &env.current_contract_address(),
-            &contributor,
-            &contribution.amount,
-        );
-
-        // Update pool metrics
-        let metrics_key = StorageKey::PoolMetrics(pool_id);
-        let mut metrics: PoolMetrics = env
-            .storage()
-            .instance()
-            .get(&metrics_key)
-            .unwrap_or_default();
-
-        metrics.total_raised -= contribution.amount;
-        // Note: We don't decrement contributor_count as the contributor may have other contributions
-        // or we want to keep historical data
-
-        env.storage().instance().set(&metrics_key, &metrics);
-
-        // Remove or zero out the contribution record
-        // We zero it out to prevent double refunds while keeping historical record
+        // ── 2. Zero the balance BEFORE the token transfer (CEI pattern) ───────
+        // A re-entrant call arriving during the transfer below will find both
+        // the reentrancy lock set AND a zero balance — two independent guards.
         let zeroed_contribution = PoolContribution {
             pool_id,
             contributor: contributor.clone(),
@@ -1185,7 +1184,28 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .set(&contribution_key, &zeroed_contribution);
 
-        // Emit refund event
+        // Update pool metrics
+        let metrics_key = StorageKey::PoolMetrics(pool_id);
+        let mut metrics: PoolMetrics = env
+            .storage()
+            .instance()
+            .get(&metrics_key)
+            .unwrap_or_default();
+        metrics.total_raised -= contribution.amount;
+        env.storage().instance().set(&metrics_key, &metrics);
+
+        // ── 3. Transfer tokens (external call — happens after all state writes) ─
+        use soroban_sdk::token;
+        let token_client = token::Client::new(&env, &contribution.asset);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &contributor,
+            &contribution.amount,
+        );
+
+        // ── 4. Release lock ───────────────────────────────────────────────────
+        release_pool_lock(&env, pool_id);
+
         events::refund(
             &env,
             pool_id,
@@ -1238,40 +1258,55 @@ impl CrowdfundingTrait for CrowdfundingContract {
         Ok(())
     }
 
+    // -------------------------------------------------------------------------
+    // MODIFIED: reentrancy lock added (issue #98)
+    // Path: contract/src/crowdfunding.rs → fn execute_emergency_withdraw
+    // -------------------------------------------------------------------------
     fn execute_emergency_withdraw(env: Env) -> Result<(), CrowdfundingError> {
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&StorageKey::Admin)
-            .ok_or(CrowdfundingError::CampaignNotFound)?;
+        // ── 1. Acquire global emergency-withdrawal lock ───────────────────────
+        acquire_emergency_lock(&env)?;
+        // ─────────────────────────────────────────────────────────────────────
+
+        let admin: Address = match env.storage().instance().get(&StorageKey::Admin) {
+            Some(a) => a,
+            None => {
+                release_emergency_lock(&env);
+                return Err(CrowdfundingError::CampaignNotFound);
+            }
+        };
         admin.require_auth();
 
         let key = StorageKey::EmergencyWithdrawal;
-        let request: EmergencyWithdrawal = env
-            .storage()
-            .instance()
-            .get(&key)
-            .ok_or(CrowdfundingError::EmergencyWithdrawalNotRequested)?;
+        let request: EmergencyWithdrawal = match env.storage().instance().get(&key) {
+            Some(r) => r,
+            None => {
+                release_emergency_lock(&env);
+                return Err(CrowdfundingError::EmergencyWithdrawalNotRequested);
+            }
+        };
 
-        // If for some reason it's already executed but not removed (shouldn't happen with remove)
         if request.executed {
+            release_emergency_lock(&env);
             return Err(CrowdfundingError::EmergencyWithdrawalAlreadyRequested);
         }
 
         let now = env.ledger().timestamp();
         let grace_period = 86400; // 24 hours
         if now < request.requested_at + grace_period {
+            release_emergency_lock(&env);
             return Err(CrowdfundingError::EmergencyWithdrawalPeriodNotPassed);
         }
 
+        // ── 2. Remove the request record BEFORE the token transfer (CEI) ──────
+        env.storage().instance().remove(&key);
+
+        // ── 3. Token transfer ─────────────────────────────────────────────────
         use soroban_sdk::token;
         let token_client = token::Client::new(&env, &request.token);
         token_client.transfer(&env.current_contract_address(), &admin, &request.amount);
 
-        // Remove the request to allow future requests (or keep it as history? Requirement says "Define clear rules in storage to prevent abuse".
-        // Removing it clears the storage. If we want history, we should use a map or log events.
-        // Events are logged. Clearing storage prevents double withdrawal and clutter.
-        env.storage().instance().remove(&key);
+        // ── 4. Release lock ───────────────────────────────────────────────────
+        release_emergency_lock(&env);
 
         events::emergency_withdraw_executed(&env, admin, request.token, request.amount);
 

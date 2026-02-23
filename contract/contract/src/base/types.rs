@@ -242,6 +242,9 @@ pub enum StorageKey {
     EmergencyContact,
     CampaignFeeHistory(BytesN<32>),
     Blacklist(Address),
+    
+    ReentrancyLock(u64),
+    EmergencyWithdrawalLock,
 }
 
 #[cfg(test)]
