@@ -3,6 +3,6 @@ mod close_pool_test;
 mod create_pool;
 mod crowdfunding_test;
 mod min_contribution_test;
+mod reentrancy_tests;
 mod renounce_admin_test;
 mod verify_cause;
-mod reentrancy_tests;

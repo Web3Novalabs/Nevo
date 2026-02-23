@@ -4,7 +4,9 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 use crate::base::{
     errors::CrowdfundingError,
     events,
-    reentrancy::{acquire_emergency_lock, release_emergency_lock, reentrancy_lock_logic, release_pool_lock},
+    reentrancy::{
+        acquire_emergency_lock, reentrancy_lock_logic, release_emergency_lock, release_pool_lock,
+    },
     types::{
         CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
         EmergencyWithdrawal, MultiSigConfig, PoolConfig, PoolContribution, PoolMetadata,
