@@ -1,5 +1,6 @@
 export * from "./ui/button";
 export * from "./ui/checkbox";
+export * from "./ui/status-badge";
 export * from "./ui/checkbox-group";
 export * from "./ui/input";
 export * from "./ui/label";
