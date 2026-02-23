@@ -53,5 +53,4 @@ pub enum CrowdfundingError {
     InvalidGoalUpdate = 47,
     InsufficientFees = 48,
     UserBlacklisted = 49,
-    CampaignCancelled = 50,
 }
