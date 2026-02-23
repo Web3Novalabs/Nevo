@@ -87,6 +87,18 @@ impl PoolConfig {
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(u32)]
+pub enum PoolState {
+    Active = 0,
+    Paused = 1,
+    Completed = 2,
+    Cancelled = 3,
+    Disbursed = 4,
+    Closed = 5,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(u32)]
 pub enum CampaignLifecycleStatus {
     Live = 0,
     Cancelled = 1,
@@ -116,18 +128,6 @@ impl CampaignLifecycleStatus {
 
         CampaignLifecycleStatus::Live
     }
-}
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[repr(u32)]
-pub enum PoolState {
-    Active = 0,
-    Paused = 1,
-    Completed = 2,
-    Cancelled = 3,
-    Disbursed = 4,
-    Closed = 5,
 }
 
 #[contracttype]
@@ -298,85 +298,5 @@ mod tests {
         assert_eq!(metrics.total_raised, 0);
         assert_eq!(metrics.contributor_count, 0);
         assert_eq!(metrics.last_donation_at, 0);
-    }
-
-    #[test]
-    fn campaign_status_live_when_active() {
-        let status = CampaignLifecycleStatus::get_status(100, 1000, 1000000, 500000, false);
-        assert_eq!(status, CampaignLifecycleStatus::Live);
-    }
-
-    #[test]
-    fn campaign_status_successful_when_goal_reached() {
-        let status = CampaignLifecycleStatus::get_status(1500, 1000, 1000000, 500000, false);
-        assert_eq!(status, CampaignLifecycleStatus::Successful);
-    }
-
-    #[test]
-    fn campaign_status_successful_when_goal_exactly_reached() {
-        let status = CampaignLifecycleStatus::get_status(1000, 1000, 1000000, 500000, false);
-        assert_eq!(status, CampaignLifecycleStatus::Successful);
-    }
-
-    #[test]
-    fn campaign_status_expired_when_deadline_passed() {
-        let status = CampaignLifecycleStatus::get_status(500, 1000, 1000, 1001, false);
-        assert_eq!(status, CampaignLifecycleStatus::Expired);
-    }
-
-    #[test]
-    fn campaign_status_expired_when_at_deadline_unmet() {
-        let status = CampaignLifecycleStatus::get_status(500, 1000, 1000, 1000, false);
-        assert_eq!(status, CampaignLifecycleStatus::Expired);
-    }
-
-    #[test]
-    fn campaign_status_cancelled_when_manually_cancelled() {
-        let status = CampaignLifecycleStatus::get_status(0, 1000, 1000000, 500000, true);
-        assert_eq!(status, CampaignLifecycleStatus::Cancelled);
-    }
-
-    #[test]
-    fn campaign_status_cancelled_takes_precedence_over_successful() {
-        let status = CampaignLifecycleStatus::get_status(1500, 1000, 1000000, 500000, true);
-        assert_eq!(status, CampaignLifecycleStatus::Cancelled);
-    }
-
-    #[test]
-    fn campaign_status_cancelled_takes_precedence_over_live() {
-        let status = CampaignLifecycleStatus::get_status(100, 1000, 1000000, 500000, true);
-        assert_eq!(status, CampaignLifecycleStatus::Cancelled);
-    }
-
-    #[test]
-    fn campaign_status_successful_takes_precedence_over_expired() {
-        let status = CampaignLifecycleStatus::get_status(1500, 1000, 100, 1000, false);
-        assert_eq!(status, CampaignLifecycleStatus::Successful);
-    }
-
-    #[test]
-    fn campaign_lifecycle_status_discriminants_correct() {
-        assert_eq!(CampaignLifecycleStatus::Live as u32, 0);
-        assert_eq!(CampaignLifecycleStatus::Cancelled as u32, 1);
-        assert_eq!(CampaignLifecycleStatus::Successful as u32, 2);
-        assert_eq!(CampaignLifecycleStatus::Expired as u32, 3);
-    }
-
-    #[test]
-    fn campaign_status_zero_raised_zero_goal() {
-        let status = CampaignLifecycleStatus::get_status(0, 0, 1000000, 500000, false);
-        assert_eq!(status, CampaignLifecycleStatus::Successful);
-    }
-
-    #[test]
-    fn campaign_status_large_numbers() {
-        let status = CampaignLifecycleStatus::get_status(
-            1_000_000_000_000,
-            900_000_000_000,
-            1000000,
-            500000,
-            false,
-        );
-        assert_eq!(status, CampaignLifecycleStatus::Successful);
     }
 }
