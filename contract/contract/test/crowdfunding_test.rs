@@ -236,6 +236,7 @@ fn test_save_pool() {
         &creator,
         &target_amount,
         &deadline,
+        &0i128,
         &None::<u32>,
         &None::<Vec<Address>>,
     );
@@ -269,6 +270,7 @@ fn test_save_pool_validation() {
         &creator,
         &target_amount,
         &deadline,
+        &0i128,
         &None,
         &None,
     );
@@ -282,6 +284,7 @@ fn test_save_pool_validation() {
         &creator,
         &0i128,
         &deadline,
+        &0i128,
         &None::<u32>,
         &None::<Vec<Address>>,
     );
@@ -295,6 +298,7 @@ fn test_save_pool_validation() {
         &creator,
         &target_amount,
         &past_deadline,
+        &0i128,
         &None,
         &None,
     );
@@ -325,6 +329,7 @@ fn test_get_pool() {
         &creator,
         &target_amount,
         &deadline,
+        &0i128,
         &None::<u32>,
         &None::<Vec<Address>>,
     );
@@ -394,6 +399,7 @@ fn test_update_pool_state() {
         &creator,
         &target_amount,
         &deadline,
+        &0i128,
         &None::<u32>,
         &None::<Vec<Address>>,
     );
@@ -441,6 +447,7 @@ fn test_update_pool_state_invalid_transition() {
         &creator,
         &target_amount,
         &deadline,
+        &0i128,
         &None::<u32>,
         &None::<Vec<Address>>,
     );
@@ -482,6 +489,7 @@ fn test_multiple_pools() {
         &creator1,
         &target1,
         &deadline1,
+        &0i128,
         &None::<u32>,
         &None::<Vec<Address>>,
     );
@@ -501,6 +509,7 @@ fn test_multiple_pools() {
         &creator2,
         &target2,
         &deadline2,
+        &0i128,
         &None::<u32>,
         &None::<Vec<Address>>,
     );
@@ -634,6 +643,7 @@ fn test_operations_disabled_when_paused() {
         &creator,
         &goal,
         &deadline,
+        &0i128,
         &None::<u32>,
         &None::<Vec<Address>>,
     );
@@ -668,6 +678,7 @@ fn test_update_pool_state_blocked_when_paused() {
         &creator,
         &target,
         &deadline,
+        &0i128,
         &None::<u32>,
         &None::<Vec<Address>>,
     );
@@ -805,6 +816,7 @@ fn test_contribute_and_event_emission() {
         &creator,
         &target_amount,
         &deadline,
+        &0i128,
         &None::<u32>,
         &None::<Vec<Address>>,
     );
@@ -1021,4 +1033,304 @@ fn test_donate_deadline_passed() {
     // Donate after deadline - should fail
     let result = client.try_donate(&id, &donor, &token_id.address(), &100i128);
     assert_eq!(result, Err(Ok(CrowdfundingError::InvalidDeadline)));
+}
+
+// Minimum Donation Tests
+
+#[test]
+fn test_create_pool_with_minimum_donation() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let name = String::from_str(&env, "Minimum Donation Pool");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Pool with minimum 5 XLM donation"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 100_000_000i128; // 100 XLM
+    let minimum_donation = 5_000_000i128; // 5 XLM
+    let deadline = env.ledger().timestamp() + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &minimum_donation,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    let pool = client.get_pool(&pool_id).unwrap();
+    assert_eq!(pool.minimum_donation, minimum_donation);
+}
+
+#[test]
+fn test_contribute_meets_minimum_donation() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // Register a mock token for testing
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_client = soroban_sdk::token::Client::new(&env, &token_id.address());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Pool with Minimum");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Pool requiring 5 XLM minimum"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 1_000_000_000i128;
+    let minimum_donation = 5_000_000i128; // 5 XLM (with 7 decimal places)
+    let deadline = env.ledger().timestamp() + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &minimum_donation,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    // Advance ledger time
+    env.ledger().with_mut(|li| li.timestamp = 100);
+
+    // Mint tokens to contributor
+    token_admin_client.mint(&contributor, &100_000_000i128);
+
+    // Contribute exactly at minimum - should succeed
+    let amount = minimum_donation;
+    client.contribute(&pool_id, &contributor, &token_id.address(), &amount, &false);
+
+    // Verify balance transfer
+    let expected_balance = 100_000_000i128 - minimum_donation;
+    assert_eq!(token_client.balance(&contributor), expected_balance);
+}
+
+#[test]
+fn test_contribute_above_minimum_donation() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // Register a mock token for testing
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_client = soroban_sdk::token::Client::new(&env, &token_id.address());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Pool with Minimum");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Pool requiring 5 XLM minimum"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 1_000_000_000i128;
+    let minimum_donation = 5_000_000i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &minimum_donation,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    env.ledger().with_mut(|li| li.timestamp = 100);
+
+    token_admin_client.mint(&contributor, &100_000_000i128);
+
+    // Contribute above minimum - should succeed
+    let amount = minimum_donation + 1_000_000i128; // 6 XLM
+    client.contribute(&pool_id, &contributor, &token_id.address(), &amount, &false);
+
+    // Verify balance transfer
+    let expected_balance = 100_000_000i128 - amount;
+    assert_eq!(token_client.balance(&contributor), expected_balance);
+}
+
+#[test]
+fn test_contribute_below_minimum_donation_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // Register a mock token for testing
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Pool with Minimum");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Pool requiring 5 XLM minimum"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 1_000_000_000i128;
+    let minimum_donation = 5_000_000i128; // 5 XLM
+    let deadline = env.ledger().timestamp() + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &minimum_donation,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    env.ledger().with_mut(|li| li.timestamp = 100);
+
+    token_admin_client.mint(&contributor, &100_000_000i128);
+
+    // Attempt to contribute below minimum - should fail
+    let amount = minimum_donation - 1_000_000i128; // 4 XLM
+    let result = client.try_contribute(&pool_id, &contributor, &token_id.address(), &amount, &false);
+
+    assert_eq!(result, Err(Ok(CrowdfundingError::BelowMinimumDonation)));
+}
+
+#[test]
+fn test_pool_with_zero_minimum_accepts_any_amount() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // Register a mock token for testing
+    let admin = Address::generate(&env);
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_id.address());
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let contributor = Address::generate(&env);
+    let name = String::from_str(&env, "Pool without Minimum");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Pool with zero minimum"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 1_000_000_000i128;
+    let minimum_donation = 0i128;
+    let deadline = env.ledger().timestamp() + 86400;
+
+    let pool_id = client.save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &minimum_donation,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    env.ledger().with_mut(|li| li.timestamp = 100);
+
+    token_admin_client.mint(&contributor, &100_000_000i128);
+
+    // Contribute 1 unit (smallest non-zero amount) - should succeed
+    let amount = 1i128;
+    client.contribute(&pool_id, &contributor, &token_id.address(), &amount, &false);
+
+    // Should succeed without error
+}
+
+#[test]
+fn test_save_pool_minimum_exceeds_target_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let name = String::from_str(&env, "Invalid Pool");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Invalid configuration"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000_000i128;
+    let minimum_donation = 20_000_000i128; // Exceeds target
+    let deadline = env.ledger().timestamp() + 86400;
+
+    // Attempt to create pool with minimum > target - should fail
+    let result = client.try_save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &minimum_donation,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidAmount)));
+}
+
+#[test]
+fn test_save_pool_negative_minimum_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let name = String::from_str(&env, "Invalid Pool");
+    let metadata = PoolMetadata {
+        description: String::from_str(&env, "Invalid configuration"),
+        external_url: String::from_str(&env, ""),
+        image_hash: String::from_str(&env, ""),
+    };
+    let target_amount = 10_000_000i128;
+    let minimum_donation = -5_000_000i128; // Negative
+    let deadline = env.ledger().timestamp() + 86400;
+
+    // Attempt to create pool with negative minimum - should fail
+    let result = client.try_save_pool(
+        &name,
+        &metadata,
+        &creator,
+        &target_amount,
+        &deadline,
+        &minimum_donation,
+        &None::<u32>,
+        &None::<Vec<Address>>,
+    );
+
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidAmount)));
 }

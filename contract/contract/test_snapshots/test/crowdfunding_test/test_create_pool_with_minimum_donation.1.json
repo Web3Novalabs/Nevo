@@ -16,7 +16,7 @@
               "function_name": "save_pool",
               "args": [
                 {
-                  "string": "Education Fund"
+                  "string": "Minimum Donation Pool"
                 },
                 {
                   "map": [
@@ -25,7 +25,7 @@
                         "symbol": "description"
                       },
                       "val": {
-                        "string": "Fund for educational supplies"
+                        "string": "Pool with minimum 5 XLM donation"
                       }
                     },
                     {
@@ -50,13 +50,13 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                 },
                 {
-                  "i128": "10000"
+                  "i128": "100000000"
                 },
                 {
                   "u64": "86400"
                 },
                 {
-                  "i128": "0"
+                  "i128": "5000000"
                 },
                 "void",
                 "void"
@@ -66,7 +66,8 @@
           "sub_invocations": []
         }
       ]
-    ]
+    ],
+    []
   ],
   "ledger": {
     "protocol_version": 23,
@@ -120,7 +121,7 @@
                         "symbol": "description"
                       },
                       "val": {
-                        "string": "Fund for educational supplies"
+                        "string": "Pool with minimum 5 XLM donation"
                       }
                     },
                     {
@@ -225,7 +226,7 @@
                                 "symbol": "minimum_donation"
                               },
                               "val": {
-                                "i128": "0"
+                                "i128": "5000000"
                               }
                             },
                             {
@@ -233,7 +234,7 @@
                                 "symbol": "name"
                               },
                               "val": {
-                                "string": "Education Fund"
+                                "string": "Minimum Donation Pool"
                               }
                             },
                             {
@@ -241,7 +242,7 @@
                                 "symbol": "target_amount"
                               },
                               "val": {
-                                "i128": "10000"
+                                "i128": "100000000"
                               }
                             }
                           ]
@@ -368,45 +369,5 @@
       ]
     ]
   },
-  "events": [
-    {
-      "event": {
-        "ext": "v0",
-        "contract_id": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-        "type_": "contract",
-        "body": {
-          "v0": {
-            "topics": [
-              {
-                "symbol": "pool_created"
-              },
-              {
-                "u64": "1"
-              },
-              {
-                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-              }
-            ],
-            "data": {
-              "vec": [
-                {
-                  "string": "Education Fund"
-                },
-                {
-                  "string": "Fund for educational supplies"
-                },
-                {
-                  "i128": "10000"
-                },
-                {
-                  "u64": "86400"
-                }
-              ]
-            }
-          }
-        }
-      },
-      "failed_call": false
-    }
-  ]
+  "events": []
 }

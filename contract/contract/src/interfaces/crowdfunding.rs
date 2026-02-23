@@ -43,6 +43,7 @@ pub trait CrowdfundingTrait {
         creator: Address,
         target_amount: i128,
         deadline: u64,
+        minimum_donation: i128,
         required_signatures: Option<u32>,
         signers: Option<Vec<Address>>,
     ) -> Result<u64, CrowdfundingError>;

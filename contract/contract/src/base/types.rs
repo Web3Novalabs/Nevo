@@ -26,6 +26,7 @@ pub struct PoolConfig {
     pub is_private: bool,
     pub duration: u64,
     pub created_at: u64,
+    pub minimum_donation: i128,
 }
 
 #[contracttype]
@@ -55,6 +56,15 @@ impl PoolConfig {
 
         // Duration must be strictly positive (non-zero)
         assert!(self.duration > 0, "duration must be > 0");
+
+        // Minimum donation must be non-negative
+        assert!(self.minimum_donation >= 0, "minimum_donation must be >= 0");
+
+        // Minimum donation must not exceed target amount
+        assert!(
+            self.minimum_donation <= self.target_amount,
+            "minimum_donation must not exceed target_amount"
+        );
     }
 }
 
@@ -161,6 +171,7 @@ mod tests {
             is_private: false,
             duration: 30 * 24 * 60 * 60,
             created_at: 1,
+            minimum_donation: 5_000,
         };
 
         cfg.validate();
@@ -176,6 +187,7 @@ mod tests {
             is_private: false,
             duration: 30 * 24 * 60 * 60,
             created_at: 1,
+            minimum_donation: 0,
         };
 
         cfg.validate();

@@ -35,7 +35,7 @@
               "function_name": "save_pool",
               "args": [
                 {
-                  "string": "Test Pool"
+                  "string": "Pool without Minimum"
                 },
                 {
                   "map": [
@@ -44,7 +44,7 @@
                         "symbol": "description"
                       },
                       "val": {
-                        "string": "Test description"
+                        "string": "Pool with zero minimum"
                       }
                     },
                     {
@@ -69,7 +69,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                 },
                 {
-                  "i128": "10000"
+                  "i128": "1000000000"
                 },
                 {
                   "u64": "86400"
@@ -99,7 +99,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                 },
                 {
-                  "i128": "5000"
+                  "i128": "100000000"
                 }
               ]
             }
@@ -127,7 +127,7 @@
                   "address": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL"
                 },
                 {
-                  "i128": "1000"
+                  "i128": "1"
                 },
                 {
                   "bool": false
@@ -149,7 +149,7 @@
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                     },
                     {
-                      "i128": "1000"
+                      "i128": "1"
                     }
                   ]
                 }
@@ -159,9 +159,7 @@
           ]
         }
       ]
-    ],
-    [],
-    []
+    ]
   ],
   "ledger": {
     "protocol_version": 23,
@@ -309,7 +307,7 @@
                         "symbol": "description"
                       },
                       "val": {
-                        "string": "Test description"
+                        "string": "Pool with zero minimum"
                       }
                     },
                     {
@@ -422,7 +420,7 @@
                                 "symbol": "name"
                               },
                               "val": {
-                                "string": "Test Pool"
+                                "string": "Pool without Minimum"
                               }
                             },
                             {
@@ -430,7 +428,7 @@
                                 "symbol": "target_amount"
                               },
                               "val": {
-                                "i128": "10000"
+                                "i128": "1000000000"
                               }
                             }
                           ]
@@ -470,7 +468,7 @@
                                 "symbol": "total_raised"
                               },
                               "val": {
-                                "i128": "1000"
+                                "i128": "1"
                               }
                             }
                           ]
@@ -609,7 +607,7 @@
                         "symbol": "amount"
                       },
                       "val": {
-                        "i128": "1000"
+                        "i128": "1"
                       }
                     },
                     {
@@ -679,7 +677,7 @@
                         "symbol": "amount"
                       },
                       "val": {
-                        "i128": "4000"
+                        "i128": "99999999"
                       }
                     },
                     {
@@ -842,5 +840,74 @@
       ]
     ]
   },
-  "events": []
+  "events": [
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "transfer"
+              },
+              {
+                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+              },
+              {
+                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+              },
+              {
+                "string": "aaa:GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEGWF"
+              }
+            ],
+            "data": {
+              "i128": "1"
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "contribution"
+              },
+              {
+                "u64": "1"
+              },
+              {
+                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+              }
+            ],
+            "data": {
+              "vec": [
+                {
+                  "address": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL"
+                },
+                {
+                  "i128": "1"
+                },
+                {
+                  "u64": "100"
+                },
+                {
+                  "bool": false
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    }
+  ]
 }

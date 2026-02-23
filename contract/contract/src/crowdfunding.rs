@@ -195,6 +195,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         creator: Address,
         target_amount: i128,
         deadline: u64,
+        minimum_donation: i128,
         required_signatures: Option<u32>,
         signers: Option<Vec<Address>>,
     ) -> Result<u64, CrowdfundingError> {
@@ -214,6 +215,14 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         if deadline <= env.ledger().timestamp() {
             return Err(CrowdfundingError::InvalidPoolDeadline);
+        }
+
+        if minimum_donation < 0 {
+            return Err(CrowdfundingError::InvalidAmount);
+        }
+
+        if minimum_donation > target_amount {
+            return Err(CrowdfundingError::InvalidAmount);
         }
 
         // Validate metadata lengths
@@ -265,6 +274,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             is_private: false,
             duration,
             created_at: now,
+            minimum_donation,
         };
 
         // Store pool configuration
@@ -440,6 +450,17 @@ impl CrowdfundingTrait for CrowdfundingContract {
         let pool_key = StorageKey::Pool(pool_id);
         if !env.storage().instance().has(&pool_key) {
             return Err(CrowdfundingError::PoolNotFound);
+        }
+
+        let pool_config: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(CrowdfundingError::PoolNotFound)?;
+
+        // Validate that contribution meets minimum donation requirement
+        if amount < pool_config.minimum_donation {
+            return Err(CrowdfundingError::BelowMinimumDonation);
         }
 
         let state_key = StorageKey::PoolState(pool_id);

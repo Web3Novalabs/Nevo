@@ -35,7 +35,7 @@
               "function_name": "save_pool",
               "args": [
                 {
-                  "string": "Test Pool"
+                  "string": "Pool with Minimum"
                 },
                 {
                   "map": [
@@ -44,7 +44,7 @@
                         "symbol": "description"
                       },
                       "val": {
-                        "string": "Test description"
+                        "string": "Pool requiring 5 XLM minimum"
                       }
                     },
                     {
@@ -69,13 +69,13 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                 },
                 {
-                  "i128": "10000"
+                  "i128": "1000000000"
                 },
                 {
                   "u64": "86400"
                 },
                 {
-                  "i128": "0"
+                  "i128": "5000000"
                 },
                 "void",
                 "void"
@@ -99,7 +99,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                 },
                 {
-                  "i128": "5000"
+                  "i128": "100000000"
                 }
               ]
             }
@@ -127,7 +127,7 @@
                   "address": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL"
                 },
                 {
-                  "i128": "1000"
+                  "i128": "5000000"
                 },
                 {
                   "bool": false
@@ -149,7 +149,7 @@
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                     },
                     {
-                      "i128": "1000"
+                      "i128": "5000000"
                     }
                   ]
                 }
@@ -160,7 +160,6 @@
         }
       ]
     ],
-    [],
     []
   ],
   "ledger": {
@@ -309,7 +308,7 @@
                         "symbol": "description"
                       },
                       "val": {
-                        "string": "Test description"
+                        "string": "Pool requiring 5 XLM minimum"
                       }
                     },
                     {
@@ -414,7 +413,7 @@
                                 "symbol": "minimum_donation"
                               },
                               "val": {
-                                "i128": "0"
+                                "i128": "5000000"
                               }
                             },
                             {
@@ -422,7 +421,7 @@
                                 "symbol": "name"
                               },
                               "val": {
-                                "string": "Test Pool"
+                                "string": "Pool with Minimum"
                               }
                             },
                             {
@@ -430,7 +429,7 @@
                                 "symbol": "target_amount"
                               },
                               "val": {
-                                "i128": "10000"
+                                "i128": "1000000000"
                               }
                             }
                           ]
@@ -470,7 +469,7 @@
                                 "symbol": "total_raised"
                               },
                               "val": {
-                                "i128": "1000"
+                                "i128": "5000000"
                               }
                             }
                           ]
@@ -609,7 +608,7 @@
                         "symbol": "amount"
                       },
                       "val": {
-                        "i128": "1000"
+                        "i128": "5000000"
                       }
                     },
                     {
@@ -679,7 +678,7 @@
                         "symbol": "amount"
                       },
                       "val": {
-                        "i128": "4000"
+                        "i128": "95000000"
                       }
                     },
                     {
