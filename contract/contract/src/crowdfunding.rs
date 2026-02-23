@@ -16,6 +16,28 @@ use crate::interfaces::crowdfunding::CrowdfundingTrait;
 #[contract]
 pub struct CrowdfundingContract;
 
+const PLATFORM_FEE_BPS: u32 = 100;
+
+pub fn calculate_platform_fee(amount: i128, fee_bps: u32) -> i128 {
+    if amount <= 0 || fee_bps == 0 {
+        return 0;
+    }
+
+    // Clamp to 100% to avoid unrealistic fee configurations
+    let bps = fee_bps.min(10_000) as i128;
+
+    // Compute (amount * bps) / 10_000 in a way that avoids overflow:
+    // amount = q * 10_000 + r, with |r| < 10_000
+    // fee = q * bps + (r * bps) / 10_000
+    let q = amount / 10_000;
+    let r = amount % 10_000;
+
+    let base = q * bps;
+    let rem = (r * bps) / 10_000;
+
+    base + rem
+}
+
 #[contractimpl]
 #[allow(clippy::too_many_arguments)]
 impl CrowdfundingTrait for CrowdfundingContract {
@@ -464,7 +486,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .set(&contribution_key, &updated_contribution);
 
         // Record platform fee for tracking
-        let fee_earned = amount / 100; // 1%
+        let fee_earned = calculate_platform_fee(amount, PLATFORM_FEE_BPS);
         if fee_earned > 0 {
             let fee_history_key = StorageKey::CampaignFeeHistory(campaign_id.clone());
             let current_fees: i128 = env
@@ -1316,5 +1338,25 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .persistent()
             .get(&blacklist_key)
             .unwrap_or(false)
+    }
+}
+
+#[cfg(test)]
+mod fee_tests {
+    use super::calculate_platform_fee;
+
+    #[test]
+    fn calculate_platform_fee_small_amount() {
+        let amount = 1_000i128;
+        let fee = calculate_platform_fee(amount, 250); // 2.5%
+        assert_eq!(fee, 25);
+    }
+
+    #[test]
+    fn calculate_platform_fee_large_amount_no_overflow() {
+        let amount = i128::MAX / 2;
+        let fee = calculate_platform_fee(amount, 2_500); // 25%
+        assert!(fee > 0);
+        assert!(fee <= amount);
     }
 }
