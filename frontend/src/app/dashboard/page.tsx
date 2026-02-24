@@ -1,3 +1,6 @@
+import { DashboardStats } from "@/components/dashboard/DashboardStats";
+import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
+
 export default function DashboardOverviewPage() {
   return (
     <div className="space-y-8">
@@ -10,12 +13,17 @@ export default function DashboardOverviewPage() {
         </p>
       </header>
 
-      <section className="rounded-xl border border-slate-800/80 bg-slate-900/50 p-6 backdrop-blur-sm">
-        <h2 className="text-lg font-semibold text-white">Quick stats</h2>
-        <p className="mt-2 text-sm text-slate-500">
-          Stats and charts will appear in Part 2.
-        </p>
-      </section>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          <section>
+            <DashboardStats />
+          </section>
+        </div>
+
+        <div className="lg:col-span-1 h-[400px]">
+          <ActivityFeed />
+        </div>
+      </div>
     </div>
   );
 }

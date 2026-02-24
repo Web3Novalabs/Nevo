@@ -1,4 +1,5 @@
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DashboardProvider } from "@/components/dashboard/DashboardContext";
 
 export default function DashboardLayout({
   children,
@@ -7,7 +8,9 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="-mt-28 min-h-screen">
-      <DashboardShell>{children}</DashboardShell>
+      <DashboardProvider>
+        <DashboardShell>{children}</DashboardShell>
+      </DashboardProvider>
     </div>
   );
 }
