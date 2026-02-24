@@ -18,6 +18,8 @@ pub trait CrowdfundingTrait {
 
     fn get_campaign(env: Env, id: BytesN<32>) -> Result<CampaignDetails, CrowdfundingError>;
 
+    fn get_campaigns(env: Env, ids: Vec<BytesN<32>>) -> Vec<CampaignDetails>;
+
     fn get_all_campaigns(env: Env) -> Vec<BytesN<32>>;
 
     fn get_donor_count(env: Env, campaign_id: BytesN<32>) -> Result<u32, CrowdfundingError>;
@@ -48,6 +50,31 @@ pub trait CrowdfundingTrait {
         asset: Address,
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
+
+    fn update_campaign_goal(
+        env: Env,
+        campaign_id: BytesN<32>,
+        new_goal: i128,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn cancel_campaign(env: Env, campaign_id: BytesN<32>) -> Result<(), CrowdfundingError>;
+
+    fn refund_campaign(
+        env: Env,
+        campaign_id: BytesN<32>,
+        contributor: Address,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn extend_campaign_deadline(
+        env: Env,
+        campaign_id: BytesN<32>,
+        new_deadline: u64,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn get_campaign_fee_history(
+        env: Env,
+        campaign_id: BytesN<32>,
+    ) -> Result<i128, CrowdfundingError>;
 
     fn create_pool(
         env: Env,
@@ -128,6 +155,8 @@ pub trait CrowdfundingTrait {
 
     fn is_closed(env: Env, pool_id: u64) -> Result<bool, CrowdfundingError>;
 
+    fn renounce_admin(env: Env) -> Result<(), CrowdfundingError>;
+
     fn get_active_campaign_count(env: Env) -> u32;
     fn verify_cause(env: Env, cause: Address) -> Result<(), CrowdfundingError>;
 
@@ -142,4 +171,19 @@ pub trait CrowdfundingTrait {
     fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError>;
 
     fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;
+
+    fn get_contract_version(env: Env) -> String;
+
+    fn blacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
+
+    fn unblacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
+
+    fn is_blacklisted(env: Env, address: Address) -> bool;
+
+    fn update_pool_metadata_hash(
+        env: Env,
+        pool_id: u64,
+        caller: Address,
+        new_metadata_hash: String,
+    ) -> Result<(), CrowdfundingError>;
 }

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Camera, UserCircle } from "lucide-react";
+import Image from "next/image";
 import { toast } from "sonner";
 
 // Dummy initial profile
@@ -71,18 +72,21 @@ export default function ProfileSettingsPage() {
 
           <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-6 md:p-8 shadow-2xl">
             <div className="flex flex-col md:flex-row gap-10 items-start">
-              
+
               {/* Avatar Section */}
               <div className="flex flex-col items-center gap-4 w-full md:w-auto">
                 <div className="relative group">
                   <div className="w-32 h-32 rounded-full overflow-hidden bg-slate-800 border-4 border-slate-700 flex items-center justify-center relative shadow-inner">
                     {formData.avatarUrl ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={formData.avatarUrl}
-                        alt="Avatar"
-                        className="w-full h-full object-cover"
-                      />
+                      <div className="relative w-full h-full">
+                        <Image
+                          src={formData.avatarUrl}
+                          alt="Avatar"
+                          fill
+                          className="object-cover"
+                          unoptimized={formData.avatarUrl.startsWith('data:')}
+                        />
+                      </div>
                     ) : (
                       <UserCircle className="w-20 h-20 text-slate-500" />
                     )}

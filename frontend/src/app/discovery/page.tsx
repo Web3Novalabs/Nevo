@@ -22,6 +22,7 @@ import {
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import Link from "next/link";
+import Image from "next/image";
 
 // ─── Types ───────────────────────────────────────────────────────────
 interface Pool {
@@ -154,6 +155,15 @@ function generatePools(startId: number, count: number): Pool[] {
     const goal = Math.floor(Math.random() * 90000) + 10000;
     const raised = Math.floor(Math.random() * goal * 0.95);
 
+    const unsplashIds = [
+      "1541249591-6284fcdbf769", // Water
+      "1577896851231-70ef18881754", // Education
+      "1542601906990-b4d3fb778b09", // Environment
+      "1538108149393-fbbd81895907", // Health
+      "1460661419201-fd4cecdf8a8b", // Community
+      "1588680145224-811c751270ae", // Emergency
+    ];
+
     pools.push({
       id: startId + i,
       title: titles[titleIndex],
@@ -164,7 +174,7 @@ function generatePools(startId: number, count: number): Pool[] {
       contributors: Math.floor(Math.random() * 450) + 10,
       daysLeft: Math.floor(Math.random() * 60) + 1,
       yieldRate: parseFloat((Math.random() * 5 + 1).toFixed(1)),
-      image: `/pool-${(i % 6) + 1}.jpg`,
+      image: `https://images.unsplash.com/photo-${unsplashIds[i % unsplashIds.length]}?auto=format&fit=crop&q=80&w=800`,
       creator: `G${Array.from({ length: 6 }, () => "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"[Math.floor(Math.random() * 32)]).join("")}...`,
       trending: Math.random() > 0.7,
     });
@@ -184,10 +194,20 @@ function PoolCard({ pool, index }: { pool: Pool; index: number }) {
         animation: "fadeSlideUp 0.6s ease-out backwards",
       }}
     >
-      {/* Category Gradient Header */}
-      <div
-        className={`h-2 bg-gradient-to-r ${categoryColors[pool.category]?.replace("border-", "")?.split(" ").slice(0, 2).join(" ") || "from-[#50C878] to-[#14B8A6]"}`}
-      />
+      {/* Pool Image */}
+      <div className="relative h-48 w-full overflow-hidden">
+        <Image
+          src={pool.image}
+          alt={pool.title}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          className="object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+        {/* Category Gradient Overlay (bottom) */}
+        <div
+          className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${categoryColors[pool.category]?.replace("border-", "")?.split(" ").slice(0, 2).join(" ") || "from-[#50C878] to-[#14B8A6]"}`}
+        />
+      </div>
 
       <div className="p-6">
         {/* Top row: Category + Trending */}
@@ -513,11 +533,10 @@ export default function DiscoveryPage() {
                   key={cat}
                   id={`filter-${cat.toLowerCase()}`}
                   onClick={() => setSelectedCategory(cat)}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
-                    selectedCategory === cat
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${selectedCategory === cat
                       ? "bg-[#50C878] text-black shadow-lg shadow-[#50C878]/20"
                       : "bg-slate-800/60 text-slate-400 hover:bg-slate-700/60 hover:text-white border border-slate-700/50"
-                  }`}
+                    }`}
                 >
                   {cat !== "All" && (
                     <span className={selectedCategory === cat ? "text-black" : ""}>
@@ -557,11 +576,10 @@ export default function DiscoveryPage() {
                           setSortBy(opt.value);
                           setShowSortDropdown(false);
                         }}
-                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                          sortBy === opt.value
+                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${sortBy === opt.value
                             ? "bg-[#50C878]/10 text-[#50C878]"
                             : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
-                        }`}
+                          }`}
                       >
                         {opt.label}
                       </button>

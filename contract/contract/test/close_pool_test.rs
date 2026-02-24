@@ -30,6 +30,7 @@ fn create_test_pool(client: &CrowdfundingContractClient, env: &Env, creator: &Ad
         name: String::from_str(env, "Test Pool"),
         description: String::from_str(env, "A test pool for closing"),
         target_amount: 1_000_000,
+        min_contribution: 0,
         is_private: false,
         duration: 86400, // 1 day
         created_at: env.ledger().timestamp(),
