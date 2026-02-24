@@ -97,7 +97,7 @@ fn test_calculate_platform_fee_stellar_xlm_amounts() {
 #[test]
 fn test_calculate_platform_fee_multiple_scenarios() {
     // Test various realistic donation scenarios
-    let test_cases = vec![
+    let test_cases = std::vec![
         (1_000, 250, 25),           // $10 donation, 2.5% fee = $0.25
         (5_000, 250, 125),          // $50 donation, 2.5% fee = $1.25
         (10_000, 250, 250),         // $100 donation, 2.5% fee = $2.50
@@ -212,7 +212,7 @@ fn test_calculate_platform_fee_realistic_pool_scenarios() {
         expected_fee: i128,
     }
 
-    let scenarios = vec![
+    let scenarios = std::vec![
         Scenario {
             description: "Small community pool - $500 raised",
             amount: 500_00,      // $500 in cents
