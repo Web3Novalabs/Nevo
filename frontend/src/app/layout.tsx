@@ -4,8 +4,6 @@ import type { Metadata } from "next";
 // import { Anton } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import PageProgressWrapper from "@/components/PageProgressWrapper";
-import ScrollButton from "@/components/ScrollButton";
 
 
 // const geistSans = Geist({
@@ -35,35 +33,54 @@ import ScrollButton from "@/components/ScrollButton";
 export const metadata: Metadata = {
 
   authors: [{ name: "Nevo" }],
-  openGraph: {
-    type: "website",
-    locale: "en_US",
-    url: "https://nevo.app",
-    siteName: "Nevo",
-    title: "Nevo - Secure Donation Pools on Stellar",
-    description:
-      "Create transparent, secure donation pools on Stellar blockchain with low fees and DeFi yield generation.",
-    images: [
-      {
-        url: "https://nevo.app/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Nevo - Secure Donation Pools on Stellar",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Nevo - Secure Donation Pools on Stellar",
-    description:
-      "Create transparent, secure donation pools on Stellar blockchain with low fees and DeFi yield generation.",
-    images: ["https://nevo.app/og-image.png"],
-  },
-  metadataBase: new URL("https://nevo.app"),
+
   robots: {
     index: true,
     follow: true,
   },
+  metadataBase: new URL("https://nevo.app"),
+  title: "Nevo",
+  description: "Decentralized Donation Pools on Stellar",
+  keywords: [
+    "decentralized security",
+    "nevo",
+    "payment",
+    "security",
+    "automated rewards",
+    "trustless",
+    "Web3 payment",
+    "donation",
+    "crowd funding",
+    "stellar",
+    "pools",
+    "crypto payment",
+  ],
+  openGraph: {
+    title: "Nevo - Decentralized Donation Pools on Stellar",
+    description:
+      "Nevo is a decentralized platform that reimagines charitable giving through blockchain technology. Create transparent donation pools, accept multiple assets, and let idle funds generate yields while maintaining complete control over disbursements",
+    url: "https://nevo.app",
+    siteName: "nevo",
+    images: [
+      {
+        url: "https://nevo.app/logo.jpeg",
+        width: 1200,
+        height: 630,
+        alt: "nevo - Decentralized Donation Pools on Stellar",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Nevo - Decentralized Donation Pools on Stellar",
+    description:
+      "Nevo is a decentralized platform that reimagines charitable giving through blockchain technology. Create transparent donation pools, accept multiple assets, and let idle funds generate yields while maintaining complete control over disbursements",
+    images: ["https://nevo.app/logo.jpeg"],
+    creator: "@nevoapp",
+  },
+
   icons: {
     icon: [
       { url: "/Group 1.svg" },
@@ -96,12 +113,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`bg-no-repeat bg-fixed bg h-full bg-cover antialiased font-dmsans relative`}
+        className={`bg-no-repeat bg-fixed bg h-full bg-cover antialiased font-dmsans`}
         suppressHydrationWarning={true}
       >
-        <PageProgressWrapper />
-        <ScrollButton />
-        <main className="">{children}</main>
+        <main className="mt-28 ">{children}</main>
         <Toaster />
       </body>
     </html>

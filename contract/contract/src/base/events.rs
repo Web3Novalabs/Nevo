@@ -67,16 +67,6 @@ pub fn donation_made(env: &Env, campaign_id: BytesN<32>, contributor: Address, a
     env.events().publish(topics, (contributor, amount));
 }
 
-pub fn campaign_cancelled(env: &Env, id: BytesN<32>) {
-    let topics = (Symbol::new(env, "campaign_cancelled"), id);
-    env.events().publish(topics, ());
-}
-
-pub fn campaign_refunded(env: &Env, id: BytesN<32>, contributor: Address, amount: i128) {
-    let topics = (Symbol::new(env, "campaign_refunded"), id, contributor);
-    env.events().publish(topics, amount);
-}
-
 pub fn contribution(
     env: &Env,
     pool_id: u64,
