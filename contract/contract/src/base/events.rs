@@ -143,3 +143,8 @@ pub fn address_unblacklisted(env: &Env, admin: Address, address: Address) {
     let topics = (Symbol::new(env, "address_unblacklisted"), admin);
     env.events().publish(topics, address);
 }
+
+pub fn pool_metadata_updated(env: &Env, pool_id: u64, updater: Address, new_metadata_hash: String) {
+    let topics = (Symbol::new(env, "pool_metadata_updated"), pool_id, updater);
+    env.events().publish(topics, new_metadata_hash);
+}
