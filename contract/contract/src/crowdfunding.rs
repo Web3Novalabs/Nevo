@@ -19,9 +19,68 @@ use crate::interfaces::crowdfunding::CrowdfundingTrait;
 #[contract]
 pub struct CrowdfundingContract;
 
+// Internal helper functions
+impl CrowdfundingContract {
+    /// Calculate platform fee based on basis points.
+    ///
+    /// # Arguments
+    /// * `amount` - The donation amount to calculate fee from
+    /// * `fee_bps` - Fee in basis points (e.g., 250 for 2.5%)
+    ///
+    /// # Returns
+    /// The calculated fee amount
+    ///
+    /// # Panics
+    /// Panics if the calculation would overflow
+    ///
+    /// # Examples
+    /// ```
+    /// // 2.5% fee (250 basis points) on 10,000 tokens
+    /// let fee = calculate_platform_fee(10_000, 250);
+    /// assert_eq!(fee, 250); // 2.5% of 10,000 = 250
+    /// ```
+    pub(crate) fn calculate_platform_fee(amount: i128, fee_bps: u32) -> i128 {
+        // Basis points: 10,000 bps = 100%
+        const BPS_DENOMINATOR: i128 = 10_000;
+
+        // Validate inputs
+        assert!(amount >= 0, "amount must be non-negative");
+        assert!(fee_bps <= 10_000, "fee_bps must be <= 10,000 (100%)");
+
+        // Use checked multiplication to prevent overflow
+        // Formula: (amount * fee_bps) / 10,000
+        let fee_bps_i128 = fee_bps as i128;
+
+        // Check for potential overflow before multiplication
+        if amount > 0 && fee_bps_i128 > i128::MAX / amount {
+            panic!("fee calculation would overflow");
+        }
+
+        let numerator = amount
+            .checked_mul(fee_bps_i128)
+            .expect("fee calculation overflow");
+
+        numerator / BPS_DENOMINATOR
+    }
+}
+
 #[contractimpl]
 #[allow(clippy::too_many_arguments)]
 impl CrowdfundingTrait for CrowdfundingContract {
+    fn get_pool_remaining_time(env: Env, pool_id: u64) -> Result<u64, CrowdfundingError> {
+        let pool_key = StorageKey::Pool(pool_id);
+        let pool: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(CrowdfundingError::PoolNotFound)?;
+
+        let deadline: u64 = pool.created_at + pool.duration;
+        let now: u64 = env.ledger().timestamp();
+
+        Ok(deadline.saturating_sub(now))
+    }
+
     fn create_campaign(
         env: Env,
         id: BytesN<32>,
@@ -35,11 +94,6 @@ impl CrowdfundingTrait for CrowdfundingContract {
             return Err(CrowdfundingError::ContractPaused);
         }
         creator.require_auth();
-
-        // Check if creator is blacklisted
-        if Self::is_blacklisted(env.clone(), creator.clone()) {
-            return Err(CrowdfundingError::UserBlacklisted);
-        }
 
         if title.is_empty() {
             return Err(CrowdfundingError::InvalidTitle);
@@ -377,11 +431,6 @@ impl CrowdfundingTrait for CrowdfundingContract {
         let cancellation_key = StorageKey::CampaignCancelled(campaign_id.clone());
         if env.storage().instance().has(&cancellation_key) {
             return Err(CrowdfundingError::CampaignCancelled);
-        }
-
-        // Check if donor is blacklisted
-        if Self::is_blacklisted(env.clone(), donor.clone()) {
-            return Err(CrowdfundingError::UserBlacklisted);
         }
 
         // Validate donation amount
@@ -1017,6 +1066,11 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .get(&state_key)
             .unwrap_or(PoolState::Active);
 
+        // Reject contributions to closed pools
+        if state == PoolState::Closed {
+            return Err(CrowdfundingError::PoolAlreadyClosed);
+        }
+
         if state != PoolState::Active {
             return Err(CrowdfundingError::InvalidPoolState);
         }
@@ -1081,6 +1135,20 @@ impl CrowdfundingTrait for CrowdfundingContract {
         env.storage()
             .instance()
             .set(&contributor_key, &updated_contribution);
+
+        // Track contributor in the list for pagination
+        if existing_contribution.amount == 0 {
+            let contributors_key = StorageKey::PoolContributors(pool_id);
+            let mut contributors: Vec<Address> = env
+                .storage()
+                .instance()
+                .get(&contributors_key)
+                .unwrap_or(Vec::new(&env));
+            contributors.push_back(contributor.clone());
+            env.storage()
+                .instance()
+                .set(&contributors_key, &contributors);
+        }
 
         // Emit event
         events::contribution(
@@ -1320,11 +1388,14 @@ impl CrowdfundingTrait for CrowdfundingContract {
     }
 
     fn close_pool(env: Env, pool_id: u64, caller: Address) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
         caller.require_auth();
 
         // Validate pool exists
         let pool_key = StorageKey::Pool(pool_id);
-        let _pool: PoolConfig = env
+        let pool: PoolConfig = env
             .storage()
             .instance()
             .get(&pool_key)
@@ -1343,23 +1414,41 @@ impl CrowdfundingTrait for CrowdfundingContract {
             return Err(CrowdfundingError::PoolAlreadyClosed);
         }
 
-        // Only allow closing if pool is in Disbursed or Cancelled state
-        if current_state != PoolState::Disbursed && current_state != PoolState::Cancelled {
-            return Err(CrowdfundingError::PoolNotDisbursedOrRefunded);
-        }
+        // Get pool creator
+        let creator_key = StorageKey::PoolCreator(pool_id);
+        let creator: Option<Address> = env.storage().instance().get(&creator_key);
 
-        // Verify caller is admin or pool creator
+        // Get admin
         let admin: Address = env
             .storage()
             .instance()
             .get(&StorageKey::Admin)
             .ok_or(CrowdfundingError::NotInitialized)?;
 
-        // For now, we'll check if there's a creator stored separately
-        // Since PoolConfig doesn't have creator field, we'll allow admin only
-        // In a real implementation, you might want to add creator to PoolConfig or store it separately
-        if caller != admin {
+        // Check authorization: caller must be either the pool creator or admin
+        let is_creator = creator.as_ref().map_or(false, |c| c == &caller);
+        let is_admin = caller == admin;
+
+        if !is_creator && !is_admin {
             return Err(CrowdfundingError::Unauthorized);
+        }
+
+        // For private pools, allow owner to close at any time (except already closed states)
+        // For admin, allow closing only after Disbursed or Cancelled
+        if is_creator && pool.is_private {
+            // Owner can close private pool in Active, Paused, Cancelled, or Disbursed state
+            if current_state != PoolState::Active
+                && current_state != PoolState::Paused
+                && current_state != PoolState::Cancelled
+                && current_state != PoolState::Disbursed
+            {
+                return Err(CrowdfundingError::InvalidPoolState);
+            }
+        } else {
+            // Admin or non-private pools can only be closed after Disbursed or Cancelled
+            if current_state != PoolState::Disbursed && current_state != PoolState::Cancelled {
+                return Err(CrowdfundingError::PoolNotDisbursedOrRefunded);
+            }
         }
 
         // Update state to Closed
@@ -1492,101 +1581,53 @@ impl CrowdfundingTrait for CrowdfundingContract {
         String::from_str(&env, "1.2.0")
     }
 
-    fn blacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError> {
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&StorageKey::Admin)
-            .ok_or(CrowdfundingError::NotInitialized)?;
-        admin.require_auth();
-
-        let blacklist_key = StorageKey::Blacklist(address.clone());
-        env.storage().persistent().set(&blacklist_key, &true);
-
-        events::address_blacklisted(&env, admin, address);
-
-        Ok(())
-    }
-
-    fn unblacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError> {
-        let admin: Address = env
-            .storage()
-            .instance()
-            .get(&StorageKey::Admin)
-            .ok_or(CrowdfundingError::NotInitialized)?;
-        admin.require_auth();
-
-        let blacklist_key = StorageKey::Blacklist(address.clone());
-        env.storage().persistent().remove(&blacklist_key);
-
-        events::address_unblacklisted(&env, admin, address);
-
-        Ok(())
-    }
-
-    fn is_blacklisted(env: Env, address: Address) -> bool {
-        let blacklist_key = StorageKey::Blacklist(address);
-        env.storage()
-            .persistent()
-            .get(&blacklist_key)
-            .unwrap_or(false)
-    }
-
-    fn update_pool_metadata_hash(
+    fn get_pool_contributions_paginated(
         env: Env,
         pool_id: u64,
-        caller: Address,
-        new_metadata_hash: String,
-    ) -> Result<(), CrowdfundingError> {
-        if CrowdfundingContract::is_paused(env.clone()) {
-            return Err(CrowdfundingError::ContractPaused);
-        }
-        caller.require_auth();
-
-        // Validate metadata hash length
-        if new_metadata_hash.len() > MAX_HASH_LENGTH {
-            return Err(CrowdfundingError::InvalidMetadata);
-        }
-
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<PoolContribution>, CrowdfundingError> {
+        // Validate pool exist
         // Check if pool exists
         let pool_key = StorageKey::Pool(pool_id);
         if !env.storage().instance().has(&pool_key) {
             return Err(CrowdfundingError::PoolNotFound);
         }
 
-        // Verify caller is the pool creator
-        let creator_key = StorageKey::PoolCreator(pool_id);
-        let creator: Address = env
+        // Get the list of contributors
+        let contributors_key = StorageKey::PoolContributors(pool_id);
+        let contributors: Vec<Address> = env
             .storage()
             .instance()
-            .get(&creator_key)
-            .ok_or(CrowdfundingError::PoolNotFound)?;
+            .get(&contributors_key)
+            .unwrap_or(Vec::new(&env));
 
-        if caller != creator {
-            return Err(CrowdfundingError::Unauthorized);
+        let total_contributors = contributors.len();
+
+        // Validate offset
+        if offset >= total_contributors {
+            return Ok(Vec::new(&env));
         }
 
-        // Get existing metadata
-        let metadata_key = StorageKey::PoolMetadata(pool_id);
-        let mut metadata: PoolMetadata =
-            env.storage()
-                .persistent()
-                .get(&metadata_key)
-                .unwrap_or(PoolMetadata {
-                    description: String::from_str(&env, ""),
-                    external_url: String::from_str(&env, ""),
-                    image_hash: String::from_str(&env, ""),
-                });
+        // Calculate the end index
+        let end = (offset + limit).min(total_contributors);
 
-        // Update the image hash
-        metadata.image_hash = new_metadata_hash.clone();
+        // Collect contributions for the requested range
+        let mut result = Vec::new(&env);
+        for i in offset..end {
+            if let Some(contributor_addr) = contributors.get(i) {
+                let contribution_key =
+                    StorageKey::PoolContribution(pool_id, contributor_addr.clone());
+                if let Some(contribution) = env
+                    .storage()
+                    .instance()
+                    .get::<StorageKey, PoolContribution>(&contribution_key)
+                {
+                    result.push_back(contribution);
+                }
+            }
+        }
 
-        // Save updated metadata
-        env.storage().persistent().set(&metadata_key, &metadata);
-
-        // Emit event
-        events::pool_metadata_updated(&env, pool_id, caller, new_metadata_hash);
-
-        Ok(())
+        Ok(result)
     }
 }

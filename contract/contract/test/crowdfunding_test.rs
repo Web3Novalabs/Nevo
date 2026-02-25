@@ -321,7 +321,7 @@ fn test_extend_campaign_deadline_invalid_auth() {
     let (client, _, token_address) = setup_test(&env);
 
     let creator = Address::generate(&env);
-    let malicious = Address::generate(&env);
+    let _malicious = Address::generate(&env);
     let campaign_id = create_test_campaign_id(&env, 13);
     let title = String::from_str(&env, "Extend Auth");
     let goal = 1_000_000i128;
@@ -336,7 +336,7 @@ fn test_extend_campaign_deadline_invalid_auth() {
         &token_address,
     );
 
-    let new_deadline = env.ledger().timestamp() + 2 * 86400;
+    let _new_deadline = env.ledger().timestamp() + 2 * 86400;
 
     // mock_auths to malicious address simulating a fail
     // However, in mock_auths, if the caller requires the auth of creator, it will panic
@@ -382,11 +382,11 @@ fn test_extend_campaign_too_long() {
 #[test]
 fn test_get_campaign_fee_history() {
     let env = Env::default();
-    let (client, admin, token_address) = setup_test(&env);
+    let (client, _admin, token_address) = setup_test(&env);
 
     // Using token_admin pattern from other tests
-    let token_admin = Address::generate(&env);
-    let token_client = token::Client::new(&env, &token_address);
+    let _token_admin = Address::generate(&env);
+    let _token_client = token::Client::new(&env, &token_address);
     let token_admin_client = token::StellarAssetClient::new(&env, &token_address);
 
     let creator = Address::generate(&env);
@@ -3422,7 +3422,7 @@ fn test_withdraw_platform_fees_insufficient_fees() {
 #[test]
 fn test_set_emergency_contact_success() {
     let env = Env::default();
-    let (client, admin, _) = setup_test(&env);
+    let (client, _admin, _) = setup_test(&env);
 
     let emergency_contact = Address::generate(&env);
 
@@ -3436,7 +3436,7 @@ fn test_set_emergency_contact_success() {
 #[test]
 fn test_set_emergency_contact_updates_existing() {
     let env = Env::default();
-    let (client, admin, _) = setup_test(&env);
+    let (client, _admin, _) = setup_test(&env);
 
     let contact1 = Address::generate(&env);
     client.set_emergency_contact(&contact1);

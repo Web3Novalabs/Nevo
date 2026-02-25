@@ -2,7 +2,10 @@ use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 use crate::base::{
     errors::CrowdfundingError,
-    types::{CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolMetadata, PoolState},
+    types::{
+        CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
+        PoolState,
+    },
 };
 
 pub trait CrowdfundingTrait {
@@ -174,16 +177,12 @@ pub trait CrowdfundingTrait {
 
     fn get_contract_version(env: Env) -> String;
 
-    fn blacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
-
-    fn unblacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
-
-    fn is_blacklisted(env: Env, address: Address) -> bool;
-
-    fn update_pool_metadata_hash(
+    fn get_pool_contributions_paginated(
         env: Env,
         pool_id: u64,
-        caller: Address,
-        new_metadata_hash: String,
-    ) -> Result<(), CrowdfundingError>;
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<PoolContribution>, CrowdfundingError>;
+
+    fn get_pool_remaining_time(env: Env, pool_id: u64) -> Result<u64, CrowdfundingError>;
 }

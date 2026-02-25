@@ -224,6 +224,7 @@ pub enum StorageKey {
     CampaignDonor(BytesN<32>, Address),
     Contribution(BytesN<32>, Address),
     PoolContribution(u64, Address),
+    PoolContributors(u64),
 
     NextPoolId,
     IsPaused,
