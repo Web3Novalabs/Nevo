@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { BasicInfoStep } from "./steps/BasicInfoStep";
 import { FinancialsStep } from "./steps/FinancialsStep";
 import { ReviewStep } from "./steps/ReviewStep";
@@ -20,6 +21,8 @@ export interface FormData {
   visibility: "Public" | "Private";
 }
 
+export type FormErrors = Partial<Record<keyof FormData, string>>;
+
 const INITIAL_FORM: FormData = {
   poolName: "",
   category: "",
@@ -37,32 +40,76 @@ const STEPS = [
   { id: 3, label: "Review" },
 ];
 
-function isStep1Valid(data: FormData) {
-  return data.poolName.trim() !== "" && data.category !== "" && data.description.trim() !== "";
+/** Returns a map of field → error message for Step 1. Empty map = valid. */
+function validateStep1(data: FormData): FormErrors {
+  const errors: FormErrors = {};
+
+  if (data.poolName.trim().length === 0) {
+    errors.poolName = "Pool name is required.";
+  } else if (data.poolName.trim().length < 3) {
+    errors.poolName = "Pool name must be at least 3 characters.";
+  }
+
+  if (!data.category) {
+    errors.category = "Please select a category.";
+  }
+
+  if (data.description.trim().length === 0) {
+    errors.description = "Description is required.";
+  } else if (data.description.trim().length < 10) {
+    errors.description = "Description must be at least 10 characters.";
+  }
+
+  if (!data.endDate) {
+    errors.endDate = "A target end date is required.";
+  } else {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selected = new Date(data.endDate);
+    if (selected <= today) {
+      errors.endDate = "End date must be in the future.";
+    }
+  }
+
+  return errors;
 }
 
-function isStep2Valid(data: FormData) {
-  return data.fundingGoal !== "" && Number(data.fundingGoal) > 0 && data.beneficiaryWallet.trim() !== "";
+/** Returns a map of field → error message for Step 2. Empty map = valid. */
+function validateStep2(data: FormData): FormErrors {
+  const errors: FormErrors = {};
+
+  if (data.fundingGoal === "" || data.fundingGoal === null) {
+    errors.fundingGoal = "A funding goal is required.";
+  } else if (Number(data.fundingGoal) <= 0) {
+    errors.fundingGoal = "Funding goal must be greater than 0.";
+  }
+
+  if (data.beneficiaryWallet.trim().length === 0) {
+    errors.beneficiaryWallet = "Beneficiary wallet address is required.";
+  }
+
+  return errors;
 }
 
 export function CreatePoolStepper() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM);
+  const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [direction, setDirection] = useState<"forward" | "backward">("forward");
   const [animating, setAnimating] = useState(false);
 
   const updateForm = (updates: Partial<FormData>) => {
     setFormData((prev) => ({ ...prev, ...updates }));
+    // Clear errors for fields being updated
+    const updatedKeys = Object.keys(updates) as (keyof FormData)[];
+    setErrors((prev) => {
+      const next = { ...prev };
+      updatedKeys.forEach((k) => delete next[k]);
+      return next;
+    });
   };
-
-  const canProceed =
-    currentStep === 1
-      ? isStep1Valid(formData)
-      : currentStep === 2
-      ? isStep2Valid(formData)
-      : true;
 
   const transitionToStep = (next: number, dir: "forward" | "backward") => {
     setDirection(dir);
@@ -74,11 +121,31 @@ export function CreatePoolStepper() {
   };
 
   const handleNext = () => {
-    if (currentStep < 3 && canProceed) transitionToStep(currentStep + 1, "forward");
+    if (currentStep >= 3) return;
+
+    const stepErrors =
+      currentStep === 1 ? validateStep1(formData) : validateStep2(formData);
+
+    if (Object.keys(stepErrors).length > 0) {
+      setErrors(stepErrors);
+
+      // Show one descriptive toast for the first error found
+      const firstMessage = Object.values(stepErrors)[0]!;
+      toast.error(firstMessage, {
+        description: "Please fix the highlighted fields to continue.",
+      });
+      return;
+    }
+
+    setErrors({});
+    transitionToStep(currentStep + 1, "forward");
   };
 
   const handleBack = () => {
-    if (currentStep > 1) transitionToStep(currentStep - 1, "backward");
+    if (currentStep > 1) {
+      setErrors({});
+      transitionToStep(currentStep - 1, "backward");
+    }
   };
 
   const handleSubmit = async () => {
@@ -178,8 +245,8 @@ export function CreatePoolStepper() {
             : "translate-y-0 opacity-100"
         )}
       >
-        {currentStep === 1 && <BasicInfoStep formData={formData} onChange={updateForm} />}
-        {currentStep === 2 && <FinancialsStep formData={formData} onChange={updateForm} />}
+        {currentStep === 1 && <BasicInfoStep formData={formData} onChange={updateForm} errors={errors} />}
+        {currentStep === 2 && <FinancialsStep formData={formData} onChange={updateForm} errors={errors} />}
         {currentStep === 3 && <ReviewStep formData={formData} />}
       </div>
 
@@ -204,13 +271,7 @@ export function CreatePoolStepper() {
         {currentStep < 3 ? (
           <button
             onClick={handleNext}
-            disabled={!canProceed}
-            className={cn(
-              "flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition-all duration-200",
-              canProceed
-                ? "bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:brightness-110 active:scale-95"
-                : "cursor-not-allowed bg-slate-800 text-slate-500"
-            )}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all duration-200 hover:shadow-emerald-500/50 hover:brightness-110 active:scale-95"
           >
             Next
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

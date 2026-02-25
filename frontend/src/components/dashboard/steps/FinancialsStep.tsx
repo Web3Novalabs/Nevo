@@ -1,13 +1,15 @@
 "use client";
 
-import { FormData } from "../CreatePoolStepper";
+import { FormData, FormErrors } from "../CreatePoolStepper";
+import { cn } from "@/lib/utils";
 
 interface FinancialsStepProps {
   formData: FormData;
   onChange: (updates: Partial<FormData>) => void;
+  errors?: FormErrors;
 }
 
-export function FinancialsStep({ formData, onChange }: FinancialsStepProps) {
+export function FinancialsStep({ formData, onChange, errors = {} }: FinancialsStepProps) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -30,12 +32,25 @@ export function FinancialsStep({ formData, onChange }: FinancialsStepProps) {
             value={formData.fundingGoal}
             onChange={(e) => onChange({ fundingGoal: e.target.value })}
             placeholder="5000"
-            className="w-full rounded-lg border border-slate-700/80 bg-slate-900/70 py-3 pl-4 pr-16 text-sm text-white placeholder:text-slate-500 outline-none transition-all duration-200 focus:border-emerald-500/70 focus:ring-2 focus:ring-emerald-500/20"
+            className={cn(
+              "w-full rounded-lg border bg-slate-900/70 py-3 pl-4 pr-16 text-sm text-white placeholder:text-slate-500 outline-none transition-all duration-200 focus:ring-2",
+              errors.fundingGoal
+                ? "border-red-500/70 focus:border-red-500/70 focus:ring-red-500/20"
+                : "border-slate-700/80 focus:border-emerald-500/70 focus:ring-emerald-500/20"
+            )}
           />
           <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm font-semibold text-slate-400">
             XLM
           </span>
         </div>
+        {errors.fundingGoal && (
+          <p className="flex items-center gap-1.5 text-xs text-red-400">
+            <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {errors.fundingGoal}
+          </p>
+        )}
       </div>
 
       {/* Minimum Contribution */}
@@ -71,11 +86,25 @@ export function FinancialsStep({ formData, onChange }: FinancialsStepProps) {
           value={formData.beneficiaryWallet}
           onChange={(e) => onChange({ beneficiaryWallet: e.target.value })}
           placeholder="G... (Stellar public key)"
-          className="w-full rounded-lg border border-slate-700/80 bg-slate-900/70 px-4 py-3 font-mono text-sm text-white placeholder:text-slate-500 placeholder:font-sans outline-none transition-all duration-200 focus:border-emerald-500/70 focus:ring-2 focus:ring-emerald-500/20"
+          className={cn(
+            "w-full rounded-lg border bg-slate-900/70 px-4 py-3 font-mono text-sm text-white placeholder:text-slate-500 placeholder:font-sans outline-none transition-all duration-200 focus:ring-2",
+            errors.beneficiaryWallet
+              ? "border-red-500/70 focus:border-red-500/70 focus:ring-red-500/20"
+              : "border-slate-700/80 focus:border-emerald-500/70 focus:ring-emerald-500/20"
+          )}
         />
-        <p className="text-xs text-slate-500">
-          Funds will be disbursed to this Stellar address once the pool ends.
-        </p>
+        {errors.beneficiaryWallet ? (
+          <p className="flex items-center gap-1.5 text-xs text-red-400">
+            <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {errors.beneficiaryWallet}
+          </p>
+        ) : (
+          <p className="text-xs text-slate-500">
+            Funds will be disbursed to this Stellar address once the pool ends.
+          </p>
+        )}
       </div>
 
       {/* Visibility Toggle */}
@@ -95,7 +124,7 @@ export function FinancialsStep({ formData, onChange }: FinancialsStepProps) {
             >
               {option === "Public" ? (
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h.5A2.5 2.5 0 0021 5.5V3.935M15 3.935V5.5A2.5 2.5 0 0112.5 8h-.5a2 2 0 00-2 2 2 2 0 10-4 0 2 2 0 00-2 2h-.5A2.5 2.5 0 013 5.5V3.935" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h.5A2.5 2.5 0 0021 5.5V3.935M15 3.935V5.5A2.5 2.5 0 0012.5 8h-.5a2 2 0 00-2 2 2 2 0 10-4 0 2 2 0 00-2 2h-.5A2.5 2.5 0 013 5.5V3.935" />
                 </svg>
               ) : (
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
