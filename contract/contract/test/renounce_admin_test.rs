@@ -48,7 +48,7 @@ fn test_renounce_admin_success() {
 #[test]
 fn test_renounce_admin_unauthorized() {
     let env = Env::default();
-    let (client, _, _) = setup_test(&env);
+    let (_client, _, _) = setup_test(&env);
     let _non_admin = Address::generate(&env);
 
     // unauthorized call is covered by require_auth in renounce_admin

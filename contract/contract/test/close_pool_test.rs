@@ -164,7 +164,7 @@ fn test_close_pool_nonexistent() {
 #[test]
 fn test_close_pool_unauthorized() {
     let env = Env::default();
-    let (client, admin, _) = setup_test(&env);
+    let (client, _admin, _) = setup_test(&env);
 
     let creator = Address::generate(&env);
     let pool_id = create_test_pool(&client, &env, &creator);
