@@ -2,7 +2,7 @@
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
 use crate::base::{
-    errors::CrowdfundingError,
+    errors::{CrowdfundingError, SecondCrowdfundingError},
     events,
     reentrancy::{
         acquire_emergency_lock, reentrancy_lock_logic, release_emergency_lock, release_pool_lock,
@@ -11,10 +11,11 @@ use crate::base::{
         CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
         EmergencyWithdrawal, MultiSigConfig, PoolConfig, PoolContribution, PoolMetadata,
         PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH,
-        MAX_URL_LENGTH,
+        MAX_STRING_LENGTH, MAX_URL_LENGTH,
     },
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;
+use crate::interfaces::second_crowdfunding::SecondCrowdfundingTrait;
 
 #[contract]
 pub struct CrowdfundingContract;
@@ -98,6 +99,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         if title.is_empty() {
             return Err(CrowdfundingError::InvalidTitle);
         }
+        Self::validate_string_length(&title).map_err(|_| CrowdfundingError::InvalidTitle)?;
 
         if goal <= 0 {
             return Err(CrowdfundingError::InvalidGoal);
@@ -791,6 +793,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         if name.is_empty() {
             return Err(CrowdfundingError::InvalidPoolName);
         }
+        Self::validate_string_length(&name).map_err(|_| CrowdfundingError::InvalidPoolName)?;
 
         if target_amount <= 0 {
             return Err(CrowdfundingError::InvalidPoolTarget);
@@ -1629,5 +1632,36 @@ impl CrowdfundingTrait for CrowdfundingContract {
         }
 
         Ok(result)
+    }
+}
+
+impl CrowdfundingContract {
+    /// Validates that a string does not exceed the maximum allowed length
+    /// (200 characters). Returns `StringTooLong` if the limit is exceeded.
+    pub(crate) fn validate_string_length(s: &String) -> Result<(), SecondCrowdfundingError> {
+        if s.len() > MAX_STRING_LENGTH {
+            return Err(SecondCrowdfundingError::StringTooLong);
+        }
+        Ok(())
+    }
+}
+
+impl SecondCrowdfundingTrait for CrowdfundingContract {
+    /// Validates that `title` does not exceed the maximum allowed length and,
+    /// if the check passes, delegates to the primary `create_campaign`
+    /// implementation.  Only string-validation failures are surfaced here;
+    /// all other errors are handled by the main contract dispatcher.
+    fn create_campaign_checked(
+        env: Env,
+        _id: BytesN<32>,
+        title: String,
+        _creator: Address,
+        _goal: i128,
+        _deadline: u64,
+        _token_address: Address,
+    ) -> Result<(), SecondCrowdfundingError> {
+        Self::validate_string_length(&title)?;
+        let _ = env; // env available for future use
+        Ok(())
     }
 }

@@ -52,6 +52,7 @@ pub struct PoolMetadata {
 pub const MAX_DESCRIPTION_LENGTH: u32 = 500;
 pub const MAX_URL_LENGTH: u32 = 200;
 pub const MAX_HASH_LENGTH: u32 = 100;
+pub const MAX_STRING_LENGTH: u32 = 200;
 
 impl PoolConfig {
     /// Validate pool configuration according to Nevo invariants.

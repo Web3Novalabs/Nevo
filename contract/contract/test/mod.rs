@@ -8,4 +8,5 @@ mod platform_fee_test;
 mod pool_remaining_time_test;
 mod renounce_admin_test;
 // mod update_pool_metadata_test; // Features not yet implemented
+mod validate_string_length_test;
 mod verify_cause;
