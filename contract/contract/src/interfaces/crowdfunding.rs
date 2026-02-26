@@ -174,47 +174,6 @@ pub trait CrowdfundingTrait {
     fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError>;
 
     fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;
- feature/asset-based-discount
-    fn set_asset_discount(
-        env: Env,
-        asset: Address,
-        discount_bps: u32,
-    ) -> Result<(), CrowdfundingError>;
-
-    fn get_asset_discount(env: Env, asset: Address) -> u32;
-
-    fn set_platform_fee_percentage(env: Env, fee_bps: u32) -> Result<(), CrowdfundingError>;
-
-    fn get_platform_fee_percentage(env: Env) -> u32;
-
-    fn get_contract_version(env: Env) -> String;
-
-    fn blacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
-
-    fn unblacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
-
-    fn is_blacklisted(env: Env, address: Address) -> bool;
-
-    fn get_campaign_fee_history(
-        env: Env,
-        campaign_id: BytesN<32>,
-    ) -> Result<i128, CrowdfundingError>;
-
-    fn update_campaign_goal(
-        env: Env,
-        campaign_id: BytesN<32>,
-        new_goal: i128,
-    ) -> Result<(), CrowdfundingError>;
-
-    fn extend_campaign_deadline(
-        env: Env,
-        campaign_id: BytesN<32>,
-        new_deadline: u64,
-    ) -> Result<(), CrowdfundingError>;
-
-    fn get_campaigns(env: Env, ids: Vec<BytesN<32>>) -> Vec<CampaignDetails>;
-
-    fn renounce_admin(env: Env) -> Result<(), CrowdfundingError>;
 
     fn get_contract_version(env: Env) -> String;
 
@@ -226,5 +185,4 @@ pub trait CrowdfundingTrait {
     ) -> Result<Vec<PoolContribution>, CrowdfundingError>;
 
     fn get_pool_remaining_time(env: Env, pool_id: u64) -> Result<u64, CrowdfundingError>;
- main
 }

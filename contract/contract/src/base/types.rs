@@ -242,19 +242,12 @@ pub enum StorageKey {
     GlobalTotalRaised,
     CampaignCancelled(BytesN<32>),
     EmergencyContact,
- feature/asset-based-discount
-    AssetDiscount(Address),
-    PlatformFeePercentage,
-    CampaignFeeHistory(BytesN<32>),
-    Blacklist(Address),
-
     CampaignFeeHistory(BytesN<32>),
     Blacklist(Address),
 
     ReentrancyLock(u64),
     EmergencyWithdrawalLock,
     PoolCreator(u64),
-main
 }
 
 #[cfg(test)]
