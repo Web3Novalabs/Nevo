@@ -1,8 +1,4 @@
- feature/asset-based-discount
-mod asset_discount_test;
-
 // mod blacklist_test; // Features not yet implemented
- main
 mod close_pool_test;
 mod close_private_pool_test;
 mod create_pool;
