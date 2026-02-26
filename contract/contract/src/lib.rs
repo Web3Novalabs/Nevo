@@ -1,6 +1,6 @@
 #![no_std]
 
-mod base;
+pub mod base;
 pub mod crowdfunding;
 mod interfaces;
 

@@ -50,7 +50,14 @@ pub enum CrowdfundingError {
     RefundGracePeriodNotPassed = 44,
     PoolAlreadyClosed = 45,
     PoolNotDisbursedOrRefunded = 46,
+ feature/asset-based-discount
     InsufficientFees = 47,
     UserBlacklisted = 48,
     InvalidGoalUpdate = 49,
+
+    InvalidGoalUpdate = 47,
+    InsufficientFees = 48,
+    UserBlacklisted = 49,
+    CampaignCancelled = 50,
+ main
 }
