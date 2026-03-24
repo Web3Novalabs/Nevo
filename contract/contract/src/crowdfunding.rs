@@ -2,16 +2,16 @@
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
 use crate::base::{
-    errors::{CrowdfundingError, SecondCrowdfundingError},
+    errors::{CrowdfundingError, EventError, SecondCrowdfundingError},
     events,
     reentrancy::{
         acquire_emergency_lock, reentrancy_lock_logic, release_emergency_lock, release_pool_lock,
     },
     types::{
         CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
-        EmergencyWithdrawal, MultiSigConfig, PoolConfig, PoolContribution, PoolMetadata,
-        PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH,
-        MAX_STRING_LENGTH, MAX_URL_LENGTH,
+        EmergencyWithdrawal, Event, EventStatus, MultiSigConfig, PoolConfig, PoolContribution,
+        PoolMetadata, PoolMetrics, PoolState, StorageKey, Ticket, TicketType,
+        MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH, MAX_STRING_LENGTH, MAX_URL_LENGTH,
     },
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;
@@ -1632,6 +1632,87 @@ impl CrowdfundingTrait for CrowdfundingContract {
         }
 
         Ok(result)
+    }
+
+    fn create_event(
+        env: Env,
+        creator: Address,
+        title: String,
+        deadline: u64,
+        ticket_price: i128,
+        token_address: Address,
+    ) -> Result<u64, EventError> {
+        creator.require_auth();
+
+        let next_id_key = StorageKey::NextEventId;
+        let event_id = env.storage().instance().get(&next_id_key).unwrap_or(1u64);
+
+        let event = Event {
+            id: event_id,
+            creator,
+            title,
+            deadline,
+            status: EventStatus::Active,
+            ticket_price,
+            token_address,
+        };
+
+        env.storage()
+            .instance()
+            .set(&StorageKey::Event(event_id), &event);
+        env.storage().instance().set(&next_id_key, &(event_id + 1));
+
+        Ok(event_id)
+    }
+
+    fn buy_ticket(
+        env: Env,
+        event_id: u64,
+        buyer: Address,
+        ticket_type: TicketType,
+    ) -> Result<(), EventError> {
+        buyer.require_auth();
+
+        // Validate event exists
+        let event: Event = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Event(event_id))
+            .ok_or(EventError::EventNotFound)?;
+
+        // Validate event is active
+        if event.status != EventStatus::Active {
+            return Err(EventError::EventNotActive);
+        }
+
+        // Validate deadline has not passed
+        if env.ledger().timestamp() >= event.deadline {
+            return Err(EventError::EventExpired);
+        }
+
+        // Transfer ticket price from buyer to contract
+        use soroban_sdk::token;
+        let token_client = token::Client::new(&env, &event.token_address);
+        token_client.transfer(&buyer, &env.current_contract_address(), &event.ticket_price);
+
+        // Store ticket
+        let ticket = Ticket {
+            event_id,
+            owner: buyer.clone(),
+            ticket_type,
+        };
+        env.storage()
+            .instance()
+            .set(&StorageKey::Ticket(event_id, buyer), &ticket);
+
+        Ok(())
+    }
+
+    fn get_event(env: Env, event_id: u64) -> Result<Event, EventError> {
+        env.storage()
+            .instance()
+            .get(&StorageKey::Event(event_id))
+            .ok_or(EventError::EventNotFound)
     }
 }
 

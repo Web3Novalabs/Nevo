@@ -1,10 +1,10 @@
 use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 use crate::base::{
-    errors::CrowdfundingError,
+    errors::{CrowdfundingError, EventError},
     types::{
-        CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
-        PoolState,
+        CampaignDetails, CampaignLifecycleStatus, Event, PoolConfig, PoolContribution,
+        PoolMetadata, PoolState, TicketType,
     },
 };
 
@@ -185,4 +185,22 @@ pub trait CrowdfundingTrait {
     ) -> Result<Vec<PoolContribution>, CrowdfundingError>;
 
     fn get_pool_remaining_time(env: Env, pool_id: u64) -> Result<u64, CrowdfundingError>;
+
+    fn create_event(
+        env: Env,
+        creator: Address,
+        title: String,
+        deadline: u64,
+        ticket_price: i128,
+        token_address: Address,
+    ) -> Result<u64, EventError>;
+
+    fn buy_ticket(
+        env: Env,
+        event_id: u64,
+        buyer: Address,
+        ticket_type: TicketType,
+    ) -> Result<(), EventError>;
+
+    fn get_event(env: Env, event_id: u64) -> Result<Event, EventError>;
 }

@@ -275,6 +275,30 @@ pub enum StorageKey {
     ReentrancyLock(u64),
     EmergencyWithdrawalLock,
     PoolCreator(u64),
+
+    Event(u64),
+    NextEventId,
+    Ticket(u64, Address),
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Event {
+    pub id: u64,
+    pub creator: Address,
+    pub title: String,
+    pub deadline: u64,
+    pub status: EventStatus,
+    pub ticket_price: i128,
+    pub token_address: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Ticket {
+    pub event_id: u64,
+    pub owner: Address,
+    pub ticket_type: TicketType,
 }
 
 #[cfg(test)]
