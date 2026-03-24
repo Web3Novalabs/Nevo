@@ -115,4 +115,10 @@ pub trait CrowdfundingTrait {
     fn close_pool(env: Env, pool_id: u64, caller: Address) -> Result<(), CrowdfundingError>;
 
     fn is_closed(env: Env, pool_id: u64) -> Result<bool, CrowdfundingError>;
+
+    fn withdraw_platform_fees(
+        env: Env,
+        to: Address,
+        amount: i128,
+    ) -> Result<(), CrowdfundingError>;
 }

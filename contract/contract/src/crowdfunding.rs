@@ -990,4 +990,29 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         Ok(current_state == PoolState::Closed)
     }
+
+    fn withdraw_platform_fees(
+        env: Env,
+        to: Address,
+        amount: i128,
+    ) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+        admin.require_auth();
+
+        if amount <= 0 {
+            return Err(CrowdfundingError::InvalidAmount);
+        }
+
+        let token_address = Self::get_crowdfunding_token(env.clone())?;
+        use soroban_sdk::token;
+        let token_client = token::Client::new(&env, &token_address);
+        
+        token_client.transfer(&env.current_contract_address(), &to, &amount);
+
+        Ok(())
+    }
 }

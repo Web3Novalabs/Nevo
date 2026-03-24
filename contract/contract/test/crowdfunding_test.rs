@@ -798,6 +798,63 @@ fn test_getters_work_when_paused() {
 
     // Getters should still work
     let campaign = client.get_campaign(&camp_id);
+
+    // withdraw_platform_fees tests
+#[test]
+fn test_withdraw_platform_fees_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_client = token::Client::new(&env, &token_contract.address());
+    let token_admin_client = token::StellarAssetClient::new(&env, &token_contract.address());
+
+    client.initialize(&admin, &token_contract.address(), &0);
+    
+    // give contract some balance
+    token_admin_client.mint(&contract_id, &1000);
+
+    let to = Address::generate(&env);
+    
+    client.withdraw_platform_fees(&to, &500);
+
+    assert_eq!(token_client.balance(&to), 500);
+    assert_eq!(token_client.balance(&contract_id), 500);
+}
+
+#[test]
+#[should_panic]
+fn test_withdraw_platform_fees_requires_admin_auth() {
+    let env = Env::default();
+    
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let non_admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+
+    client.initialize(&admin, &token_contract.address(), &0);
+    
+    // Auth mocked as non_admin
+    client
+        .mock_auths(&[soroban_sdk::testutils::MockAuth {
+            address: &non_admin,
+            invoke: &soroban_sdk::testutils::MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "withdraw_platform_fees",
+                args: soroban_sdk::vec![&env, non_admin.clone(), 500i128],
+                sub_invokes: &[],
+            },
+        }])
+        .withdraw_platform_fees(&non_admin, &500);
+}
     assert_eq!(campaign.id, camp_id);
     assert!(client.is_paused());
 }
