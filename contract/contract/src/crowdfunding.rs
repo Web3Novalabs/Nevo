@@ -1304,4 +1304,24 @@ impl CrowdfundingTrait for CrowdfundingContract {
     fn get_contract_version(env: Env) -> String {
         String::from_str(&env, "1.2.0")
     }
+
+    fn issue_ticket(env: Env, pool_id: u64, user: Address) -> Result<(), CrowdfundingError> {
+        // Validate pool exists
+        let pool_key = StorageKey::Pool(pool_id);
+        if !env.storage().instance().has(&pool_key) {
+            return Err(CrowdfundingError::PoolNotFound);
+        }
+
+        let ticket_key = StorageKey::TicketHolder(pool_id, user);
+        env.storage().instance().set(&ticket_key, &true);
+        Ok(())
+    }
+
+    fn has_ticket(env: Env, pool_id: u64, user: Address) -> bool {
+        let ticket_key = StorageKey::TicketHolder(pool_id, user);
+        env.storage()
+            .instance()
+            .get(&ticket_key)
+            .unwrap_or(false)
+    }
 }
