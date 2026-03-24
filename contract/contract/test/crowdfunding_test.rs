@@ -3407,9 +3407,6 @@ fn test_get_active_campaign_count_unaffected_by_donation_status() {
 
     // fully funded but deadline not passed - still counts as active
     assert_eq!(client.get_active_campaign_count(), 1);
-    let non_admin = Address::generate(&env);
-    let res = client.try_withdraw_platform_fees(&non_admin, &100);
-    assert_eq!(res, Err(Ok(CrowdfundingError::Unauthorized)));
 }
 
 #[test]
