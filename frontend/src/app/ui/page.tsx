@@ -14,6 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { StatusBadge } from "@/components/ui/status-badge"
 import { toast } from "sonner"
 import {
   PlusIcon,
@@ -225,6 +226,24 @@ export default function UIDemoPage() {
                 <CheckboxGroupItem id="req-1" label="Required 1" />
                 <CheckboxGroupItem id="req-2" label="Required 2" error />
               </CheckboxGroup>
+            </div>
+          </section>
+
+          {/* StatusBadge */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold text-foreground">
+              StatusBadge
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Reusable status badges for user actions: Success, Warning, Info,
+              Danger (plus default for neutral states).
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <StatusBadge variant="success">Success</StatusBadge>
+              <StatusBadge variant="warning">Warning</StatusBadge>
+              <StatusBadge variant="info">Info</StatusBadge>
+              <StatusBadge variant="danger">Danger</StatusBadge>
+              <StatusBadge variant="default">Default</StatusBadge>
             </div>
           </section>
 

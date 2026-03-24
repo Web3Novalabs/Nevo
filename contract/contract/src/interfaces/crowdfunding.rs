@@ -2,7 +2,10 @@ use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 use crate::base::{
     errors::CrowdfundingError,
-    types::{CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolMetadata, PoolState},
+    types::{
+        CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
+        PoolState,
+    },
 };
 
 pub trait CrowdfundingTrait {
@@ -49,6 +52,20 @@ pub trait CrowdfundingTrait {
         donor: Address,
         asset: Address,
         amount: i128,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn update_campaign_goal(
+        env: Env,
+        campaign_id: BytesN<32>,
+        new_goal: i128,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn cancel_campaign(env: Env, campaign_id: BytesN<32>) -> Result<(), CrowdfundingError>;
+
+    fn refund_campaign(
+        env: Env,
+        campaign_id: BytesN<32>,
+        contributor: Address,
     ) -> Result<(), CrowdfundingError>;
 
     fn extend_campaign_deadline(
@@ -160,7 +177,8 @@ pub trait CrowdfundingTrait {
 
     fn get_contract_version(env: Env) -> String;
 
+feat/has-ticket
     fn issue_ticket(env: Env, pool_id: u64, user: Address) -> Result<(), CrowdfundingError>;
 
-    fn has_ticket(env: Env, pool_id: u64, user: Address) -> bool;
-}
+    fn has_ticket(env: Env, pool_id: u64, user: Address)
+    

@@ -34,6 +34,8 @@ pub struct PoolConfig {
     pub name: String,
     pub description: String,
     pub target_amount: i128,
+    // Minimum contribution allowed for this pool (in token smallest units)
+    pub min_contribution: i128,
     pub is_private: bool,
     pub duration: u64,
     pub created_at: u64,
@@ -50,6 +52,7 @@ pub struct PoolMetadata {
 pub const MAX_DESCRIPTION_LENGTH: u32 = 500;
 pub const MAX_URL_LENGTH: u32 = 200;
 pub const MAX_HASH_LENGTH: u32 = 100;
+pub const MAX_STRING_LENGTH: u32 = 200;
 
 impl PoolConfig {
     /// Validate pool configuration according to Nevo invariants.
@@ -69,6 +72,13 @@ impl PoolConfig {
 
         // Target amount must be strictly positive
         assert!(self.target_amount > 0, "target_amount must be > 0");
+
+        // Minimum contribution must be non-negative and not exceed the target
+        assert!(self.min_contribution >= 0, "min_contribution must be >= 0");
+        assert!(
+            self.min_contribution <= self.target_amount,
+            "min_contribution must be <= target_amount"
+        );
 
         // Duration must be strictly positive (non-zero)
         assert!(self.duration > 0, "duration must be > 0");
@@ -119,6 +129,33 @@ pub enum PoolState {
     Cancelled = 3,
     Disbursed = 4,
     Closed = 5,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum EventStatus {
+    Active = 0,
+    Cancelled = 1,
+    Completed = 2,
+}
+
+/// Represents the type of a ticket.
+/// Standard is the default type.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum TicketType {
+    /// Standard ticket for general access.
+    Standard = 0,
+    /// VIP ticket for premium access.
+    VIP = 1,
+}
+
+impl Default for TicketType {
+    fn default() -> Self {
+        TicketType::Standard
+    }
 }
 
 #[contracttype]
@@ -215,6 +252,7 @@ pub enum StorageKey {
     CampaignDonor(BytesN<32>, Address),
     Contribution(BytesN<32>, Address),
     PoolContribution(u64, Address),
+    PoolContributors(u64),
 
     NextPoolId,
     IsPaused,
@@ -232,7 +270,36 @@ pub enum StorageKey {
     CampaignCancelled(BytesN<32>),
     EmergencyContact,
     CampaignFeeHistory(BytesN<32>),
-    TicketHolder(u64, Address),
+  feat/has-ticket
+    TicketHolder(u64, A## ✅ PR: Add Ticket Ownership Read Function
+
+This PR introduces a function to check whether a given user holds a ticket for a specific event.
+
+### Changes
+
+* Added read function to verify ticket ownership
+* Returns accurate ownership state for a user-event pair
+
+### Testing
+
+* Added tests to ensure correct state is returned
+
+All standard GitHub CI checks are passing. Ready for review.
+## ✅ PR: Add Ticket Ownership Read Function
+
+This PR introduces a function to check whether a given user holds a ticket for a specific event.
+
+### Changes
+
+* Added read function to verify ticket ownership
+* Returns accurate ownership state for a user-event pair
+
+### Testing
+
+* Added tests to ensure correct state is returned
+
+All standard GitHub CI checks are passing. Ready for review.
+ main
 }
 
 #[cfg(test)]
@@ -247,6 +314,7 @@ mod tests {
             name: String::from_str(&env, "Education Fund"),
             description: String::from_str(&env, "Fund for student education materials"),
             target_amount: 1_000_000,
+            min_contribution: 0,
             is_private: false,
             duration: 30 * 24 * 60 * 60,
             created_at: 1,
@@ -263,6 +331,7 @@ mod tests {
             name: String::from_str(&env, "Invalid Target"),
             description: String::from_str(&env, "Description"),
             target_amount: 0,
+            min_contribution: 0,
             is_private: false,
             duration: 30 * 24 * 60 * 60,
             created_at: 1,
@@ -367,5 +436,30 @@ mod tests {
             false,
         );
         assert_eq!(status, CampaignLifecycleStatus::Successful);
+    }
+
+    #[test]
+    fn event_status_serialization() {
+        use soroban_sdk::{FromVal, IntoVal, Val};
+        let env = Env::default();
+        let status = EventStatus::Active;
+        let val: Val = status.into_val(&env);
+        let deserialized: EventStatus = EventStatus::from_val(&env, &val);
+        assert_eq!(status, deserialized);
+
+        let status = EventStatus::Cancelled;
+        let val: Val = status.into_val(&env);
+        let deserialized: EventStatus = EventStatus::from_val(&env, &val);
+        assert_eq!(status, deserialized);
+
+        let status = EventStatus::Completed;
+        let val: Val = status.into_val(&env);
+        let deserialized: EventStatus = EventStatus::from_val(&env, &val);
+        assert_eq!(status, deserialized);
+    }
+
+    #[test]
+    fn ticket_type_default_is_standard() {
+        assert_eq!(TicketType::default(), TicketType::Standard);
     }
 }

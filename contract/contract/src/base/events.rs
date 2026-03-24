@@ -15,6 +15,11 @@ pub fn campaign_created(
     env.events().publish(topics, (title, goal, deadline));
 }
 
+pub fn campaign_goal_updated(env: &Env, id: BytesN<32>, new_goal: i128) {
+    let topics = (Symbol::new(env, "campaign_goal_updated"), id);
+    env.events().publish(topics, new_goal);
+}
+
 pub fn pool_created(
     env: &Env,
     pool_id: u64,
@@ -22,11 +27,14 @@ pub fn pool_created(
     description: String,
     creator: Address,
     target_amount: i128,
+    min_contribution: i128,
     deadline: u64,
 ) {
     let topics = (Symbol::new(env, "pool_created"), pool_id, creator);
-    env.events()
-        .publish(topics, (name, description, target_amount, deadline));
+    env.events().publish(
+        topics,
+        (name, description, target_amount, min_contribution, deadline),
+    );
 }
 
 pub fn pool_state_updated(env: &Env, pool_id: u64, new_state: PoolState) {
@@ -57,6 +65,16 @@ pub fn emergency_contact_updated(env: &Env, admin: Address, contact: Address) {
 pub fn donation_made(env: &Env, campaign_id: BytesN<32>, contributor: Address, amount: i128) {
     let topics = (Symbol::new(env, "donation_made"), campaign_id);
     env.events().publish(topics, (contributor, amount));
+}
+
+pub fn campaign_cancelled(env: &Env, id: BytesN<32>) {
+    let topics = (Symbol::new(env, "campaign_cancelled"), id);
+    env.events().publish(topics, ());
+}
+
+pub fn campaign_refunded(env: &Env, id: BytesN<32>, contributor: Address, amount: i128) {
+    let topics = (Symbol::new(env, "campaign_refunded"), id, contributor);
+    env.events().publish(topics, amount);
 }
 
 pub fn contribution(
@@ -124,4 +142,19 @@ pub fn pool_closed(env: &Env, pool_id: u64, closed_by: Address, timestamp: u64) 
 pub fn platform_fees_withdrawn(env: &Env, admin: Address, amount: i128) {
     let topics = (Symbol::new(env, "platform_fees_withdrawn"), admin);
     env.events().publish(topics, amount);
+}
+
+pub fn address_blacklisted(env: &Env, admin: Address, address: Address) {
+    let topics = (Symbol::new(env, "address_blacklisted"), admin);
+    env.events().publish(topics, address);
+}
+
+pub fn address_unblacklisted(env: &Env, admin: Address, address: Address) {
+    let topics = (Symbol::new(env, "address_unblacklisted"), admin);
+    env.events().publish(topics, address);
+}
+
+pub fn pool_metadata_updated(env: &Env, pool_id: u64, updater: Address, new_metadata_hash: String) {
+    let topics = (Symbol::new(env, "pool_metadata_updated"), pool_id, updater);
+    env.events().publish(topics, new_metadata_hash);
 }

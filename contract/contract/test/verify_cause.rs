@@ -3,12 +3,11 @@
 use soroban_sdk::{testutils::Address as _, Address, Env, IntoVal};
 
 use crate::crowdfunding::{CrowdfundingContract, CrowdfundingContractClient};
-use crate::interfaces::crowdfunding::CrowdfundingTrait;
 
 fn create_client() -> (Env, CrowdfundingContractClient<'static>) {
     let env = Env::default();
     env.mock_all_auths();
-    let contract_id = env.register_contract(None, CrowdfundingContract);
+    let contract_id = env.register(CrowdfundingContract, ());
     let client = CrowdfundingContractClient::new(&env, &contract_id);
     (env, client)
 }
