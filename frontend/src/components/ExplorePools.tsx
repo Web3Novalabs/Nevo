@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Search, Filter, X } from "lucide-react";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 type PoolStatus = "Active" | "Completed";
 
@@ -245,15 +246,11 @@ export const ExplorePools = () => {
                       <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md">
                         {pool.category}
                       </span>
-                      <span
-                        className={"text-xs font-medium px-2 py-1 rounded-full " +
-                          (pool.status === "Active"
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400")
-                        }
+                      <StatusBadge
+                        variant={pool.status === "Active" ? "success" : "default"}
                       >
                         {pool.status}
-                      </span>
+                      </StatusBadge>
                     </div>
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                       {pool.title}

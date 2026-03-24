@@ -2,7 +2,10 @@ use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 use crate::base::{
     errors::CrowdfundingError,
-    types::{CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolMetadata, PoolState},
+    types::{
+        CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
+        PoolState,
+    },
 };
 
 pub trait CrowdfundingTrait {
@@ -49,6 +52,20 @@ pub trait CrowdfundingTrait {
         donor: Address,
         asset: Address,
         amount: i128,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn update_campaign_goal(
+        env: Env,
+        campaign_id: BytesN<32>,
+        new_goal: i128,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn cancel_campaign(env: Env, campaign_id: BytesN<32>) -> Result<(), CrowdfundingError>;
+
+    fn refund_campaign(
+        env: Env,
+        campaign_id: BytesN<32>,
+        contributor: Address,
     ) -> Result<(), CrowdfundingError>;
 
     fn extend_campaign_deadline(
@@ -160,10 +177,21 @@ pub trait CrowdfundingTrait {
 
     fn get_contract_version(env: Env) -> String;
 
+ feat/emergency-drain-pool
     fn emergency_drain_pool(
         env: Env,
         pool_id: u64,
         recipient: Address,
         token: Address,
     ) -> Result<(), CrowdfundingError>;
+  
+    fn get_pool_contributions_paginated(
+        env: Env,
+        pool_id: u64,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<PoolContribution>, CrowdfundingError>;
+
+    fn get_pool_remaining_time(env: Env, pool_id: u64) -> Result<u64, CrowdfundingError>;
+ main
 }

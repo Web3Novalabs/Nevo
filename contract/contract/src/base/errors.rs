@@ -50,5 +50,15 @@ pub enum CrowdfundingError {
     RefundGracePeriodNotPassed = 44,
     PoolAlreadyClosed = 45,
     PoolNotDisbursedOrRefunded = 46,
-    InsufficientFees = 47,
+    InvalidGoalUpdate = 47,
+    InsufficientFees = 48,
+    UserBlacklisted = 49,
+    CampaignCancelled = 50,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum SecondCrowdfundingError {
+    StringTooLong = 1,
 }

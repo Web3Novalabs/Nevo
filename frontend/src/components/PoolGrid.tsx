@@ -14,6 +14,8 @@ const MOCK_POOLS: PoolCardProps[] = [
     goalAmount: 50000,
     raisedAmount: 32500,
     contributorsCount: 142,
+    poolId: "pool_1",
+    contractId: "contract_1",
   },
   {
     id: "2",
@@ -26,6 +28,8 @@ const MOCK_POOLS: PoolCardProps[] = [
     goalAmount: 25000,
     raisedAmount: 22000,
     contributorsCount: 89,
+    poolId: "pool_2",
+    contractId: "contract_2",
   },
   {
     id: "3",
@@ -38,6 +42,8 @@ const MOCK_POOLS: PoolCardProps[] = [
     goalAmount: 15000,
     raisedAmount: 4500,
     contributorsCount: 34,
+    poolId: "pool_3",
+    contractId: "contract_3",
   },
   {
     id: "4",
@@ -50,6 +56,8 @@ const MOCK_POOLS: PoolCardProps[] = [
     goalAmount: 100000,
     raisedAmount: 12000,
     contributorsCount: 56,
+    poolId: "pool_4",
+    contractId: "contract_4",
   },
   {
     id: "5",
@@ -62,6 +70,8 @@ const MOCK_POOLS: PoolCardProps[] = [
     goalAmount: 8000,
     raisedAmount: 7600,
     contributorsCount: 205,
+    poolId: "pool_5",
+    contractId: "contract_5",
   },
   {
     id: "6",
@@ -74,6 +84,8 @@ const MOCK_POOLS: PoolCardProps[] = [
     goalAmount: 200000,
     raisedAmount: 150000,
     contributorsCount: 890,
+    poolId: "pool_6",
+    contractId: "contract_6",
   },
 ];
 
