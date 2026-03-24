@@ -159,4 +159,11 @@ pub trait CrowdfundingTrait {
     fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;
 
     fn get_contract_version(env: Env) -> String;
+
+    fn emergency_drain_pool(
+        env: Env,
+        pool_id: u64,
+        recipient: Address,
+        token: Address,
+    ) -> Result<(), CrowdfundingError>;
 }

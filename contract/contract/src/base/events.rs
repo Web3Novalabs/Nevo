@@ -125,3 +125,15 @@ pub fn platform_fees_withdrawn(env: &Env, admin: Address, amount: i128) {
     let topics = (Symbol::new(env, "platform_fees_withdrawn"), admin);
     env.events().publish(topics, amount);
 }
+
+pub fn emergency_pool_drained(
+    env: &Env,
+    pool_id: u64,
+    admin: Address,
+    recipient: Address,
+    token: Address,
+    amount: i128,
+) {
+    let topics = (Symbol::new(env, "emergency_pool_drained"), pool_id, admin);
+    env.events().publish(topics, (recipient, token, amount));
+}

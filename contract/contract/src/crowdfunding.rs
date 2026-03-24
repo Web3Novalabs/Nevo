@@ -1304,4 +1304,68 @@ impl CrowdfundingTrait for CrowdfundingContract {
     fn get_contract_version(env: Env) -> String {
         String::from_str(&env, "1.2.0")
     }
+
+    fn emergency_drain_pool(
+        env: Env,
+        pool_id: u64,
+        recipient: Address,
+        token: Address,
+    ) -> Result<(), CrowdfundingError> {
+        // Require admin authentication
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+        admin.require_auth();
+
+        // Validate pool exists
+        let pool_key = StorageKey::Pool(pool_id);
+        if !env.storage().instance().has(&pool_key) {
+            return Err(CrowdfundingError::PoolNotFound);
+        }
+
+        // Get the contract's balance of the specified token
+        use soroban_sdk::token;
+        let token_client = token::Client::new(&env, &token);
+        let contract_balance = token_client.balance(&env.current_contract_address());
+
+        // Get pool metrics to determine how much belongs to this pool
+        let metrics_key = StorageKey::PoolMetrics(pool_id);
+        let metrics: crate::base::types::PoolMetrics = env
+            .storage()
+            .instance()
+            .get(&metrics_key)
+            .unwrap_or_default();
+
+        let pool_balance = metrics.total_raised;
+
+        if pool_balance <= 0 {
+            return Err(CrowdfundingError::InvalidAmount);
+        }
+
+        // Ensure contract has sufficient balance
+        if contract_balance < pool_balance {
+            return Err(CrowdfundingError::InsufficientBalance);
+        }
+
+        // Transfer all pool funds to recipient
+        token_client.transfer(&env.current_contract_address(), &recipient, &pool_balance);
+
+        // Update pool metrics to reflect drained state
+        let mut updated_metrics = metrics;
+        updated_metrics.total_raised = 0;
+        env.storage().instance().set(&metrics_key, &updated_metrics);
+
+        // Update pool state to Cancelled to prevent further operations
+        let state_key = StorageKey::PoolState(pool_id);
+        env.storage()
+            .instance()
+            .set(&state_key, &crate::base::types::PoolState::Cancelled);
+
+        // Emit event
+        events::emergency_pool_drained(&env, pool_id, admin, recipient, token, pool_balance);
+
+        Ok(())
+    }
 }
