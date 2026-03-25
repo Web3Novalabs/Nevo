@@ -82,10 +82,11 @@ fn test_batch_claim_three_campaigns_success() {
     assert_eq!(results.get(1).unwrap(), Ok(()));
     assert_eq!(results.get(2).unwrap(), Ok(()));
 
-    // Verify creators received funds
-    assert_eq!(token_client.balance(&creator1), goal);
-    assert_eq!(token_client.balance(&creator2), goal);
-    assert_eq!(token_client.balance(&creator3), goal);
+    // Verify creators received funds (minus 1% platform fee)
+    let expected_balance = goal - (goal / 100);
+    assert_eq!(token_client.balance(&creator1), expected_balance);
+    assert_eq!(token_client.balance(&creator2), expected_balance);
+    assert_eq!(token_client.balance(&creator3), expected_balance);
 }
 
 #[test]
@@ -165,10 +166,11 @@ fn test_batch_claim_with_partial_failures() {
     );
     assert_eq!(results.get(2).unwrap(), Ok(()));
 
-    // Verify only creators 1 and 3 received funds
-    assert_eq!(token_client.balance(&creator1), goal);
+    // Verify only creators 1 and 3 received funds (minus 1% platform fee)
+    let expected_balance = goal - (goal / 100);
+    assert_eq!(token_client.balance(&creator1), expected_balance);
     assert_eq!(token_client.balance(&creator2), 0);
-    assert_eq!(token_client.balance(&creator3), goal);
+    assert_eq!(token_client.balance(&creator3), expected_balance);
 }
 
 #[test]
@@ -274,8 +276,9 @@ fn test_single_claim_campaign_funds() {
     // Claim funds
     client.claim_campaign_funds(&campaign_id);
 
-    // Verify creator received funds
-    assert_eq!(token_client.balance(&creator), goal);
+    // Verify creator received funds (minus 1% platform fee)
+    let expected_balance = goal - (goal / 100);
+    assert_eq!(token_client.balance(&creator), expected_balance);
 
     // Verify cannot claim again
     let result = client.try_claim_campaign_funds(&campaign_id);

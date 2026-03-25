@@ -3263,6 +3263,7 @@ fn test_get_active_campaign_count_all_expired() {
     assert_eq!(client.get_active_campaign_count(), 0);
 }
 
+#[test]
 fn test_withdraw_platform_fees_success() {
     let env = Env::default();
     let (client, admin, token_address) = setup_test(&env);
@@ -3407,9 +3408,6 @@ fn test_get_active_campaign_count_unaffected_by_donation_status() {
 
     // fully funded but deadline not passed - still counts as active
     assert_eq!(client.get_active_campaign_count(), 1);
-    let non_admin = Address::generate(&env);
-    let res = client.try_withdraw_platform_fees(&non_admin, &100);
-    assert_eq!(res, Err(Ok(CrowdfundingError::Unauthorized)));
 }
 
 #[test]
@@ -3420,6 +3418,97 @@ fn test_withdraw_platform_fees_insufficient_fees() {
     let res = client.try_withdraw_platform_fees(&admin, &100);
     assert_eq!(res, Err(Ok(CrowdfundingError::InsufficientFees)));
 }
+
+#[test]
+fn test_withdraw_event_fees_success() {
+    let env = Env::default();
+    let (client, admin, token_address) = setup_test(&env);
+
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    token_admin_client.mint(&client.address, &1_000i128);
+
+    env.as_contract(&client.address, || {
+        env.storage()
+            .instance()
+            .set(&crate::base::types::StorageKey::EventFeeTreasury, &500i128);
+    });
+
+    let to = Address::generate(&env);
+    let token_client = soroban_sdk::token::Client::new(&env, &token_address);
+
+    let to_balance_before = token_client.balance(&to);
+
+    client.withdraw_event_fees(&admin, &to, &100);
+
+    let to_balance_after = token_client.balance(&to);
+    assert_eq!(to_balance_after - to_balance_before, 100);
+
+    let remaining_fees: i128 = env.as_contract(&client.address, || {
+        env.storage()
+            .instance()
+            .get(&crate::base::types::StorageKey::EventFeeTreasury)
+            .unwrap_or(0)
+    });
+    assert_eq!(remaining_fees, 400);
+}
+
+#[test]
+fn test_withdraw_event_fees_non_admin_fails() {
+    let env = Env::default();
+    let (client, _, token_address) = setup_test(&env);
+
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    token_admin_client.mint(&client.address, &1_000i128);
+
+    env.as_contract(&client.address, || {
+        env.storage()
+            .instance()
+            .set(&crate::base::types::StorageKey::EventFeeTreasury, &500i128);
+    });
+
+    let to = Address::generate(&env);
+    let non_admin = Address::generate(&env);
+
+    let result = client
+        .mock_auths(&[soroban_sdk::testutils::MockAuth {
+            address: &non_admin,
+            invoke: &soroban_sdk::testutils::MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "withdraw_event_fees",
+                args: soroban_sdk::vec![
+                    &env,
+                    non_admin.clone().into_val(&env),
+                    to.clone().into_val(&env),
+                    100i128.into_val(&env),
+                ],
+                sub_invokes: &[],
+            },
+        }])
+        .try_withdraw_event_fees(&non_admin, &to, &100);
+
+    assert_eq!(result, Err(Ok(CrowdfundingError::Unauthorized)));
+}
+
+#[test]
+fn test_withdraw_event_fees_insufficient_fees() {
+    let env = Env::default();
+    let (client, admin, token_address) = setup_test(&env);
+
+    let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    token_admin_client.mint(&client.address, &1_000i128);
+
+    env.as_contract(&client.address, || {
+        env.storage()
+            .instance()
+            .set(&crate::base::types::StorageKey::EventFeeTreasury, &50i128);
+    });
+
+    let to = Address::generate(&env);
+
+    let result = client.try_withdraw_event_fees(&admin, &to, &100);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InsufficientFees)));
+}
+
 #[test]
 fn test_set_emergency_contact_success() {
     let env = Env::default();

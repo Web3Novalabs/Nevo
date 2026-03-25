@@ -268,8 +268,10 @@ pub enum StorageKey {
     PlatformFees,
     GlobalTotalRaised,
     CampaignCancelled(BytesN<32>),
+    CampaignClaimed(BytesN<32>),
     EmergencyContact,
     CampaignFeeHistory(BytesN<32>),
+ feat/has-ticket
   feat/has-ticket
     TicketHolder(u64, A## ✅ PR: Add Ticket Ownership Read Function
 
@@ -299,6 +301,9 @@ This PR introduces a function to check whether a given user holds a ticket for a
 * Added tests to ensure correct state is returned
 
 All standard GitHub CI checks are passing. Ready for review.
+ main
+
+    
  main
 }
 

@@ -7,7 +7,10 @@ use crate::{
     },
     crowdfunding::{CrowdfundingContract, CrowdfundingContractClient},
 };
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{
+    testutils::{Address as _, Events},
+    Address, Env, String, Symbol,
+};
 
 #[test]
 fn test_create_pool_success() {
@@ -152,4 +155,65 @@ fn test_create_pool_validation_logic() {
 
     let result = client.try_create_pool(&creator, &config);
     assert_eq!(result, Err(Ok(CrowdfundingError::ContractPaused)));
+}
+
+#[test]
+fn test_create_pool_emits_event_created() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let name = String::from_str(&env, "Community Garden");
+    let description = String::from_str(&env, "A garden for the neighborhood");
+    let target_amount = 50_000i128;
+    let duration = 30 * 24 * 60 * 60u64; // 30 days
+    let created_at = env.ledger().timestamp();
+
+    let config = PoolConfig {
+        name: name.clone(),
+        description: description.clone(),
+        target_amount,
+        min_contribution: 0,
+        is_private: false,
+        duration,
+        created_at,
+    };
+
+    let _pool_id = client.create_pool(&creator, &config);
+    let deadline = created_at + duration;
+
+    // env.events().all() returns Vec<(Address, Vec<Val>, Val)>
+    // where the tuple is (contract_address, topics, data).
+    let all_events = env.events().all();
+
+    let event_created_symbol = Symbol::new(&env, "event_created");
+
+    // Walk through all emitted events and find the event_created one.
+    let found = all_events.iter().any(|(_contract, topics, data)| {
+        // topics[0] is the event symbol
+        if topics.is_empty() {
+            return false;
+        }
+
+        // Convert the first topic Val to Symbol for comparison
+        use soroban_sdk::FromVal;
+        let sym = Symbol::from_val(&env, &topics.get(0).unwrap());
+        if sym != event_created_symbol {
+            return false;
+        }
+
+        // Decode the data payload as (String, i128, u64) and compare
+        use soroban_sdk::TryFromVal;
+        let decoded: Result<(String, i128, u64), _> =
+            <(String, i128, u64)>::try_from_val(&env, &data);
+        match decoded {
+            Ok((n, amt, dl)) => n == name && amt == target_amount && dl == deadline,
+            Err(_) => false,
+        }
+    });
+
+    assert!(found, "event_created was not emitted by create_pool");
 }

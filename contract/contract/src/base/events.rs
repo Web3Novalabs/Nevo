@@ -37,6 +37,19 @@ pub fn pool_created(
     );
 }
 
+pub fn event_created(
+    env: &Env,
+    pool_id: u64,
+    name: String,
+    creator: Address,
+    target_amount: i128,
+    deadline: u64,
+) {
+    let topics = (Symbol::new(env, "event_created"), pool_id, creator);
+    env.events()
+        .publish(topics, (name, target_amount, deadline));
+}
+
 pub fn pool_state_updated(env: &Env, pool_id: u64, new_state: PoolState) {
     let topics = (Symbol::new(env, "pool_state_updated"), pool_id);
     env.events().publish(topics, new_state);
@@ -139,8 +152,13 @@ pub fn pool_closed(env: &Env, pool_id: u64, closed_by: Address, timestamp: u64) 
     env.events().publish(topics, timestamp);
 }
 
-pub fn platform_fees_withdrawn(env: &Env, admin: Address, amount: i128) {
-    let topics = (Symbol::new(env, "platform_fees_withdrawn"), admin);
+pub fn platform_fees_withdrawn(env: &Env, to: Address, amount: i128) {
+    let topics = (Symbol::new(env, "platform_fees_withdrawn"), to);
+    env.events().publish(topics, amount);
+}
+
+pub fn event_fees_withdrawn(env: &Env, admin: Address, to: Address, amount: i128) {
+    let topics = (Symbol::new(env, "event_fees_withdrawn"), admin, to);
     env.events().publish(topics, amount);
 }
 
@@ -157,4 +175,22 @@ pub fn address_unblacklisted(env: &Env, admin: Address, address: Address) {
 pub fn pool_metadata_updated(env: &Env, pool_id: u64, updater: Address, new_metadata_hash: String) {
     let topics = (Symbol::new(env, "pool_metadata_updated"), pool_id, updater);
     env.events().publish(topics, new_metadata_hash);
+}
+
+pub fn platform_fee_bps_set(env: &Env, admin: Address, fee_bps: u32) {
+    let topics = (Symbol::new(env, "platform_fee_bps_set"), admin);
+    env.events().publish(topics, fee_bps);
+}
+
+pub fn ticket_sold(
+    env: &Env,
+    pool_id: u64,
+    buyer: Address,
+    price: i128,
+    event_amount: i128,
+    fee_amount: i128,
+) {
+    let topics = (Symbol::new(env, "ticket_sold"), pool_id, buyer);
+    env.events()
+        .publish(topics, (price, event_amount, fee_amount));
 }

@@ -1,4 +1,6 @@
 // mod blacklist_test; // Features not yet implemented
+mod batch_claim_test;
+mod buy_ticket_test;
 mod close_pool_test;
 mod close_private_pool_test;
 mod create_pool;
@@ -11,6 +13,8 @@ mod platform_fee_test;
 mod pool_remaining_time_test;
  main
 mod renounce_admin_test;
+mod set_platform_fee_bps_test;
 // mod update_pool_metadata_test; // Features not yet implemented
 mod validate_string_length_test;
 mod verify_cause;
+mod withdraw_platform_fees_test;

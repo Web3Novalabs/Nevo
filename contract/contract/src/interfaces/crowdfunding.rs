@@ -74,6 +74,13 @@ pub trait CrowdfundingTrait {
         new_deadline: u64,
     ) -> Result<(), CrowdfundingError>;
 
+    fn claim_campaign_funds(env: Env, campaign_id: BytesN<32>) -> Result<(), CrowdfundingError>;
+
+    fn batch_claim_campaign_funds(
+        env: Env,
+        campaign_ids: Vec<BytesN<32>>,
+    ) -> Vec<Result<(), CrowdfundingError>>;
+
     fn get_campaign_fee_history(
         env: Env,
         campaign_id: BytesN<32>,
@@ -165,9 +172,13 @@ pub trait CrowdfundingTrait {
 
     fn is_cause_verified(env: Env, cause: Address) -> bool;
 
-    fn withdraw_platform_fees(
+    fn withdraw_platform_fees(env: Env, to: Address, amount: i128)
+        -> Result<(), CrowdfundingError>;
+
+    fn withdraw_event_fees(
         env: Env,
         admin: Address,
+        to: Address,
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
 
@@ -180,5 +191,8 @@ pub trait CrowdfundingTrait {
 feat/has-ticket
     fn issue_ticket(env: Env, pool_id: u64, user: Address) -> Result<(), CrowdfundingError>;
 
+ feat/has-ticket
     fn has_ticket(env: Env, pool_id: u64, user: Address)
     
+
+main
