@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     testutils::{Address as _, MockAuth, MockAuthInvoke},
-    Address, Env, BytesN, IntoVal,
+    Address, BytesN, Env, IntoVal,
 };
 
 use crate::{
@@ -33,9 +33,9 @@ fn test_upgrade_contract_auth_success() {
     // It will then fail on the deployer call because of the invalid WASM hash,
     // which is expected and confirms we passed the auth check.
     let result = client.try_upgrade_contract(&new_wasm_hash);
-    
+
     assert!(result.is_err());
-    // We can't easily check the error type if it's a HostError, 
+    // We can't easily check the error type if it's a HostError,
     // but we know it reached the contract because of previous diagnostic tests.
 }
 
@@ -50,15 +50,17 @@ fn test_upgrade_contract_unauthorized_fails() {
     // Explicitly mock auth for the NON-admin address.
     // The contract's upgrade_contract will still call require_auth(admin).
     // This mismatch must result in an auth failure.
-    let result = client.mock_auths(&[MockAuth {
-        address: &non_admin,
-        invoke: &MockAuthInvoke {
-            contract: &client.address,
-            fn_name: "upgrade_contract",
-            args: (new_wasm_hash.clone(),).into_val(&env),
-            sub_invokes: &[],
-        },
-    }]).try_upgrade_contract(&new_wasm_hash);
+    let result = client
+        .mock_auths(&[MockAuth {
+            address: &non_admin,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "upgrade_contract",
+                args: (new_wasm_hash.clone(),).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_upgrade_contract(&new_wasm_hash);
 
     assert!(result.is_err(), "Unauthorized call should fail");
 }
