@@ -51,8 +51,10 @@ pub enum CrowdfundingError {
     PoolAlreadyClosed = 45,
     PoolNotDisbursedOrRefunded = 46,
     InvalidGoalUpdate = 47,
-    InsufficientFees = 48,
-    UserBlacklisted = 49,
+    /// Withdrawal exceeds the tracked platform-fee balance.
+    InsufficientPlatformFees = 48,
+    /// Withdrawal exceeds the tracked event-fee balance.
+    InsufficientEventFees = 49,
     CampaignCancelled = 50,
 }
 

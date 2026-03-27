@@ -3416,7 +3416,7 @@ fn test_withdraw_platform_fees_insufficient_fees() {
     let (client, admin, _) = setup_test(&env);
 
     let res = client.try_withdraw_platform_fees(&admin, &100);
-    assert_eq!(res, Err(Ok(CrowdfundingError::InsufficientFees)));
+    assert_eq!(res, Err(Ok(CrowdfundingError::InsufficientPlatformFees)));
 }
 
 #[test]
@@ -3506,7 +3506,7 @@ fn test_withdraw_event_fees_insufficient_fees() {
     let to = Address::generate(&env);
 
     let result = client.try_withdraw_event_fees(&admin, &to, &100);
-    assert_eq!(result, Err(Ok(CrowdfundingError::InsufficientFees)));
+    assert_eq!(result, Err(Ok(CrowdfundingError::InsufficientEventFees)));
 }
 
 #[test]

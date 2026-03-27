@@ -325,12 +325,20 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .set(&event_pool_key, &(current_event + event_amount));
 
-        // Credit platform fee pool
+        // Credit platform fee pool (per-pool ledger for auditability)
         let event_fee_key = StorageKey::EventPlatformFees(pool_id);
         let current_fees: i128 = env.storage().instance().get(&event_fee_key).unwrap_or(0);
         env.storage()
             .instance()
             .set(&event_fee_key, &(current_fees + fee_amount));
+
+        // Aggregate into the global event-fee treasury so withdraw_event_fees
+        // always reflects the true withdrawable balance.
+        let treasury_key = StorageKey::EventFeeTreasury;
+        let treasury_balance: i128 = env.storage().instance().get(&treasury_key).unwrap_or(0);
+        env.storage()
+            .instance()
+            .set(&treasury_key, &(treasury_balance + fee_amount));
 
         // Track user ticket
         let user_ticket_key = StorageKey::UserTicket(pool_id, buyer.clone());
@@ -1719,14 +1727,16 @@ impl CrowdfundingTrait for CrowdfundingContract {
         }
 
         let platform_fees_key = StorageKey::PlatformFees;
-        let current_fees: i128 = env
+        let collected_fees: i128 = env
             .storage()
             .instance()
             .get(&platform_fees_key)
             .unwrap_or(0);
 
-        if amount > current_fees {
-            return Err(CrowdfundingError::InsufficientFees);
+        // Guard 1: amount must not exceed what the contract has tracked as
+        // collected platform fees — prevents draining pool-contribution funds.
+        if amount > collected_fees {
+            return Err(CrowdfundingError::InsufficientPlatformFees);
         }
 
         let token_key = StorageKey::CrowdfundingToken;
@@ -1738,11 +1748,20 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         use soroban_sdk::token;
         let token_client = token::Client::new(&env, &token_address);
+
+        // Guard 2: the on-chain token balance must cover the withdrawal.
+        // This catches any accounting drift between the fee counter and reality.
+        let contract_token_balance = token_client.balance(&env.current_contract_address());
+        if amount > contract_token_balance {
+            return Err(CrowdfundingError::InsufficientPlatformFees);
+        }
+
         token_client.transfer(&env.current_contract_address(), &to, &amount);
 
+        // Deduct from the tracked fee balance — pool funds are never touched.
         env.storage()
             .instance()
-            .set(&platform_fees_key, &(current_fees - amount));
+            .set(&platform_fees_key, &(collected_fees - amount));
 
         events::platform_fees_withdrawn(&env, to, amount);
 
@@ -1772,10 +1791,12 @@ impl CrowdfundingTrait for CrowdfundingContract {
         }
 
         let event_fees_key = StorageKey::EventFeeTreasury;
-        let current_fees: i128 = env.storage().instance().get(&event_fees_key).unwrap_or(0);
+        let collected_event_fees: i128 = env.storage().instance().get(&event_fees_key).unwrap_or(0);
 
-        if amount > current_fees {
-            return Err(CrowdfundingError::InsufficientFees);
+        // Guard 1: amount must not exceed the tracked event-fee treasury —
+        // prevents draining pool-contribution or platform-fee funds.
+        if amount > collected_event_fees {
+            return Err(CrowdfundingError::InsufficientEventFees);
         }
 
         let token_key = StorageKey::CrowdfundingToken;
@@ -1787,11 +1808,19 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         use soroban_sdk::token;
         let token_client = token::Client::new(&env, &token_address);
+
+        // Guard 2: on-chain balance must cover the withdrawal.
+        let contract_token_balance = token_client.balance(&env.current_contract_address());
+        if amount > contract_token_balance {
+            return Err(CrowdfundingError::InsufficientEventFees);
+        }
+
         token_client.transfer(&env.current_contract_address(), &to, &amount);
 
+        // Deduct from the treasury — pool-contribution funds are never touched.
         env.storage()
             .instance()
-            .set(&event_fees_key, &(current_fees - amount));
+            .set(&event_fees_key, &(collected_event_fees - amount));
 
         events::event_fees_withdrawn(&env, admin, to, amount);
 
@@ -1887,6 +1916,20 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         env.deployer().update_current_contract_wasm(new_wasm_hash);
         Ok(())
+    }
+
+    fn get_all_events_count(env: Env) -> u64 {
+        env.storage()
+            .persistent()
+            .get::<_, u64>(&StorageKey::AllEventsCount)
+            .unwrap_or(0)
+    }
+
+    fn get_all_events(env: Env) -> Vec<crate::base::types::EventRecord> {
+        env.storage()
+            .persistent()
+            .get::<_, Vec<crate::base::types::EventRecord>>(&StorageKey::AllEvents)
+            .unwrap_or_else(|| Vec::new(&env))
     }
 }
 

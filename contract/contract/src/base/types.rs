@@ -1,5 +1,18 @@
 use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
 
+/// A lightweight record stored for every emitted contract event.
+/// Used to populate the global `AllEvents` list.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EventRecord {
+    /// Sequential index (1-based) assigned at emission time.
+    pub index: u64,
+    /// Short name matching the event's topic Symbol (e.g. "pool_created").
+    pub name: String,
+    /// Ledger timestamp at the moment the event was emitted.
+    pub timestamp: u64,
+}
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CampaignDetails {
@@ -290,6 +303,10 @@ pub enum StorageKey {
     EventPlatformFees(u64),
     // Track if someone bought a ticket
     UserTicket(u64, Address),
+    // Global event tracker: total number of events ever emitted
+    AllEventsCount,
+    // Global event tracker: append-only list of all emitted event records
+    AllEvents,
 }
 
 #[cfg(test)]

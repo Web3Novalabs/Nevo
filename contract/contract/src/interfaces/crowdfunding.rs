@@ -217,4 +217,10 @@ pub trait CrowdfundingTrait {
     ) -> Result<(i128, i128), CrowdfundingError>;
 
     fn upgrade_contract(env: Env, new_wasm_hash: BytesN<32>) -> Result<(), CrowdfundingError>;
+
+    /// Returns the total number of events ever emitted by this contract.
+    fn get_all_events_count(env: Env) -> u64;
+
+    /// Returns the full list of emitted event records (index, name, timestamp).
+    fn get_all_events(env: Env) -> Vec<crate::base::types::EventRecord>;
 }

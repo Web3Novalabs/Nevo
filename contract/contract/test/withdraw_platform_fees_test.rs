@@ -64,7 +64,7 @@ fn test_withdraw_platform_fees_end_to_end() {
     // Nothing left to withdraw.
     assert_eq!(
         client.try_withdraw_platform_fees(&receiver, &1),
-        Err(Ok(CrowdfundingError::InsufficientFees))
+        Err(Ok(CrowdfundingError::InsufficientPlatformFees))
     );
 }
 
@@ -117,7 +117,7 @@ fn test_withdraw_platform_fees_insufficient_fees() {
     let receiver = Address::generate(&env);
     assert_eq!(
         client.try_withdraw_platform_fees(&receiver, &1001),
-        Err(Ok(CrowdfundingError::InsufficientFees))
+        Err(Ok(CrowdfundingError::InsufficientPlatformFees))
     );
 }
 
