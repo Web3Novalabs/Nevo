@@ -1,10 +1,10 @@
 use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 use crate::base::{
-    errors::CrowdfundingError,
+    errors::{CrowdfundingError, EventError},
     types::{
-        CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
-        PoolState,
+        CampaignDetails, CampaignLifecycleStatus, Event, PoolConfig, PoolContribution,
+        PoolMetadata, PoolState, TicketType,
     },
 };
 

@@ -2,16 +2,16 @@
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
 use crate::base::{
-    errors::{CrowdfundingError, SecondCrowdfundingError},
+    errors::{CrowdfundingError, EventError, SecondCrowdfundingError},
     events,
     reentrancy::{
         acquire_emergency_lock, reentrancy_lock_logic, release_emergency_lock, release_pool_lock,
     },
     types::{
         CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
-        EmergencyWithdrawal, MultiSigConfig, PoolConfig, PoolContribution, PoolMetadata,
-        PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH,
-        MAX_STRING_LENGTH, MAX_URL_LENGTH,
+        EmergencyWithdrawal, Event, EventStatus, MultiSigConfig, PoolConfig, PoolContribution,
+        PoolMetadata, PoolMetrics, PoolState, StorageKey, Ticket, TicketType,
+        MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH, MAX_STRING_LENGTH, MAX_URL_LENGTH,
     },
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;

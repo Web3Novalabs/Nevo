@@ -107,3 +107,12 @@ mod tests {
         assert!(SecondCrowdfundingError::EventSoldOut < SecondCrowdfundingError::EventExpired);
     }
 }
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum EventError {
+    EventNotFound = 1,
+    EventExpired = 2,
+    EventNotActive = 3,
+}
