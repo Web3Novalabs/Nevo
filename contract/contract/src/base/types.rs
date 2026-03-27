@@ -168,7 +168,7 @@ pub struct EventDetails {
 /// Represents the type of a ticket.
 /// Standard is the default type.
 #[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[repr(u32)]
 pub enum TicketType {
     /// Standard ticket for general access.
@@ -273,6 +273,7 @@ pub enum StorageKey {
     Contribution(BytesN<32>, Address),
     PoolContribution(u64, Address),
     PoolContributors(u64),
+    Event(BytesN<32>),
 
     NextPoolId,
     IsPaused,

@@ -73,7 +73,8 @@ fn test_owner_can_close_private_pool() {
 
     client.close_pool(&pool_id, &owner);
 
-    assert_eq!(client.is_closed(&pool_id), true);
+    let is_closed = client.is_closed(&pool_id);
+    assert!(is_closed);
 }
 
 #[test]
@@ -145,7 +146,8 @@ fn test_owner_can_close_paused_private_pool() {
     client.update_pool_state(&pool_id, &PoolState::Paused);
     client.close_pool(&pool_id, &owner);
 
-    assert_eq!(client.is_closed(&pool_id), true);
+    let is_closed = client.is_closed(&pool_id);
+    assert!(is_closed);
 }
 
 #[test]
@@ -178,7 +180,7 @@ fn test_close_private_pool_before_deadline() {
     client.contribute(&pool_id, &contributor, &token, &1000, &false);
     client.close_pool(&pool_id, &owner);
 
-    assert_eq!(client.is_closed(&pool_id), true);
+    assert!(client.is_closed(&pool_id));
 
     let result = client.try_contribute(&pool_id, &contributor, &token, &1000, &false);
     assert_eq!(result, Err(Ok(CrowdfundingError::PoolAlreadyClosed)));
@@ -216,8 +218,8 @@ fn test_multiple_private_pools_independent_closure() {
 
     client.close_pool(&pool_id_1, &owner1);
 
-    assert_eq!(client.is_closed(&pool_id_1), true);
-    assert_eq!(client.is_closed(&pool_id_2), false);
+    assert!(client.is_closed(&pool_id_1));
+    assert!(!client.is_closed(&pool_id_2));
 
     let result = client.try_contribute(&pool_id_1, &contributor, &token, &1000, &false);
     assert_eq!(result, Err(Ok(CrowdfundingError::PoolAlreadyClosed)));
@@ -236,7 +238,7 @@ fn test_admin_can_close_after_disbursement() {
     client.update_pool_state(&pool_id, &PoolState::Disbursed);
     client.close_pool(&pool_id, &admin);
 
-    assert_eq!(client.is_closed(&pool_id), true);
+    assert!(client.is_closed(&pool_id));
 }
 
 #[test]
@@ -250,5 +252,5 @@ fn test_owner_can_close_after_cancellation() {
     client.update_pool_state(&pool_id, &PoolState::Cancelled);
     client.close_pool(&pool_id, &owner);
 
-    assert_eq!(client.is_closed(&pool_id), true);
+    assert!(client.is_closed(&pool_id));
 }

@@ -1,8 +1,9 @@
 #![allow(deprecated)]
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
+use crate::base::errors::SecondCrowdfundingError;
 use crate::base::{
-    errors::{CrowdfundingError, SecondCrowdfundingError},
+    errors::CrowdfundingError,
     events,
     reentrancy::{
         acquire_emergency_lock, reentrancy_lock_logic, release_emergency_lock, release_pool_lock,
@@ -15,6 +16,7 @@ use crate::base::{
     },
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;
+#[cfg(test)]
 use crate::interfaces::second_crowdfunding::SecondCrowdfundingTrait;
 
 #[contract]
@@ -332,17 +334,16 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .set(&event_fee_key, &(current_fees + fee_amount));
 
-        // Aggregate into the global event-fee treasury so withdraw_event_fees
-        // always reflects the true withdrawable balance.
-        let treasury_key = StorageKey::EventFeeTreasury;
-        let treasury_balance: i128 = env.storage().instance().get(&treasury_key).unwrap_or(0);
-        env.storage()
+        let event_fee_treasury_key = StorageKey::EventFeeTreasury;
+        let current_event_fee_treasury: i128 = env
+            .storage()
             .instance()
-            .set(&treasury_key, &(treasury_balance + fee_amount));
-
-        // Track user ticket
-        let user_ticket_key = StorageKey::UserTicket(pool_id, buyer.clone());
-        env.storage().instance().set(&user_ticket_key, &true);
+            .get(&event_fee_treasury_key)
+            .unwrap_or(0);
+        env.storage().instance().set(
+            &event_fee_treasury_key,
+            &(current_event_fee_treasury + fee_amount),
+        );
 
         events::ticket_sold(&env, pool_id, buyer, price, event_amount, fee_amount);
         Ok((event_amount, fee_amount))
@@ -951,12 +952,14 @@ impl CrowdfundingTrait for CrowdfundingContract {
         events::pool_created(
             &env,
             pool_id,
-            config.name.clone(),
-            config.description.clone(),
             creator.clone(),
-            config.target_amount,
-            config.min_contribution,
-            deadline,
+            (
+                config.name.clone(),
+                config.description.clone(),
+                config.target_amount,
+                config.min_contribution,
+                deadline,
+            ),
         );
 
         events::event_created(
@@ -1091,12 +1094,14 @@ impl CrowdfundingTrait for CrowdfundingContract {
         events::pool_created(
             &env,
             pool_id,
-            name,
-            metadata.description.clone(),
             creator,
-            target_amount,
-            0,
-            deadline,
+            (
+                name,
+                metadata.description.clone(),
+                target_amount,
+                0,
+                deadline,
+            ),
         );
 
         Ok(pool_id)
@@ -1944,6 +1949,7 @@ impl CrowdfundingContract {
     }
 }
 
+#[cfg(test)]
 impl SecondCrowdfundingTrait for CrowdfundingContract {
     /// Validates that `title` does not exceed the maximum allowed length and,
     /// if the check passes, delegates to the primary `create_campaign`

@@ -1,3 +1,5 @@
+#![cfg(test)]
+
 use soroban_sdk::{Address, BytesN, Env, String};
 
 use crate::base::errors::SecondCrowdfundingError;

@@ -68,19 +68,11 @@ pub fn campaign_goal_updated(env: &Env, id: BytesN<32>, new_goal: i128) {
 pub fn pool_created(
     env: &Env,
     pool_id: u64,
-    name: String,
-    description: String,
     creator: Address,
-    target_amount: i128,
-    min_contribution: i128,
-    deadline: u64,
+    details: (String, String, i128, i128, u64),
 ) {
     let topics = (Symbol::new(env, "pool_created"), pool_id, creator);
-    env.events().publish(
-        topics,
-        (name, description, target_amount, min_contribution, deadline),
-    );
-    record_event(env, "pool_created");
+    env.events().publish(topics, details);
 }
 
 pub fn event_created(

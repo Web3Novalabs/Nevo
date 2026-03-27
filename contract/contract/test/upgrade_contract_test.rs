@@ -5,10 +5,7 @@ use soroban_sdk::{
     Address, BytesN, Env, IntoVal,
 };
 
-use crate::{
-    base::errors::CrowdfundingError,
-    crowdfunding::{CrowdfundingContract, CrowdfundingContractClient},
-};
+use crate::crowdfunding::{CrowdfundingContract, CrowdfundingContractClient};
 
 fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address) {
     env.mock_all_auths();

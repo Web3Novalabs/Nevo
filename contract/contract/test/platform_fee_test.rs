@@ -215,27 +215,27 @@ fn test_calculate_platform_fee_realistic_pool_scenarios() {
     let scenarios = std::vec![
         Scenario {
             description: "Small community pool - $500 raised",
-            amount: 500_00,      // $500 in cents
+            amount: 50_000,      // $500 in cents
             bps: 250,            // 2.5%
-            expected_fee: 12_50, // $12.50
+            expected_fee: 1_250, // $12.50
         },
         Scenario {
             description: "Medium education fund - $5,000 raised",
-            amount: 5_000_00,     // $5,000 in cents
+            amount: 500_000,      // $5,000 in cents
             bps: 250,             // 2.5%
-            expected_fee: 125_00, // $125
+            expected_fee: 12_500, // $125
         },
         Scenario {
             description: "Large medical campaign - $50,000 raised",
-            amount: 50_000_00,      // $50,000 in cents
-            bps: 250,               // 2.5%
-            expected_fee: 1_250_00, // $1,250
+            amount: 5_000_000,     // $50,000 in cents
+            bps: 250,              // 2.5%
+            expected_fee: 125_000, // $1,250
         },
         Scenario {
             description: "Mega disaster relief - $1,000,000 raised",
-            amount: 1_000_000_00,    // $1,000,000 in cents
+            amount: 100_000_000,     // $1,000,000 in cents
             bps: 250,                // 2.5%
-            expected_fee: 25_000_00, // $25,000
+            expected_fee: 2_500_000, // $25,000
         },
     ];
 
