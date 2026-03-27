@@ -27,7 +27,7 @@ fn test_verify_cause_success() {
     client.verify_cause(&cause);
 
     // Check if it is verified
-    assert_eq!(client.is_cause_verified(&cause), true);
+    assert!(client.is_cause_verified(&cause));
 }
 
 #[test]

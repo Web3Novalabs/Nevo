@@ -1932,7 +1932,7 @@ fn test_donate_campaign_already_funded() {
 
     // Verify campaign is completed
     assert_eq!(client.get_total_raised(&campaign_id), goal);
-    assert_eq!(client.is_campaign_completed(&campaign_id), true);
+    assert!(client.is_campaign_completed(&campaign_id));
 
     // Try to donate again - should fail
     let result = client.try_donate(&campaign_id, &donor, &token_id, &100i128);

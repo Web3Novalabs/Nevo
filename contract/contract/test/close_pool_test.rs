@@ -61,7 +61,7 @@ fn test_close_pool_success_after_disbursement() {
 
     // Verify pool is closed
     let is_closed = client.is_closed(&pool_id);
-    assert_eq!(is_closed, true);
+    assert!(is_closed);
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn test_close_pool_success_after_cancellation() {
 
     // Verify pool is closed
     let is_closed = client.is_closed(&pool_id);
-    assert_eq!(is_closed, true);
+    assert!(is_closed);
 }
 
 #[test]
@@ -193,7 +193,7 @@ fn test_is_closed_for_active_pool() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     let is_closed = client.is_closed(&pool_id);
-    assert_eq!(is_closed, false);
+    assert!(!is_closed);
 }
 
 #[test]
@@ -209,7 +209,7 @@ fn test_is_closed_for_closed_pool() {
     client.close_pool(&pool_id, &admin);
 
     let is_closed = client.is_closed(&pool_id);
-    assert_eq!(is_closed, true);
+    assert!(is_closed);
 }
 
 #[test]
@@ -240,7 +240,7 @@ fn test_close_pool_emits_event() {
     // Verify event was emitted (events are automatically captured in test environment)
     // The event emission is verified by the fact that the function completes successfully
     let is_closed = client.is_closed(&pool_id);
-    assert_eq!(is_closed, true);
+    assert!(is_closed);
 }
 
 #[test]
@@ -265,9 +265,9 @@ fn test_close_pool_multiple_pools() {
     client.close_pool(&pool_id_3, &admin);
 
     // Verify states
-    assert_eq!(client.is_closed(&pool_id_1), true);
-    assert_eq!(client.is_closed(&pool_id_2), false);
-    assert_eq!(client.is_closed(&pool_id_3), true);
+    assert!(client.is_closed(&pool_id_1));
+    assert!(!client.is_closed(&pool_id_2));
+    assert!(client.is_closed(&pool_id_3));
 }
 
 #[test]
@@ -279,7 +279,7 @@ fn test_close_pool_state_transition_sequence() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     // Initial state: Active
-    assert_eq!(client.is_closed(&pool_id), false);
+    assert!(!client.is_closed(&pool_id));
 
     // Try to close from Active - should fail
     let result = client.try_close_pool(&pool_id, &admin);
@@ -290,11 +290,11 @@ fn test_close_pool_state_transition_sequence() {
 
     // Transition to Disbursed
     client.update_pool_state(&pool_id, &PoolState::Disbursed);
-    assert_eq!(client.is_closed(&pool_id), false);
+    assert!(!client.is_closed(&pool_id));
 
     // Now close should succeed
     client.close_pool(&pool_id, &admin);
-    assert_eq!(client.is_closed(&pool_id), true);
+    assert!(client.is_closed(&pool_id));
 }
 
 #[test]
@@ -312,7 +312,7 @@ fn test_close_pool_after_refund_scenario() {
     client.close_pool(&pool_id, &admin);
 
     // Verify pool is closed
-    assert_eq!(client.is_closed(&pool_id), true);
+    assert!(client.is_closed(&pool_id));
 }
 
 #[test]
@@ -339,10 +339,10 @@ fn test_is_closed_for_different_states() {
     client.close_pool(&pool_closed, &admin);
 
     // Verify is_closed returns false for all except Closed state
-    assert_eq!(client.is_closed(&pool_active), false);
-    assert_eq!(client.is_closed(&pool_paused), false);
-    assert_eq!(client.is_closed(&pool_completed), false);
-    assert_eq!(client.is_closed(&pool_cancelled), false);
-    assert_eq!(client.is_closed(&pool_disbursed), false);
-    assert_eq!(client.is_closed(&pool_closed), true);
+    assert!(!client.is_closed(&pool_active));
+    assert!(!client.is_closed(&pool_paused));
+    assert!(!client.is_closed(&pool_completed));
+    assert!(!client.is_closed(&pool_cancelled));
+    assert!(!client.is_closed(&pool_disbursed));
+    assert!(client.is_closed(&pool_closed));
 }

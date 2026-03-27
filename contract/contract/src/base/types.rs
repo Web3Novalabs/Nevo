@@ -1,1 +1,480 @@
-use soroban_sdk::{contracttype, Address, BytesN, String, Vec};&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, Eq, PartialEq)]&#10;pub struct CampaignDetails {&#10;    pub id: BytesN<32>,&#10;    pub title: String,&#10;    pub creator: Address,&#10;    pub goal: i128,&#10;    pub deadline: u64,&#10;    pub total_raised: i128,&#10;    pub token_address: Address,&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, Eq, PartialEq)]&#10;pub struct Contribution {&#10;    pub campaign_id: BytesN<32>,&#10;    pub contributor: Address,&#10;    pub amount: i128,&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, Eq, PartialEq)]&#10;pub struct MultiSigConfig {&#10;    pub required_signatures: u32,&#10;    pub signers: Vec<Address>,&#10;}&#10;&#10;// Updated pool configuration for donation pools&#10;#[contracttype]&#10;#[derive(Clone, Debug, PartialEq, Eq)]&#10;pub struct PoolConfig {&#10;    pub name: String,&#10;    pub description: String,&#10;    pub target_amount: i128,&#10;    // Minimum contribution allowed for this pool (in token smallest units)&#10;    pub min_contribution: i128,&#10;    pub is_private: bool,&#10;    pub duration: u64,&#10;    pub created_at: u64,&#10;    pub token_address: Address,&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, PartialEq, Eq)]&#10;pub struct PoolMetadata {&#10;    pub description: String,&#10;    pub external_url: String,&#10;    pub image_hash: String,&#10;}&#10;&#10;pub const MAX_DESCRIPTION_LENGTH: u32 = 500;&#10;pub const MAX_URL_LENGTH: u32 = 200;&#10;pub const MAX_HASH_LENGTH: u32 = 100;&#10;pub const MAX_STRING_LENGTH: u32 = 200;&#10;&#10;impl PoolConfig {&#10;    /// Validate pool configuration according to Nevo invariants.&#10;    ///&#10;    /// Follows Soroban best practices by failing fast with `panic!` when&#10;    /// invariants are violated. Callers should validate user input before&#10;    /// persisting configuration on-chain.&#10;    pub fn validate(&self) {&#10;        // Name must not be empty&#10;        assert!(!self.name.is_empty(), "pool name must not be empty");&#10;&#10;        // Description validation&#10;        assert!(&#10;            self.description.len() <= MAX_DESCRIPTION_LENGTH,&#10;            "description too long"&#10;        );&#10;&#10;        // Target amount must be strictly positive&#10;        assert!(self.target_amount > 0, "target_amount must be > 0");&#10;&#10;        // Minimum contribution must be non-negative and not exceed the target&#10;        assert!(self.min_contribution >= 0, "min_contribution must be >= 0");&#10;        assert!(&#10;            self.min_contribution <= self.target_amount,&#10;            "min_contribution must be <= target_amount"&#10;        );&#10;&#10;        // Duration must be strictly positive (non-zero)&#10;        assert!(self.duration > 0, "duration must be > 0");&#10;    }&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, PartialEq, Eq)]&#10;#[repr(u32)]&#10;pub enum CampaignLifecycleStatus {&#10;    Live = 0,&#10;    Cancelled = 1,&#10;    Successful = 2,&#10;    Expired = 3,&#10;}&#10;&#10;impl CampaignLifecycleStatus {&#10;    pub fn get_status(&#10;        total_raised: i128,&#10;        goal: i128,&#10;        deadline: u64,&#10;        current_time: u64,&#10;        is_cancelled: bool,&#10;    ) -> Self {&#10;        if is_cancelled {&#10;            return CampaignLifecycleStatus::Cancelled;&#10;        }&#10;&#10;        if total_raised >= goal {&#10;            return CampaignLifecycleStatus::Successful;&#10;        }&#10;&#10;        if current_time >= deadline {&#10;            return CampaignLifecycleStatus::Expired;&#10;        }&#10;&#10;        CampaignLifecycleStatus::Live;&#10;    }&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, PartialEq, Eq)]&#10;#[repr(u32)]&#10;pub enum PoolState {&#10;    Active = 0,&#10;    Paused = 1,&#10;    Completed = 2,&#10;    Cancelled = 3,&#10;    Disbursed = 4,&#10;    Closed = 5,&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, PartialEq, Eq)]&#10;#[repr(u32)]&#10;pub enum EventStatus {&#10;    Active = 0,&#10;    Cancelled = 1,&#10;    Completed = 2,&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, PartialEq, Eq)]&#10;pub struct EventDetails {&#10;    pub id: u64,&#10;    pub title: String,&#10;    pub creator: Address,&#10;    pub ticket_price: i128,&#10;    pub max_attendees: u32,&#10;    pub deadline: u64,&#10;}&#10;&#10;/// Represents the type of a ticket.&#10;/// Standard is the default type.&#10;#[contracttype]&#10;#[derive(Clone, Debug, PartialEq, Eq, Default)]&#10;#[repr(u32)]&#10;pub enum TicketType {&#10;    /// Standard ticket for general access.&#10;    #[default]&#10;    Standard = 0,&#10;    /// VIP ticket for premium access.&#10;    VIP = 1,&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, PartialEq, Eq)]&#10;pub struct CampaignMetrics {&#10;    pub total_raised: i128,&#10;    pub contributor_count: u32,&#10;    pub last_donation_at: u64,&#10;    pub max_donation: i128,&#10;    pub top_contributor: Option<Address>,&#10;}&#10;&#10;impl Default for CampaignMetrics {&#10;    fn default() -> Self {&#10;        Self::new()&#10;    }&#10;}&#10;&#10;impl CampaignMetrics {&#10;    pub fn new() -> Self {&#10;        Self {&#10;            total_raised: 0,&#10;            contributor_count: 0,&#10;            last_donation_at: 0,&#10;            max_donation: 0,&#10;            top_contributor: None,&#10;        }&#10;    }&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, PartialEq, Eq)]&#10;pub struct PoolMetrics {&#10;    pub total_raised: i128,&#10;    pub contributor_count: u32,&#10;    pub last_donation_at: u64,&#10;    }&#10;&#10;impl Default for PoolMetrics {&#10;    fn default() -> Self {&#10;        Self::new()&#10;    }&#10;}&#10;&#10;impl PoolMetrics {&#10;    /// Creates zero-initialized metrics for a new pool.&#10;    pub fn new() -> Self {&#10;        Self {&#10;            total_raised: 0,&#10;            contributor_count: 0,&#10;            last_donation_at: 0,&#10;        }&#10;    }&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, Eq, PartialEq)]&#10;pub struct DisbursementRequest {&#10;    pub pool_id: u64,&#10;    pub amount: i128,&#10;    pub recipient: Address,&#10;    pub approvals: Vec<Address>,&#10;    pub created_at: u64,&#10;    pub executed: bool,&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, Eq, PartialEq)]&#10;pub struct EmergencyWithdrawal {&#10;    pub recipient: Address,&#10;    pub amount: i128,&#10;    pub token: Address,&#10;    pub requested_at: u64,&#10;    pub executed: bool,&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, Eq, PartialEq)]&#10;pub struct PoolContribution {&#10;    pub pool_id: u64,&#10;    pub contributor: Address,&#10;    pub amount: i128,&#10;    pub asset: Address,&#10;}&#10;&#10;#[contracttype]&#10;#[derive(Clone, Debug, Eq, PartialEq)]&#10;pub enum StorageKey {&#10;    Pool(u64),&#10;    PoolState(u64),&#10;    PoolMetrics(u64),&#10;    AllCampaigns,&#10;    CampaignMetrics(BytesN<32>),&#10;    CampaignDonor(BytesN<32>, Address),&#10;    Contribution(BytesN<32>, Address),&#10;    PoolContribution(u64, Address),&#10;    PoolContributors(u64),&#10;&#10;    NextPoolId,&#10;    IsPaused,&#10;    Admin,&#10;    MultiSigConfig(u64),&#10;    DisbursementRequest(u64, u64),&#10;    PoolMetadata(u64),&#10;    NextDisbursementId(u64),&#10;    EmergencyWithdrawal,&#10;    CrowdfundingToken,&#10;    CreationFee,&#10;    VerifiedCause(Address),&#10;    PlatformFees,&#10;    GlobalTotalRaised,&#10;    CampaignCancelled(BytesN<32>),&#10;    CampaignClaimed(BytesN<32>),&#10;    EmergencyContact,&#10;    CampaignFeeHistory(BytesN<32>),&#10;    Blacklist(Address),&#10;    ReentrancyLock(u64),&#10;    EmergencyWithdrawalLock,&#10;    PoolCreator(u64),&#10;    EventFeeTreasury,&#10;    PlatformFeeBps,&#10;    // Per-pool revenue split: tokens destined for the event creator&#10;    EventPool(u64),&#10;    // Per-pool revenue split: tokens accumulated as platform fee&#10;    EventPlatformFees(u64),&#10;    // Track if someone bought a ticket&#10;    UserTicket(u64, Address),&#10;}&#10;&#10;#[cfg(test)]&#10;mod tests {
+use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CampaignDetails {
+    pub id: BytesN<32>,
+    pub title: String,
+    pub creator: Address,
+    pub goal: i128,
+    pub deadline: u64,
+    pub total_raised: i128,
+    pub token_address: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Contribution {
+    pub campaign_id: BytesN<32>,
+    pub contributor: Address,
+    pub amount: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MultiSigConfig {
+    pub required_signatures: u32,
+    pub signers: Vec<Address>,
+}
+
+// Updated pool configuration for donation pools
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PoolConfig {
+    pub name: String,
+    pub description: String,
+    pub target_amount: i128,
+    // Minimum contribution allowed for this pool (in token smallest units)
+    pub min_contribution: i128,
+    pub is_private: bool,
+    pub duration: u64,
+    pub created_at: u64,
+    pub token_address: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PoolMetadata {
+    pub description: String,
+    pub external_url: String,
+    pub image_hash: String,
+}
+
+pub const MAX_DESCRIPTION_LENGTH: u32 = 500;
+pub const MAX_URL_LENGTH: u32 = 200;
+pub const MAX_HASH_LENGTH: u32 = 100;
+pub const MAX_STRING_LENGTH: u32 = 200;
+
+impl PoolConfig {
+    /// Validate pool configuration according to Nevo invariants.
+    ///
+    /// Follows Soroban best practices by failing fast with `panic!` when
+    /// invariants are violated. Callers should validate user input before
+    /// persisting configuration on-chain.
+    pub fn validate(&self) {
+        // Name must not be empty
+        assert!(!self.name.is_empty(), "pool name must not be empty");
+
+        // Description validation
+        assert!(
+            self.description.len() <= MAX_DESCRIPTION_LENGTH,
+            "description too long"
+        );
+
+        // Target amount must be strictly positive
+        assert!(self.target_amount > 0, "target_amount must be > 0");
+
+        // Minimum contribution must be non-negative and not exceed the target
+        assert!(self.min_contribution >= 0, "min_contribution must be >= 0");
+        assert!(
+            self.min_contribution <= self.target_amount,
+            "min_contribution must be <= target_amount"
+        );
+
+        // Duration must be strictly positive (non-zero)
+        assert!(self.duration > 0, "duration must be > 0");
+    }
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum CampaignLifecycleStatus {
+    Live = 0,
+    Cancelled = 1,
+    Successful = 2,
+    Expired = 3,
+}
+
+impl CampaignLifecycleStatus {
+    pub fn get_status(
+        total_raised: i128,
+        goal: i128,
+        deadline: u64,
+        current_time: u64,
+        is_cancelled: bool,
+    ) -> Self {
+        if is_cancelled {
+            return CampaignLifecycleStatus::Cancelled;
+        }
+
+        if total_raised >= goal {
+            return CampaignLifecycleStatus::Successful;
+        }
+
+        if current_time >= deadline {
+            return CampaignLifecycleStatus::Expired;
+        }
+
+        CampaignLifecycleStatus::Live
+    }
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum PoolState {
+    Active = 0,
+    Paused = 1,
+    Completed = 2,
+    Cancelled = 3,
+    Disbursed = 4,
+    Closed = 5,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum EventStatus {
+    Active = 0,
+    Cancelled = 1,
+    Completed = 2,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EventDetails {
+    pub id: u64,
+    pub title: String,
+    pub creator: Address,
+    pub ticket_price: i128,
+    pub max_attendees: u32,
+    pub deadline: u64,
+}
+
+/// Represents the type of a ticket.
+/// Standard is the default type.
+#[contracttype]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[repr(u32)]
+pub enum TicketType {
+    /// Standard ticket for general access.
+    #[default]
+    Standard = 0,
+    /// VIP ticket for premium access.
+    VIP = 1,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CampaignMetrics {
+    pub total_raised: i128,
+    pub contributor_count: u32,
+    pub last_donation_at: u64,
+    pub max_donation: i128,
+    pub top_contributor: Option<Address>,
+}
+
+impl Default for CampaignMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CampaignMetrics {
+    pub fn new() -> Self {
+        Self {
+            total_raised: 0,
+            contributor_count: 0,
+            last_donation_at: 0,
+            max_donation: 0,
+            top_contributor: None,
+        }
+    }
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PoolMetrics {
+    pub total_raised: i128,
+    pub contributor_count: u32,
+    pub last_donation_at: u64,
+}
+
+impl Default for PoolMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PoolMetrics {
+    /// Creates zero-initialized metrics for a new pool.
+    pub fn new() -> Self {
+        Self {
+            total_raised: 0,
+            contributor_count: 0,
+            last_donation_at: 0,
+        }
+    }
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DisbursementRequest {
+    pub pool_id: u64,
+    pub amount: i128,
+    pub recipient: Address,
+    pub approvals: Vec<Address>,
+    pub created_at: u64,
+    pub executed: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyWithdrawal {
+    pub recipient: Address,
+    pub amount: i128,
+    pub token: Address,
+    pub requested_at: u64,
+    pub executed: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PoolContribution {
+    pub pool_id: u64,
+    pub contributor: Address,
+    pub amount: i128,
+    pub asset: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum StorageKey {
+    Pool(u64),
+    PoolState(u64),
+    PoolMetrics(u64),
+    AllCampaigns,
+    CampaignMetrics(BytesN<32>),
+    CampaignDonor(BytesN<32>, Address),
+    Contribution(BytesN<32>, Address),
+    PoolContribution(u64, Address),
+    PoolContributors(u64),
+    Event(BytesN<32>),
+
+    NextPoolId,
+    IsPaused,
+    Admin,
+    MultiSigConfig(u64),
+    DisbursementRequest(u64, u64),
+    PoolMetadata(u64),
+    NextDisbursementId(u64),
+    EmergencyWithdrawal,
+    CrowdfundingToken,
+    CreationFee,
+    VerifiedCause(Address),
+    PlatformFees,
+    GlobalTotalRaised,
+    CampaignCancelled(BytesN<32>),
+    CampaignClaimed(BytesN<32>),
+    EmergencyContact,
+    CampaignFeeHistory(BytesN<32>),
+    Blacklist(Address),
+    ReentrancyLock(u64),
+    EmergencyWithdrawalLock,
+    PoolCreator(u64),
+    EventFeeTreasury,
+    PlatformFeeBps,
+    // Per-pool revenue split: tokens destined for the event creator
+    EventPool(u64),
+    // Per-pool revenue split: tokens accumulated as platform fee
+    EventPlatformFees(u64),
+    // Track if someone bought a ticket
+    UserTicket(u64, Address),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::{testutils::Address as _, Address, Env};
+
+    #[test]
+    fn pool_config_validation_success() {
+        let env = Env::default();
+        let token = Address::generate(&env);
+        let cfg = PoolConfig {
+            name: String::from_str(&env, "Education Fund"),
+            description: String::from_str(&env, "Fund for student education materials"),
+            target_amount: 1_000_000,
+            min_contribution: 0,
+            is_private: false,
+            duration: 30 * 24 * 60 * 60,
+            created_at: 1,
+            token_address: token,
+        };
+
+        cfg.validate();
+    }
+
+    #[test]
+    #[should_panic]
+    fn pool_config_invalid_target_amount_panics() {
+        let env = Env::default();
+        let token = Address::generate(&env);
+        let cfg = PoolConfig {
+            name: String::from_str(&env, "Invalid Target"),
+            description: String::from_str(&env, "Description"),
+            target_amount: 0,
+            min_contribution: 0,
+            is_private: false,
+            duration: 30 * 24 * 60 * 60,
+            created_at: 1,
+            token_address: token,
+        };
+
+        cfg.validate();
+    }
+
+    #[test]
+    fn pool_state_variants_have_expected_discriminants() {
+        assert_eq!(PoolState::Active as u32, 0);
+        assert_eq!(PoolState::Paused as u32, 1);
+        assert_eq!(PoolState::Completed as u32, 2);
+        assert_eq!(PoolState::Cancelled as u32, 3);
+        assert_eq!(PoolState::Disbursed as u32, 4);
+        assert_eq!(PoolState::Closed as u32, 5);
+    }
+
+    #[test]
+    fn pool_metrics_new_is_zero_initialized() {
+        let metrics = PoolMetrics::new();
+        assert_eq!(metrics.total_raised, 0);
+        assert_eq!(metrics.contributor_count, 0);
+        assert_eq!(metrics.last_donation_at, 0);
+    }
+
+    #[test]
+    fn campaign_status_live_when_active() {
+        let status = CampaignLifecycleStatus::get_status(100, 1000, 1000000, 500000, false);
+        assert_eq!(status, CampaignLifecycleStatus::Live);
+    }
+
+    #[test]
+    fn campaign_status_successful_when_goal_reached() {
+        let status = CampaignLifecycleStatus::get_status(1500, 1000, 1000000, 500000, false);
+        assert_eq!(status, CampaignLifecycleStatus::Successful);
+    }
+
+    #[test]
+    fn campaign_status_successful_when_goal_exactly_reached() {
+        let status = CampaignLifecycleStatus::get_status(1000, 1000, 1000000, 500000, false);
+        assert_eq!(status, CampaignLifecycleStatus::Successful);
+    }
+
+    #[test]
+    fn campaign_status_expired_when_deadline_passed() {
+        let status = CampaignLifecycleStatus::get_status(500, 1000, 1000, 1001, false);
+        assert_eq!(status, CampaignLifecycleStatus::Expired);
+    }
+
+    #[test]
+    fn campaign_status_expired_when_at_deadline_unmet() {
+        let status = CampaignLifecycleStatus::get_status(500, 1000, 1000, 1000, false);
+        assert_eq!(status, CampaignLifecycleStatus::Expired);
+    }
+
+    #[test]
+    fn campaign_status_cancelled_when_manually_cancelled() {
+        let status = CampaignLifecycleStatus::get_status(0, 1000, 1000000, 500000, true);
+        assert_eq!(status, CampaignLifecycleStatus::Cancelled);
+    }
+
+    #[test]
+    fn campaign_status_cancelled_takes_precedence_over_successful() {
+        let status = CampaignLifecycleStatus::get_status(1500, 1000, 1000000, 500000, true);
+        assert_eq!(status, CampaignLifecycleStatus::Cancelled);
+    }
+
+    #[test]
+    fn campaign_status_cancelled_takes_precedence_over_live() {
+        let status = CampaignLifecycleStatus::get_status(100, 1000, 1000000, 500000, true);
+        assert_eq!(status, CampaignLifecycleStatus::Cancelled);
+    }
+
+    #[test]
+    fn campaign_status_successful_takes_precedence_over_expired() {
+        let status = CampaignLifecycleStatus::get_status(1500, 1000, 100, 1000, false);
+        assert_eq!(status, CampaignLifecycleStatus::Successful);
+    }
+
+    #[test]
+    fn campaign_lifecycle_status_discriminants_correct() {
+        assert_eq!(CampaignLifecycleStatus::Live as u32, 0);
+        assert_eq!(CampaignLifecycleStatus::Cancelled as u32, 1);
+        assert_eq!(CampaignLifecycleStatus::Successful as u32, 2);
+        assert_eq!(CampaignLifecycleStatus::Expired as u32, 3);
+    }
+
+    #[test]
+    fn campaign_status_zero_raised_zero_goal() {
+        let status = CampaignLifecycleStatus::get_status(0, 0, 1000000, 500000, false);
+        assert_eq!(status, CampaignLifecycleStatus::Successful);
+    }
+
+    #[test]
+    fn campaign_status_large_numbers() {
+        let status = CampaignLifecycleStatus::get_status(
+            1_000_000_000_000,
+            900_000_000_000,
+            1000000,
+            500000,
+            false,
+        );
+        assert_eq!(status, CampaignLifecycleStatus::Successful);
+    }
+
+    #[test]
+    fn event_status_serialization() {
+        use soroban_sdk::{FromVal, IntoVal, Val};
+        let env = Env::default();
+        let status = EventStatus::Active;
+        let val: Val = status.into_val(&env);
+        let deserialized: EventStatus = EventStatus::from_val(&env, &val);
+        assert_eq!(status, deserialized);
+
+        let status = EventStatus::Cancelled;
+        let val: Val = status.into_val(&env);
+        let deserialized: EventStatus = EventStatus::from_val(&env, &val);
+        assert_eq!(status, deserialized);
+
+        let status = EventStatus::Completed;
+        let val: Val = status.into_val(&env);
+        let deserialized: EventStatus = EventStatus::from_val(&env, &val);
+        assert_eq!(status, deserialized);
+    }
+
+    #[test]
+    fn ticket_type_default_is_standard() {
+        assert_eq!(TicketType::default(), TicketType::Standard);
+    }
+
+    #[test]
+    fn event_details_instantiation() {
+        use soroban_sdk::testutils::Address as _;
+        let env = Env::default();
+        let creator = soroban_sdk::Address::generate(&env);
+        let event = EventDetails {
+            id: 1,
+            title: String::from_str(&env, "Nevo Launch"),
+            creator: creator.clone(),
+            ticket_price: 500,
+            max_attendees: 100,
+            deadline: 1_700_000_000,
+        };
+        assert_eq!(event.id, 1);
+        assert_eq!(event.ticket_price, 500);
+        assert_eq!(event.max_attendees, 100);
+        assert_eq!(event.deadline, 1_700_000_000);
+        assert_eq!(event.creator, creator);
+    }
+}
