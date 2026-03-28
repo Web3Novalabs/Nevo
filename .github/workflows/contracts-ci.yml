@@ -37,12 +37,8 @@ jobs:
       - name: Install wasm32v1-none target
         run: rustup target add wasm32v1-none
 
-      - name: Build contract WASM (required for upgrade integration test)
-        run: cargo build --target wasm32v1-none --release
-        working-directory: ./contract/contract
-
-      - name: Run contract tests
-        run: cargo test
+      - name: Build WASM and run contract tests
+        run: make test
         working-directory: ./contract/contract
 
       - name: Build contracts

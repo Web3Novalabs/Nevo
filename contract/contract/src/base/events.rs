@@ -156,6 +156,21 @@ pub fn event_fees_withdrawn(env: &Env, admin: Address, to: Address, amount: i128
     env.events().publish(topics, amount);
 }
 
+pub fn event_proceeds_withdrawn(
+    env: &Env,
+    pool_id: u64,
+    creator: Address,
+    to: Address,
+    amount: i128,
+) {
+    let topics = (
+        Symbol::new(env, "event_proceeds_withdrawn"),
+        pool_id,
+        creator,
+    );
+    env.events().publish(topics, (to, amount));
+}
+
 pub fn address_blacklisted(env: &Env, admin: Address, address: Address) {
     let topics = (Symbol::new(env, "address_blacklisted"), admin);
     env.events().publish(topics, address);

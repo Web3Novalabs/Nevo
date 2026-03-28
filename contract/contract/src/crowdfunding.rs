@@ -2,6 +2,8 @@
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
 use crate::base::errors::SecondCrowdfundingError;
+#[cfg(test)]
+use crate::base::types::{EventDetails, EventMetrics};
 use crate::base::{
     errors::CrowdfundingError,
     events,
@@ -10,9 +12,9 @@ use crate::base::{
     },
     types::{
         CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
-        EmergencyWithdrawal, EventDetails, EventMetrics, MultiSigConfig, PoolConfig,
-        PoolContribution, PoolMetadata, PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH,
-        MAX_HASH_LENGTH, MAX_STRING_LENGTH, MAX_URL_LENGTH,
+        EmergencyWithdrawal, MultiSigConfig, PoolConfig, PoolContribution, PoolMetadata,
+        PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH,
+        MAX_STRING_LENGTH, MAX_URL_LENGTH,
     },
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;
@@ -305,6 +307,16 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         buyer.require_auth();
 
+        let user_ticket_key = StorageKey::UserTicket(pool_id, buyer.clone());
+        if env
+            .storage()
+            .instance()
+            .get::<StorageKey, bool>(&user_ticket_key)
+            .unwrap_or(false)
+        {
+            return Err(CrowdfundingError::InvalidPoolState);
+        }
+
         // ── fee split ────────────────────────────────────────────────────────
         let fee_bps: u32 = env
             .storage()
@@ -344,6 +356,8 @@ impl CrowdfundingTrait for CrowdfundingContract {
             &event_fee_treasury_key,
             &(current_event_fee_treasury + fee_amount),
         );
+
+        env.storage().instance().set(&user_ticket_key, &true);
 
         events::ticket_sold(&env, pool_id, buyer, price, event_amount, fee_amount);
         Ok((event_amount, fee_amount))
@@ -1194,6 +1208,9 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .set(&StorageKey::CreationFee, &creation_fee);
         env.storage().instance().set(&StorageKey::IsPaused, &false);
+        env.storage()
+            .instance()
+            .set(&StorageKey::PlatformFeeBps, &0u32);
         Ok(())
     }
 
@@ -1807,6 +1824,69 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .set(&event_fees_key, &(current_fees - amount));
 
         events::event_fees_withdrawn(&env, admin, to, amount);
+
+        Ok(())
+    }
+
+    fn withdraw_event_proceeds(
+        env: Env,
+        pool_id: u64,
+        caller: Address,
+        to: Address,
+        amount: i128,
+    ) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+        caller.require_auth();
+
+        let pool_key = StorageKey::Pool(pool_id);
+        let pool: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(CrowdfundingError::PoolNotFound)?;
+
+        let creator_key = StorageKey::PoolCreator(pool_id);
+        let creator: Address = env
+            .storage()
+            .instance()
+            .get(&creator_key)
+            .ok_or(CrowdfundingError::Unauthorized)?;
+
+        if caller != creator {
+            return Err(CrowdfundingError::Unauthorized);
+        }
+
+        let state_key = StorageKey::PoolState(pool_id);
+        let state: PoolState = env
+            .storage()
+            .instance()
+            .get(&state_key)
+            .unwrap_or(PoolState::Active);
+        if state != PoolState::Completed {
+            return Err(CrowdfundingError::InvalidPoolState);
+        }
+
+        if amount <= 0 {
+            return Err(CrowdfundingError::InvalidAmount);
+        }
+
+        let event_pool_key = StorageKey::EventPool(pool_id);
+        let balance: i128 = env.storage().instance().get(&event_pool_key).unwrap_or(0);
+        if amount > balance {
+            return Err(CrowdfundingError::InsufficientBalance);
+        }
+
+        use soroban_sdk::token;
+        let token_client = token::Client::new(&env, &pool.token_address);
+        token_client.transfer(&env.current_contract_address(), &to, &amount);
+
+        env.storage()
+            .instance()
+            .set(&event_pool_key, &(balance - amount));
+
+        events::event_proceeds_withdrawn(&env, pool_id, caller, to, amount);
 
         Ok(())
     }
