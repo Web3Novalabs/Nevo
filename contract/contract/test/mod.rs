@@ -4,6 +4,7 @@ mod batch_claim_test;
 mod buy_ticket_test;
 mod close_pool_test;
 mod close_private_pool_test;
+mod coverage_test;
 mod create_event_test;
 mod create_pool;
 mod crowdfunding_test;
