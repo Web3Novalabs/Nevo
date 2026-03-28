@@ -182,6 +182,16 @@ pub trait CrowdfundingTrait {
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
 
+    /// Withdraw ticket proceeds credited to [`StorageKey::EventPool`] for `pool_id`.
+    /// Only the pool creator may call; the pool must be in [`PoolState::Completed`].
+    fn withdraw_event_proceeds(
+        env: Env,
+        pool_id: u64,
+        caller: Address,
+        to: Address,
+        amount: i128,
+    ) -> Result<(), CrowdfundingError>;
+
     fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError>;
 
     fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;

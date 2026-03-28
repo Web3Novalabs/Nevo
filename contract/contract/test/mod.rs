@@ -6,6 +6,7 @@ mod close_private_pool_test;
 mod create_event_test;
 mod create_pool;
 mod crowdfunding_test;
+mod event_payment_flow_test;
 mod get_pool_contributions_paginated_test;
 mod platform_fee_test;
 mod pool_remaining_time_test;

@@ -372,3 +372,24 @@ fn test_buy_ticket_requires_buyer_auth() {
         "buyer auth must be recorded"
     );
 }
+
+#[test]
+fn test_buy_ticket_second_purchase_same_buyer_fails() {
+    let env = Env::default();
+    let (client, _, token) = setup(&env);
+    let pool_id = create_pool(&client, &env, &token);
+
+    let buyer = Address::generate(&env);
+    let price = 5_000i128;
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&buyer, &(price * 2));
+
+    client.buy_ticket(&pool_id, &buyer, &token, &price);
+
+    let second = client.try_buy_ticket(&pool_id, &buyer, &token, &price);
+    assert_eq!(
+        second,
+        Err(Ok(CrowdfundingError::InvalidPoolState)),
+        "one ticket per buyer per pool"
+    );
+}
