@@ -14,5 +14,6 @@ mod set_platform_fee_bps_test;
 // mod update_pool_metadata_test; // Features not yet implemented
 mod upgrade_contract_test;
 mod validate_string_length_test;
+mod validate_category_test;
 mod verify_cause;
 mod withdraw_platform_fees_test;

@@ -1,4 +1,37 @@
-use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, Env, String, Symbol, Vec};
+
+// ── Category constants ────────────────────────────────────────────────────────
+// Canonical pool/event categories. Use these constants everywhere instead of
+// raw string literals to prevent typos and reduce gas (Symbol is cheaper than
+// String for comparisons).
+
+pub const CAT_SPORTS: &str = "sports";
+pub const CAT_POLITICS: &str = "politics";
+pub const CAT_EDUCATION: &str = "education";
+pub const CAT_HEALTH: &str = "health";
+pub const CAT_ENVIRONMENT: &str = "environment";
+pub const CAT_ARTS: &str = "arts";
+pub const CAT_TECHNOLOGY: &str = "technology";
+pub const CAT_COMMUNITY: &str = "community";
+
+/// Returns `true` when `category` matches one of the canonical category
+/// constants.  Accepts a `Symbol` so callers can pass `Symbol::new(&env, CAT_*)`
+/// directly.
+pub fn validate_category(env: &Env, category: &Symbol) -> bool {
+    let valid = [
+        CAT_SPORTS,
+        CAT_POLITICS,
+        CAT_EDUCATION,
+        CAT_HEALTH,
+        CAT_ENVIRONMENT,
+        CAT_ARTS,
+        CAT_TECHNOLOGY,
+        CAT_COMMUNITY,
+    ];
+    valid
+        .iter()
+        .any(|&s| *category == Symbol::new(env, s))
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
