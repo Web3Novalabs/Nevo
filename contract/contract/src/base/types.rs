@@ -157,12 +157,32 @@ pub enum EventStatus {
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EventDetails {
-    pub id: u64,
+    pub id: BytesN<32>,
     pub title: String,
     pub creator: Address,
     pub ticket_price: i128,
     pub max_attendees: u32,
     pub deadline: u64,
+    pub token: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EventMetrics {
+    pub tickets_sold: u32,
+}
+
+impl Default for EventMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl EventMetrics {
+    /// Creates zero-initialized metrics for a new event.
+    pub fn new() -> Self {
+        Self { tickets_sold: 0 }
+    }
 }
 
 /// Represents the type of a ticket.
@@ -304,10 +324,10 @@ pub enum StorageKey {
     EventPlatformFees(u64),
     // Track if someone bought a ticket
     UserTicket(u64, Address),
-    // Global event tracker: total number of events ever emitted
-    AllEventsCount,
-    // Global event tracker: append-only list of all emitted event records
-    AllEvents,
+    // Event details keyed by event id
+    Event(BytesN<32>),
+    // Per-event metrics (tickets sold, etc.)
+    EventMetrics(BytesN<32>),
 }
 
 #[cfg(test)]
@@ -480,18 +500,22 @@ mod tests {
         use soroban_sdk::testutils::Address as _;
         let env = Env::default();
         let creator = soroban_sdk::Address::generate(&env);
+        let token = soroban_sdk::Address::generate(&env);
+        let id = soroban_sdk::BytesN::from_array(&env, &[1u8; 32]);
         let event = EventDetails {
-            id: 1,
+            id: id.clone(),
             title: String::from_str(&env, "Nevo Launch"),
             creator: creator.clone(),
             ticket_price: 500,
             max_attendees: 100,
             deadline: 1_700_000_000,
+            token: token.clone(),
         };
-        assert_eq!(event.id, 1);
+        assert_eq!(event.id, id);
         assert_eq!(event.ticket_price, 500);
         assert_eq!(event.max_attendees, 100);
         assert_eq!(event.deadline, 1_700_000_000);
         assert_eq!(event.creator, creator);
+        assert_eq!(event.token, token);
     }
 }

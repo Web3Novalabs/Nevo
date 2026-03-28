@@ -10,9 +10,9 @@ use crate::base::{
     },
     types::{
         CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
-        EmergencyWithdrawal, MultiSigConfig, PoolConfig, PoolContribution, PoolMetadata,
-        PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH,
-        MAX_STRING_LENGTH, MAX_URL_LENGTH,
+        EmergencyWithdrawal, EventDetails, EventMetrics, MultiSigConfig, PoolConfig,
+        PoolContribution, PoolMetadata, PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH,
+        MAX_HASH_LENGTH, MAX_STRING_LENGTH, MAX_URL_LENGTH,
     },
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;
@@ -1971,16 +1971,34 @@ impl SecondCrowdfundingTrait for CrowdfundingContract {
 
     fn create_event(
         env: Env,
-        _id: BytesN<32>,
+        id: BytesN<32>,
         title: String,
-        _creator: Address,
-        _ticket_price: i128,
-        _max_attendees: u32,
-        _deadline: u64,
-        _token: Address,
+        creator: Address,
+        ticket_price: i128,
+        max_attendees: u32,
+        deadline: u64,
+        token: Address,
     ) -> Result<(), SecondCrowdfundingError> {
         Self::validate_string_length(&title)?;
-        let _ = env;
+
+        let details = EventDetails {
+            id: id.clone(),
+            title,
+            creator,
+            ticket_price,
+            max_attendees,
+            deadline,
+            token,
+        };
+
+        env.storage()
+            .instance()
+            .set(&StorageKey::Event(id.clone()), &details);
+
+        env.storage()
+            .instance()
+            .set(&StorageKey::EventMetrics(id), &EventMetrics::new());
+
         Ok(())
     }
 }
