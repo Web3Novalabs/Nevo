@@ -4,7 +4,7 @@ use soroban_sdk::{testutils::Address as _, token, Address, Env};
 
 use crate::{
     base::{
-        errors::CrowdfundingError,
+        errors::{CrowdfundingError, SecondCrowdfundingError},
         types::{PoolConfig, StorageKey},
     },
     crowdfunding::{CrowdfundingContract, CrowdfundingContractClient},
@@ -374,7 +374,7 @@ fn test_withdraw_event_pool_funds_double_withdrawal_prevented() {
     let second = client.try_withdraw_event_pool_funds(&pool_id, &to);
     assert_eq!(
         second,
-        Err(Ok(CrowdfundingError::EventPoolAlreadyDrained)),
+        Err(Ok(SecondCrowdfundingError::EventPoolAlreadyDrained)),
         "second withdrawal must be blocked — double withdrawal prevention"
     );
 

@@ -1815,25 +1815,26 @@ impl CrowdfundingTrait for CrowdfundingContract {
         env: Env,
         pool_id: u64,
         to: Address,
-    ) -> Result<i128, CrowdfundingError> {
+    ) -> Result<i128, SecondCrowdfundingError> {
         let admin: Address = env
             .storage()
             .instance()
             .get(&StorageKey::Admin)
-            .ok_or(CrowdfundingError::NotInitialized)?;
+            .ok_or(CrowdfundingError::NotInitialized)
+            .map_err(|_| SecondCrowdfundingError::EventNotFound)?;
         admin.require_auth();
 
         // Prevent double withdrawal
         let drained_key = StorageKey::EventFundsDrained(pool_id);
         if env.storage().instance().has(&drained_key) {
-            return Err(CrowdfundingError::EventPoolAlreadyDrained);
+            return Err(SecondCrowdfundingError::EventPoolAlreadyDrained);
         }
 
         let event_pool_key = StorageKey::EventPool(pool_id);
         let amount: i128 = env.storage().instance().get(&event_pool_key).unwrap_or(0);
 
         if amount <= 0 {
-            return Err(CrowdfundingError::InsufficientFees);
+            return Err(SecondCrowdfundingError::EventNotFound);
         }
 
         let token_key = StorageKey::CrowdfundingToken;
@@ -1841,7 +1842,8 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .storage()
             .instance()
             .get(&token_key)
-            .ok_or(CrowdfundingError::NotInitialized)?;
+            .ok_or(CrowdfundingError::NotInitialized)
+            .map_err(|_| SecondCrowdfundingError::EventNotFound)?;
 
         // Mark as drained BEFORE the transfer (CEI pattern)
         env.storage().instance().set(&drained_key, &true);

@@ -54,7 +54,6 @@ pub enum CrowdfundingError {
     InsufficientFees = 48,
     UserBlacklisted = 49,
     CampaignCancelled = 50,
-    EventPoolAlreadyDrained = 51,
 }
 
 #[contracterror]
@@ -65,6 +64,7 @@ pub enum SecondCrowdfundingError {
     EventNotFound = 2,
     EventSoldOut = 3,
     EventExpired = 4,
+    EventPoolAlreadyDrained = 5,
 }
 
 #[cfg(test)]

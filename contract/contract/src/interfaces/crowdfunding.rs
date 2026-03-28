@@ -1,7 +1,7 @@
 use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 use crate::base::{
-    errors::CrowdfundingError,
+    errors::{CrowdfundingError, SecondCrowdfundingError},
     types::{
         CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
         PoolState,
@@ -186,7 +186,7 @@ pub trait CrowdfundingTrait {
         env: Env,
         pool_id: u64,
         to: Address,
-    ) -> Result<i128, CrowdfundingError>;
+    ) -> Result<i128, SecondCrowdfundingError>;
 
     fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError>;
 
