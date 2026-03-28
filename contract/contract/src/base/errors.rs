@@ -64,6 +64,7 @@ pub enum SecondCrowdfundingError {
     EventNotFound = 2,
     EventSoldOut = 3,
     EventExpired = 4,
+    EventPoolAlreadyDrained = 5,
 }
 
 #[cfg(test)]

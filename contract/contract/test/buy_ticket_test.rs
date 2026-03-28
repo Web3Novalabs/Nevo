@@ -4,7 +4,7 @@ use soroban_sdk::{testutils::Address as _, token, Address, Env};
 
 use crate::{
     base::{
-        errors::CrowdfundingError,
+        errors::{CrowdfundingError, SecondCrowdfundingError},
         types::{PoolConfig, StorageKey},
     },
     crowdfunding::{CrowdfundingContract, CrowdfundingContractClient},
@@ -351,6 +351,38 @@ fn test_buy_ticket_wrong_token_fails() {
     let buyer = Address::generate(&env);
     let result = client.try_buy_ticket(&pool_id, &buyer, &other_token, &1_000);
     assert_eq!(result, Err(Ok(CrowdfundingError::InvalidToken)));
+}
+
+// ── double withdrawal prevention ──────────────────────────────────────────────
+
+#[test]
+fn test_withdraw_event_pool_funds_double_withdrawal_prevented() {
+    let env = Env::default();
+    let (client, _, token) = setup(&env);
+    let pool_id = create_pool(&client, &env, &token);
+
+    // Sell a ticket so EventPool has funds
+    mint_and_buy(&env, &client, &token, pool_id, 10_000);
+
+    let to = Address::generate(&env);
+
+    // First withdrawal: must succeed and return the event pool amount
+    let first = client.try_withdraw_event_pool_funds(&pool_id, &to);
+    assert!(first.is_ok(), "first withdrawal must succeed");
+
+    // Second withdrawal: funds are drained — must be rejected
+    let second = client.try_withdraw_event_pool_funds(&pool_id, &to);
+    assert_eq!(
+        second,
+        Err(Ok(SecondCrowdfundingError::EventPoolAlreadyDrained)),
+        "second withdrawal must be blocked — double withdrawal prevention"
+    );
+
+    // EventPool storage must be zeroed
+    assert_eq!(
+        read_i128_storage(&env, &client, &StorageKey::EventPool(pool_id)),
+        0
+    );
 }
 
 #[test]
