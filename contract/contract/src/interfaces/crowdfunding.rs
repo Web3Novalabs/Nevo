@@ -182,6 +182,12 @@ pub trait CrowdfundingTrait {
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
 
+    fn withdraw_event_pool_funds(
+        env: Env,
+        pool_id: u64,
+        to: Address,
+    ) -> Result<i128, CrowdfundingError>;
+
     fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError>;
 
     fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;

@@ -315,6 +315,8 @@ pub enum StorageKey {
     Event(BytesN<32>),
     // Per-event metrics (tickets sold, etc.)
     EventMetrics(BytesN<32>),
+    // Flag set after event pool funds have been withdrawn to prevent double withdrawal
+    EventFundsDrained(u64),
 }
 
 #[cfg(test)]
