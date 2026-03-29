@@ -1838,7 +1838,8 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .set(&platform_fees_key, &(current_fees - amount));
 
-        events::platform_fees_withdrawn(&env, to, amount);
+        events::platform_fees_withdrawn(&env, to.clone(), amount);
+        events::funds_withdrawn(&env, stored_admin, to, amount);
 
         Ok(())
     }
