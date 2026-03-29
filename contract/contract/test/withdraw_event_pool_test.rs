@@ -179,5 +179,8 @@ fn test_withdraw_event_pool_unauthorized() {
         }])
         .try_withdraw_event_pool(&pool_id, &recipient);
 
-    assert!(result.is_err(), "non-admin must not withdraw event pool funds");
+    assert!(
+        result.is_err(),
+        "non-admin must not withdraw event pool funds"
+    );
 }

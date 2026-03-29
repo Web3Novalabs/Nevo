@@ -10,9 +10,9 @@ use crate::base::{
     },
     types::{
         CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
-        EmergencyWithdrawal, EventDetails, MultiSigConfig, PoolConfig,
-        PoolContribution, PoolMetadata, PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH,
-        MAX_HASH_LENGTH, MAX_STRING_LENGTH, MAX_URL_LENGTH,
+        EmergencyWithdrawal, EventDetails, MultiSigConfig, PoolConfig, PoolContribution,
+        PoolMetadata, PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH,
+        MAX_STRING_LENGTH, MAX_URL_LENGTH,
     },
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;
@@ -367,11 +367,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         // Increment ticket count
         let ticket_count_key = StorageKey::TicketCount(pool_id);
-        let count: u64 = env
-            .storage()
-            .instance()
-            .get(&ticket_count_key)
-            .unwrap_or(0);
+        let count: u64 = env.storage().instance().get(&ticket_count_key).unwrap_or(0);
         env.storage()
             .instance()
             .set(&ticket_count_key, &(count + 1));

@@ -78,11 +78,7 @@ fn test_upgrade_contract_requires_admin() {
     // In this repo, other tests use mock_all_auths and assume require_auth() is there.
 }
 
-use soroban_sdk::{
-    testutils::MockAuth,
-    testutils::MockAuthInvoke,
-    IntoVal,
-};
+use soroban_sdk::{testutils::MockAuth, testutils::MockAuthInvoke, IntoVal};
 
 use crate::base::errors::CrowdfundingError;
 

@@ -144,12 +144,7 @@ fn test_holds_ticket() {
     assert!(!client.holds_ticket(&campaign_id, &donor));
 
     // Donor makes a contribution
-    client.donate(
-        &campaign_id,
-        &donor,
-        &token_contract.address(),
-        &500,
-    );
+    client.donate(&campaign_id, &donor, &token_contract.address(), &500);
 
     // Now user should hold a ticket
     assert!(client.holds_ticket(&campaign_id, &donor));
