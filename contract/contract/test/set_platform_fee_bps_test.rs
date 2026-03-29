@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     testutils::{Address as _, Events, MockAuth, MockAuthInvoke},
-    Address, Env, IntoVal, Symbol,
+    Address, Env, IntoVal, Symbol, TryFromVal,
 };
 
 use crate::{

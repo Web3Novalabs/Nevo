@@ -453,18 +453,18 @@ fn test_buy_ticket_updates_metrics() {
     let price = 10_000i128;
 
     // Initial metrics
-    let initial_metrics = client.get_event_metrics(&pool_id);
-    assert_eq!(initial_metrics.tickets_sold, 0);
+    let (initial_tickets, _) = client.get_event_metrics(&pool_id);
+    assert_eq!(initial_tickets, 0);
 
     // Buy first ticket
     mint_and_buy(&env, &client, &token, pool_id, price);
-    let metrics = client.get_event_metrics(&pool_id);
-    assert_eq!(metrics.tickets_sold, 1);
+    let (tickets, _) = client.get_event_metrics(&pool_id);
+    assert_eq!(tickets, 1);
 
     // Buy second ticket
     mint_and_buy(&env, &client, &token, pool_id, price);
-    let metrics = client.get_event_metrics(&pool_id);
-    assert_eq!(metrics.tickets_sold, 2);
+    let (tickets, _) = client.get_event_metrics(&pool_id);
+    assert_eq!(tickets, 2);
 }
 
 #[test]

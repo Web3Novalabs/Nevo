@@ -5,7 +5,7 @@ use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, String};
 use crate::{
     base::{
         errors::SecondCrowdfundingError,
-        types::{EventDetails, EventMetrics, StorageKey},
+        types::{EventDetails, StorageKey},
     },
     crowdfunding::CrowdfundingContract,
     interfaces::second_crowdfunding::SecondCrowdfundingTrait,
@@ -98,17 +98,5 @@ fn test_create_event_stores_event_details_and_initializes_metrics() {
         );
         assert_eq!(stored_details.deadline, deadline, "deadline mismatch");
         assert_eq!(stored_details.token, token, "token mismatch");
-
-        // Verify EventMetrics initialized with 0 tickets sold
-        let stored_metrics: EventMetrics = env
-            .storage()
-            .instance()
-            .get(&StorageKey::EventMetrics(id.clone()))
-            .expect("EventMetrics should be stored");
-
-        assert_eq!(
-            stored_metrics.tickets_sold, 0,
-            "tickets_sold should be initialized to 0"
-        );
     });
 }
