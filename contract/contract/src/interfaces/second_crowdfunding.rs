@@ -40,4 +40,6 @@ pub trait SecondCrowdfundingTrait {
         deadline: u64,
         token: Address,
     ) -> Result<(), SecondCrowdfundingError>;
+
+    fn withdraw_event_funds(env: Env, event_id: BytesN<32>) -> Result<(), SecondCrowdfundingError>;
 }

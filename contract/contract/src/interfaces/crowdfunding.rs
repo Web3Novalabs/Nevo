@@ -3,8 +3,8 @@ use soroban_sdk::{Address, BytesN, Env, String, Vec};
 use crate::base::{
     errors::CrowdfundingError,
     types::{
-        CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
-        PoolState,
+        CampaignDetails, CampaignLifecycleStatus, EventMetrics, PoolConfig, PoolContribution,
+        PoolMetadata, PoolState,
     },
 };
 
@@ -122,6 +122,12 @@ pub trait CrowdfundingTrait {
 
     fn get_creation_fee(env: Env) -> Result<i128, CrowdfundingError>;
 
+    fn holds_ticket(
+        env: Env,
+        event_id: BytesN<32>,
+        user: Address,
+    ) -> Result<bool, CrowdfundingError>;
+}
     fn get_global_raised_total(env: Env) -> i128;
 
     fn get_top_contributor_for_campaign(
@@ -182,6 +188,10 @@ pub trait CrowdfundingTrait {
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
 
+    /// Withdraw all accumulated ticket-sale proceeds for a pool to `to`.
+    /// Marks the pool as drained so the funds cannot be withdrawn a second time.
+    fn withdraw_event_pool(env: Env, pool_id: u64, to: Address) -> Result<(), CrowdfundingError>;
+
     fn set_emergency_contact(env: Env, contact: Address) -> Result<(), CrowdfundingError>;
 
     fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;
@@ -201,6 +211,10 @@ pub trait CrowdfundingTrait {
 
     fn get_platform_fee_bps(env: Env) -> Result<u32, CrowdfundingError>;
 
+    fn get_event_metrics(env: Env, pool_id: u64) -> Result<EventMetrics, CrowdfundingError>;
+
+    fn is_ticket_buyer(env: Env, pool_id: u64, buyer: Address) -> bool;
+
     /// Purchase a ticket for a pool, splitting the payment between the event
     /// pool and the platform fee pool using the current `PlatformFeeBps`.
     ///
@@ -216,5 +230,15 @@ pub trait CrowdfundingTrait {
         price: i128,
     ) -> Result<(i128, i128), CrowdfundingError>;
 
+    /// Returns `(tickets_sold, total_collected)` for the given event pool.
+    /// `total_collected` is the net amount credited to the event (after platform fee).
+    fn get_event_metrics(env: Env, pool_id: u64) -> Result<(u64, i128), CrowdfundingError>;
+
     fn upgrade_contract(env: Env, new_wasm_hash: BytesN<32>) -> Result<(), CrowdfundingError>;
+
+    /// Returns the total number of events ever emitted by this contract.
+    fn get_all_events_count(env: Env) -> u64;
+
+    /// Returns the full list of emitted event records (index, name, timestamp).
+    fn get_all_events(env: Env) -> Vec<crate::base::types::EventRecord>;
 }

@@ -6,8 +6,8 @@ use crate::{
 };
 use soroban_sdk::token;
 use soroban_sdk::{
-    testutils::{Address as _, MockAuth, MockAuthInvoke},
-    Address, BytesN, Env, IntoVal, String,
+    testutils::{Address as _, Events, MockAuth, MockAuthInvoke},
+    Address, BytesN, Env, IntoVal, String, Symbol, TryFromVal,
 };
 
 fn create_client() -> (Env, CrowdfundingContractClient<'static>) {
@@ -174,4 +174,51 @@ fn test_withdraw_platform_fees_unauthorized() {
         }])
         .try_withdraw_platform_fees(&receiver, &500)
         .unwrap_err();
+}
+
+#[test]
+fn test_withdraw_platform_fees_emits_event() {
+    let (env, client) = create_client();
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_address = token_contract.address();
+    let token_client = token::StellarAssetClient::new(&env, &token_address);
+
+    client.initialize(&admin, &token_address, &1000);
+
+    let creator = Address::generate(&env);
+    token_client.mint(&creator, &1000);
+
+    let id = BytesN::from_array(&env, &[1; 32]);
+    let title = String::from_str(&env, "Campaign");
+    let goal = 10000;
+    let deadline = env.ledger().timestamp() + 86400;
+    client.create_campaign(&id, &title, &creator, &goal, &deadline, &token_address);
+
+    let receiver = Address::generate(&env);
+    let amount: i128 = 500;
+    client.withdraw_platform_fees(&receiver, &amount);
+
+    let all_events = env.events().all();
+    let event = all_events.iter().find(|e| {
+        let topics = &e.1;
+        if topics.len() < 2 {
+            return false;
+        }
+        let name = Symbol::try_from_val(&env, &topics.get(0).unwrap());
+        let to = Address::try_from_val(&env, &topics.get(1).unwrap());
+        name == Ok(Symbol::new(&env, "platform_fees_withdrawn")) && to == Ok(receiver.clone())
+    });
+
+    assert!(event.is_some(), "platform_fees_withdrawn event not emitted");
+
+    let data = &event.unwrap().2;
+    let decoded: Result<i128, _> = TryFromVal::try_from_val(&env, data);
+    assert_eq!(
+        decoded,
+        Ok(amount),
+        "event data should contain withdrawn amount"
+    );
 }

@@ -1,5 +1,18 @@
 use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
 
+/// A lightweight record stored for every emitted contract event.
+/// Used to populate the global `AllEvents` list.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EventRecord {
+    /// Sequential index (1-based) assigned at emission time.
+    pub index: u64,
+    /// Short name matching the event's topic Symbol (e.g. "pool_created").
+    pub name: String,
+    /// Ledger timestamp at the moment the event was emitted.
+    pub timestamp: u64,
+}
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CampaignDetails {
@@ -25,6 +38,10 @@ pub struct Contribution {
 pub struct MultiSigConfig {
     pub required_signatures: u32,
     pub signers: Vec<Address>,
+    /// When true, this multi-sig config also gates event fund withdrawals for
+    /// the associated pool (i.e. `EventPool` balance requires multi-sig approval
+    /// before disbursement, not just admin auth).
+    pub allow_event_withdrawal: bool,
 }
 
 // Updated pool configuration for donation pools
@@ -269,6 +286,24 @@ pub struct PoolContribution {
 }
 
 #[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EventMetrics {
+    pub tickets_sold: u32,
+}
+
+impl Default for EventMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl EventMetrics {
+    pub fn new() -> Self {
+        Self { tickets_sold: 0 }
+    }
+}
+
+#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StorageKey {
     Pool(u64),
@@ -280,6 +315,7 @@ pub enum StorageKey {
     Contribution(BytesN<32>, Address),
     PoolContribution(u64, Address),
     PoolContributors(u64),
+    EventMetrics(u64),
     Event(BytesN<32>),
 
     NextPoolId,
@@ -313,6 +349,8 @@ pub enum StorageKey {
     UserTicket(u64, Address),
     // Per-event metrics (tickets sold, etc.)
     EventMetrics(BytesN<32>),
+    // Marks that an event pool's funds have been fully withdrawn
+    EventDrained(u64),
 }
 
 #[cfg(test)]

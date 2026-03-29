@@ -1,8 +1,8 @@
 #![cfg(test)]
 
 use soroban_sdk::{
-    testutils::{Address as _, MockAuth, MockAuthInvoke},
-    Address, Env, IntoVal,
+    testutils::{Address as _, Events, MockAuth, MockAuthInvoke},
+    Address, Env, IntoVal, Symbol,
 };
 
 use crate::{
@@ -139,4 +139,70 @@ fn test_set_platform_fee_bps_uninitialized_fails() {
     // Contract not initialized — no admin stored
     let result = client.try_set_platform_fee_bps(&250);
     assert_eq!(result, Err(Ok(CrowdfundingError::NotInitialized)));
+}
+
+// ── PlatformFeeUpdated event ──────────────────────────────────────────────────
+
+#[test]
+fn test_platform_fee_updated_event_emitted_with_old_and_new_fee() {
+    let env = Env::default();
+    let (client, _) = setup(&env);
+
+    // Set an initial fee so old_fee is non-zero on the second call.
+    client.set_platform_fee_bps(&100);
+
+    // Clear events accumulated during setup and first call.
+    let _ = env.events().all();
+
+    client.set_platform_fee_bps(&500);
+
+    let all_events = env.events().all();
+
+    // Find the platform_fee_updated event among all emitted events.
+    let fee_updated = all_events.iter().find(|(_, topics, _)| {
+        if let Ok(sym) = Symbol::try_from_val(&env, &topics.get(0).unwrap()) {
+            sym == Symbol::new(&env, "platform_fee_updated")
+        } else {
+            false
+        }
+    });
+
+    assert!(
+        fee_updated.is_some(),
+        "platform_fee_updated event must be emitted"
+    );
+
+    let (_, _, data) = fee_updated.unwrap();
+    let (old_fee, new_fee): (u32, u32) = soroban_sdk::FromVal::from_val(&env, &data);
+    assert_eq!(old_fee, 100, "old_fee_bps must be the previously set value");
+    assert_eq!(new_fee, 500, "new_fee_bps must be the newly set value");
+}
+
+#[test]
+fn test_platform_fee_updated_event_old_fee_is_zero_on_first_set() {
+    let env = Env::default();
+    let (client, _) = setup(&env);
+
+    let _ = env.events().all();
+
+    client.set_platform_fee_bps(&250);
+
+    let all_events = env.events().all();
+    let fee_updated = all_events.iter().find(|(_, topics, _)| {
+        if let Ok(sym) = Symbol::try_from_val(&env, &topics.get(0).unwrap()) {
+            sym == Symbol::new(&env, "platform_fee_updated")
+        } else {
+            false
+        }
+    });
+
+    assert!(
+        fee_updated.is_some(),
+        "platform_fee_updated event must be emitted on first set"
+    );
+
+    let (_, _, data) = fee_updated.unwrap();
+    let (old_fee, new_fee): (u32, u32) = soroban_sdk::FromVal::from_val(&env, &data);
+    assert_eq!(old_fee, 0, "old_fee_bps must be 0 when no fee was set before");
+    assert_eq!(new_fee, 250, "new_fee_bps must match the value passed in");
 }
