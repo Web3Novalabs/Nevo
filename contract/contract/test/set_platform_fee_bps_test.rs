@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     testutils::{Address as _, Events, MockAuth, MockAuthInvoke},
-    Address, Env, IntoVal, Symbol,
+    Address, Env, IntoVal, Symbol, TryFromVal,
 };
 
 use crate::{
@@ -203,6 +203,9 @@ fn test_platform_fee_updated_event_old_fee_is_zero_on_first_set() {
 
     let (_, _, data) = fee_updated.unwrap();
     let (old_fee, new_fee): (u32, u32) = soroban_sdk::FromVal::from_val(&env, &data);
-    assert_eq!(old_fee, 0, "old_fee_bps must be 0 when no fee was set before");
+    assert_eq!(
+        old_fee, 0,
+        "old_fee_bps must be 0 when no fee was set before"
+    );
     assert_eq!(new_fee, 250, "new_fee_bps must match the value passed in");
 }

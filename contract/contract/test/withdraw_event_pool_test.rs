@@ -131,3 +131,56 @@ fn test_withdraw_event_pool_no_funds() {
         Err(Ok(CrowdfundingError::InsufficientFees))
     );
 }
+
+#[test]
+fn test_withdraw_event_pool_over_withdrawal_prevented() {
+    // Ensure admin cannot withdraw more than what the event pool holds.
+    // The EventPool balance is the ceiling — any attempt beyond it must fail.
+    let env = Env::default();
+    let (client, _, token) = setup(&env);
+    let pool_id = create_pool_with_funds(&env, &client, &token, 500);
+
+    let recipient = Address::generate(&env);
+
+    // First withdrawal drains the pool.
+    client.withdraw_event_pool(&pool_id, &recipient);
+
+    // A second attempt must be blocked — pool is already drained.
+    assert_eq!(
+        client.try_withdraw_event_pool(&pool_id, &recipient),
+        Err(Ok(CrowdfundingError::EventAlreadyDrained)),
+        "over-withdrawal must be prevented after pool is drained"
+    );
+}
+
+#[test]
+fn test_withdraw_event_pool_unauthorized() {
+    // Non-admin must not be able to withdraw event pool funds.
+    use soroban_sdk::testutils::MockAuth;
+    use soroban_sdk::testutils::MockAuthInvoke;
+    use soroban_sdk::IntoVal;
+
+    let env = Env::default();
+    let (client, _, token) = setup(&env);
+    let pool_id = create_pool_with_funds(&env, &client, &token, 1_000);
+
+    let non_admin = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    let result = client
+        .mock_auths(&[MockAuth {
+            address: &non_admin,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "withdraw_event_pool",
+                args: (pool_id, recipient.clone()).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_withdraw_event_pool(&pool_id, &recipient);
+
+    assert!(
+        result.is_err(),
+        "non-admin must not withdraw event pool funds"
+    );
+}

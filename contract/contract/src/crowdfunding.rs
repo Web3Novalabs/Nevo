@@ -10,9 +10,9 @@ use crate::base::{
     },
     types::{
         CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
-        EmergencyWithdrawal, EventDetails, EventMetrics, MultiSigConfig, PoolConfig,
-        PoolContribution, PoolMetadata, PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH,
-        MAX_HASH_LENGTH, MAX_STRING_LENGTH, MAX_URL_LENGTH,
+        EmergencyWithdrawal, EventDetails, MultiSigConfig, PoolConfig, PoolContribution,
+        PoolMetadata, PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH,
+        MAX_STRING_LENGTH, MAX_URL_LENGTH,
     },
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;
@@ -230,7 +230,6 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .get(&StorageKey::CreationFee)
             .unwrap_or(0))
     }
- feat/add-holds-ticket-function
     fn holds_ticket(
         env: Env,
         event_id: BytesN<32>,
@@ -241,7 +240,8 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         let donor_key = StorageKey::CampaignDonor(event_id, user);
         Ok(env.storage().instance().get(&donor_key).unwrap_or(false))
-=======
+    }
+
     fn set_platform_fee_bps(env: Env, fee_bps: u32) -> Result<(), CrowdfundingError> {
         let admin: Address = env
             .storage()
@@ -363,46 +363,16 @@ impl CrowdfundingTrait for CrowdfundingContract {
             &(current_event_fee_treasury + fee_amount),
         );
 
-        // Update event metrics
-        let metrics_key = StorageKey::EventMetrics(pool_id);
-        let mut metrics: EventMetrics = env
-            .storage()
-            .instance()
-            .get(&metrics_key)
-            .unwrap_or(EventMetrics::new());
-        metrics.tickets_sold += 1;
-        env.storage().instance().set(&metrics_key, &metrics);
-
         events::ticket_sold(&env, pool_id, buyer, price, event_amount, fee_amount);
 
         // Increment ticket count
         let ticket_count_key = StorageKey::TicketCount(pool_id);
-        let count: u64 = env
-            .storage()
-            .instance()
-            .get(&ticket_count_key)
-            .unwrap_or(0);
+        let count: u64 = env.storage().instance().get(&ticket_count_key).unwrap_or(0);
         env.storage()
             .instance()
             .set(&ticket_count_key, &(count + 1));
 
         Ok((event_amount, fee_amount))
- main
-    }
-
-    fn get_event_metrics(env: Env, pool_id: u64) -> Result<EventMetrics, CrowdfundingError> {
-        // Ensure pool exists
-        let pool_key = StorageKey::Pool(pool_id);
-        if !env.storage().instance().has(&pool_key) {
-            return Err(CrowdfundingError::PoolNotFound);
-        }
-
-        let metrics_key = StorageKey::EventMetrics(pool_id);
-        Ok(env
-            .storage()
-            .instance()
-            .get(&metrics_key)
-            .unwrap_or_else(EventMetrics::new))
     }
 
     fn is_ticket_buyer(env: Env, pool_id: u64, buyer: Address) -> bool {
@@ -1893,6 +1863,14 @@ impl CrowdfundingTrait for CrowdfundingContract {
     }
 
     fn withdraw_event_pool(env: Env, pool_id: u64, to: Address) -> Result<(), CrowdfundingError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+
+        admin.require_auth();
+
         // Pool must exist
         if !env.storage().instance().has(&StorageKey::Pool(pool_id)) {
             return Err(CrowdfundingError::PoolNotFound);
@@ -2098,10 +2076,6 @@ impl SecondCrowdfundingTrait for CrowdfundingContract {
         env.storage()
             .instance()
             .set(&StorageKey::Event(id.clone()), &details);
-
-        env.storage()
-            .instance()
-            .set(&StorageKey::EventMetrics(id), &EventMetrics::new());
 
         Ok(())
     }

@@ -77,23 +77,20 @@ fn test_upgrade_contract_requires_admin() {
     // So we just verify that it DOES require auth by checking the auth log or just trust the require_auth() call.
     // In this repo, other tests use mock_all_auths and assume require_auth() is there.
 }
-#![cfg(test)]
 
-use soroban_sdk::{
-    testutils::{Address as _, MockAuth, MockAuthInvoke},
-    Address, BytesN, Env, IntoVal,
-};
+use soroban_sdk::{testutils::MockAuth, testutils::MockAuthInvoke, IntoVal};
 
 use crate::base::errors::CrowdfundingError;
-use crate::crowdfunding::{CrowdfundingContract, CrowdfundingContractClient};
 
 // Import the compiled WASM of this same contract to use as the "new" version
 // in the upgrade integration test.
+// Note: This test requires a pre-built WASM. Run `make build` first.
+#[cfg(feature = "upgrade-integration-test")]
 mod upgraded_contract {
     soroban_sdk::contractimport!(file = "../target/wasm32v1-none/release/hello_world.wasm");
 }
 
-fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address) {
+fn setup_upgrade(env: &Env) -> (CrowdfundingContractClient<'_>, Address) {
     env.mock_all_auths();
     let contract_id = env.register(CrowdfundingContract, ());
     let client = CrowdfundingContractClient::new(env, &contract_id);
@@ -106,9 +103,10 @@ fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address) {
 }
 
 /// Integration test: proves the full upgrade path works end-to-end.
-/// Uploads a real WASM binary, calls upgrade_contract, and verifies the
-/// contract remains functional (storage intact) after the upgrade.
+/// Requires pre-built WASM: run `make build` first, then enable with
+/// `--features upgrade-integration-test`.
 #[test]
+#[cfg(feature = "upgrade-integration-test")]
 fn test_upgrade_contract_succeeds_with_valid_wasm() {
     let env = Env::default();
     env.mock_all_auths();
@@ -149,7 +147,7 @@ fn test_upgrade_contract_not_initialized_fails() {
 #[test]
 fn test_upgrade_contract_unauthorized_fails() {
     let env = Env::default();
-    let (client, _admin) = setup(&env);
+    let (client, _admin) = setup_upgrade(&env);
     let non_admin = Address::generate(&env);
 
     let new_wasm_hash = BytesN::from_array(&env, &[0u8; 32]);

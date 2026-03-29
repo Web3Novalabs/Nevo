@@ -222,3 +222,31 @@ fn test_withdraw_platform_fees_emits_event() {
         "event data should contain withdrawn amount"
     );
 }
+
+#[test]
+fn test_withdraw_platform_fees_cannot_drain_event_pool() {
+    // Ensure admin cannot withdraw event pool funds via withdraw_platform_fees.
+    // Even if the contract holds tokens from ticket sales (EventPool),
+    // withdraw_platform_fees must be capped to collected platform fees only.
+    let (env, client) = create_client();
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_address = token_contract.address();
+    let token_client = token::StellarAssetClient::new(&env, &token_address);
+
+    // Initialize with zero creation fee so PlatformFees stays at 0.
+    client.initialize(&admin, &token_address, &0);
+
+    // Mint tokens directly into the contract to simulate event pool funds.
+    token_client.mint(&client.address, &5000);
+
+    // PlatformFees counter is 0 — admin must not be able to withdraw anything.
+    let receiver = Address::generate(&env);
+    assert_eq!(
+        client.try_withdraw_platform_fees(&receiver, &1),
+        Err(Ok(CrowdfundingError::InsufficientFees)),
+        "should not be able to withdraw event pool funds as platform fees"
+    );
+}

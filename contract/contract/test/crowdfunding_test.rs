@@ -123,7 +123,7 @@ fn test_holds_ticket() {
     let donor = Address::generate(&env);
     let token_admin = Address::generate(&env);
     let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
-    let token_client = token::Client::new(&env, &token_contract.address());
+    let token_client = token::StellarAssetClient::new(&env, &token_contract.address());
     token_client.mint(&donor, &1000);
 
     let campaign_id = create_test_campaign_id(&env, 10);
@@ -144,12 +144,7 @@ fn test_holds_ticket() {
     assert!(!client.holds_ticket(&campaign_id, &donor));
 
     // Donor makes a contribution
-    client.donate(
-        &campaign_id,
-        &donor,
-        &token_contract.address(),
-        &500,
-    );
+    client.donate(&campaign_id, &donor, &token_contract.address(), &500);
 
     // Now user should hold a ticket
     assert!(client.holds_ticket(&campaign_id, &donor));
