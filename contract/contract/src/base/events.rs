@@ -151,6 +151,11 @@ pub fn platform_fees_withdrawn(env: &Env, to: Address, amount: i128) {
     env.events().publish(topics, amount);
 }
 
+pub fn funds_withdrawn(env: &Env, owner: Address, to: Address, amount: i128) {
+    let topics = (Symbol::new(env, "funds_withdrawn"), owner);
+    env.events().publish(topics, (to, amount));
+}
+
 pub fn event_fees_withdrawn(env: &Env, admin: Address, to: Address, amount: i128) {
     let topics = (Symbol::new(env, "event_fees_withdrawn"), admin, to);
     env.events().publish(topics, amount);
