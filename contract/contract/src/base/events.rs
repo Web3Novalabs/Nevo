@@ -94,6 +94,7 @@ pub fn pool_created(
 ) {
     let topics = (Symbol::new(env, "pool_created"), pool_id, creator);
     env.events().publish(topics, details);
+    record_event(env, "pool_created");
 }
 
 /// @notice Emitted when a new ticketed event pool is created.

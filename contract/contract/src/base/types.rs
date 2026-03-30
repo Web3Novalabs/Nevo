@@ -173,7 +173,8 @@ pub struct EventDetails {
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EventMetrics {
-    pub tickets_sold: u32,
+    pub tickets_sold: u64,
+    pub total_collected: i128,
 }
 
 impl Default for EventMetrics {
@@ -183,9 +184,11 @@ impl Default for EventMetrics {
 }
 
 impl EventMetrics {
-    /// Creates zero-initialized metrics for a new event.
     pub fn new() -> Self {
-        Self { tickets_sold: 0 }
+        Self {
+            tickets_sold: 0,
+            total_collected: 0,
+        }
     }
 }
 
@@ -286,24 +289,6 @@ pub struct PoolContribution {
 }
 
 #[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EventMetrics {
-    pub tickets_sold: u32,
-}
-
-impl Default for EventMetrics {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl EventMetrics {
-    pub fn new() -> Self {
-        Self { tickets_sold: 0 }
-    }
-}
-
-#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StorageKey {
     Pool(u64),
@@ -315,7 +300,7 @@ pub enum StorageKey {
     Contribution(BytesN<32>, Address),
     PoolContribution(u64, Address),
     PoolContributors(u64),
-    EventMetrics(u64),
+    PoolEventMetrics(u64),
     Event(BytesN<32>),
 
     NextPoolId,
@@ -351,6 +336,12 @@ pub enum StorageKey {
     EventMetrics(BytesN<32>),
     // Marks that an event pool's funds have been fully withdrawn
     EventDrained(u64),
+    // Total number of events ever emitted
+    AllEventsCount,
+    // All emitted event records
+    AllEvents,
+    // Per-pool ticket count
+    TicketCount(u64),
 }
 
 #[cfg(test)]

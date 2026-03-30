@@ -127,7 +127,7 @@ pub trait CrowdfundingTrait {
         event_id: BytesN<32>,
         user: Address,
     ) -> Result<bool, CrowdfundingError>;
-}
+
     fn get_global_raised_total(env: Env) -> i128;
 
     fn get_top_contributor_for_campaign(
@@ -217,11 +217,6 @@ pub trait CrowdfundingTrait {
 
     /// Purchase a ticket for a pool, splitting the payment between the event
     /// pool and the platform fee pool using the current `PlatformFeeBps`.
-    ///
-    /// * `pool_id`  – target pool (must exist and be Active)
-    /// * `buyer`    – address paying for the ticket (requires auth)
-    /// * `asset`    – token used for payment
-    /// * `price`    – total ticket price (must be > 0)
     fn buy_ticket(
         env: Env,
         pool_id: u64,
@@ -229,10 +224,6 @@ pub trait CrowdfundingTrait {
         asset: Address,
         price: i128,
     ) -> Result<(i128, i128), CrowdfundingError>;
-
-    /// Returns `(tickets_sold, total_collected)` for the given event pool.
-    /// `total_collected` is the net amount credited to the event (after platform fee).
-    fn get_event_metrics(env: Env, pool_id: u64) -> Result<(u64, i128), CrowdfundingError>;
 
     fn upgrade_contract(env: Env, new_wasm_hash: BytesN<32>) -> Result<(), CrowdfundingError>;
 

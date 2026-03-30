@@ -321,9 +321,9 @@ fn test_get_event_metrics_no_tickets() {
     let (client, _, token) = setup(&env);
     let pool_id = create_pool(&client, &env, &token);
 
-    let (tickets_sold, total_collected) = client.get_event_metrics(&pool_id);
-    assert_eq!(tickets_sold, 0);
-    assert_eq!(total_collected, 0);
+    let metrics = client.get_event_metrics(&pool_id);
+    assert_eq!(metrics.tickets_sold, 0);
+    assert_eq!(metrics.total_collected, 0);
 }
 
 #[test]
@@ -336,9 +336,9 @@ fn test_get_event_metrics_single_ticket() {
     let price = 10_000i128;
     mint_and_buy(&env, &client, &token, pool_id, price);
 
-    let (tickets_sold, total_collected) = client.get_event_metrics(&pool_id);
-    assert_eq!(tickets_sold, 1);
-    assert_eq!(total_collected, 9_500); // price - 5% fee
+    let metrics = client.get_event_metrics(&pool_id);
+    assert_eq!(metrics.tickets_sold, 1);
+    assert_eq!(metrics.total_collected, 9_500); // price - 5% fee
 }
 
 #[test]
@@ -355,9 +355,9 @@ fn test_get_event_metrics_multiple_tickets() {
     }
 
     // Each ticket: event_amount = 9_750, fee = 250
-    let (tickets_sold, total_collected) = client.get_event_metrics(&pool_id);
-    assert_eq!(tickets_sold, 3);
-    assert_eq!(total_collected, 29_250);
+    let metrics = client.get_event_metrics(&pool_id);
+    assert_eq!(metrics.tickets_sold, 3);
+    assert_eq!(metrics.total_collected, 29_250);
 }
 
 #[test]
@@ -380,9 +380,9 @@ fn test_get_event_metrics_zero_fee_full_collection() {
     mint_and_buy(&env, &client, &token, pool_id, price);
     mint_and_buy(&env, &client, &token, pool_id, price);
 
-    let (tickets_sold, total_collected) = client.get_event_metrics(&pool_id);
-    assert_eq!(tickets_sold, 2);
-    assert_eq!(total_collected, 10_000);
+    let metrics = client.get_event_metrics(&pool_id);
+    assert_eq!(metrics.tickets_sold, 2);
+    assert_eq!(metrics.total_collected, 10_000);
 }
 
 // ── validation ────────────────────────────────────────────────────────────────
