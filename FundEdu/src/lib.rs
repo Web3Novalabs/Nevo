@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod errors;
+pub mod types;
 
 use errors::FundEduError;
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
