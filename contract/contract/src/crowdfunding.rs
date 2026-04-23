@@ -1090,6 +1090,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             duration,
             created_at: now,
             token_address: platform_token,
+            validator: creator.clone(), // Default validator is the creator
         };
 
         // Store pool configuration
@@ -1225,16 +1226,28 @@ impl CrowdfundingTrait for CrowdfundingContract {
     fn update_pool_state(
         env: Env,
         pool_id: u64,
+        caller: Address,
         new_state: PoolState,
     ) -> Result<(), CrowdfundingError> {
         if Self::is_paused(env.clone()) {
             return Err(CrowdfundingError::ContractPaused);
         }
-        // Ensure pool exists
+        
+        // Authorize caller - must be pool creator or validator
         let pool_key = StorageKey::Pool(pool_id);
         if !env.storage().instance().has(&pool_key) {
             return Err(CrowdfundingError::PoolNotFound);
         }
+        
+        let pool: PoolConfig = env.storage().instance().get(&pool_key).unwrap();
+        let creator_key = StorageKey::PoolCreator(pool_id);
+        let creator: Address = env.storage().instance().get(&creator_key).unwrap();
+        
+        if caller != creator && caller != pool.validator {
+            return Err(CrowdfundingError::Unauthorized);
+        }
+        
+        caller.require_auth();
 
         // Validate state transition (optional - could add more complex logic)
         let state_key = StorageKey::PoolState(pool_id);

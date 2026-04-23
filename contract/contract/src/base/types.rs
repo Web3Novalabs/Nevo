@@ -40,6 +40,7 @@ pub struct PoolConfig {
     pub duration: u64,
     pub created_at: u64,
     pub token_address: Address,
+    pub validator: Address,
 }
 
 #[contracttype]

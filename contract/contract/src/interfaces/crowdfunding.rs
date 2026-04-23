@@ -120,6 +120,7 @@ pub trait CrowdfundingTrait {
     fn update_pool_state(
         env: Env,
         pool_id: u64,
+        caller: Address,
         new_state: PoolState,
     ) -> Result<(), CrowdfundingError>;
 

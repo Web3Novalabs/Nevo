@@ -621,10 +621,10 @@ fn test_update_pool_state() {
     );
 
     // Update state to Paused
-    client.update_pool_state(&pool_id, &PoolState::Paused);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Paused);
 
     // Update state to Completed
-    client.update_pool_state(&pool_id, &PoolState::Completed);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Completed);
 }
 
 #[test]
@@ -668,13 +668,13 @@ fn test_update_pool_state_invalid_transition() {
     );
 
     // First complete the pool
-    client.update_pool_state(&pool_id, &PoolState::Completed);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Completed);
 
     // Try to change state from completed - should fail
-    let result = client.try_update_pool_state(&pool_id, &PoolState::Active);
+    let result = client.try_update_pool_state(&pool_id, &creator, &PoolState::Active);
     assert_eq!(result, Err(Ok(CrowdfundingError::InvalidPoolState)));
 
-    let result = client.try_update_pool_state(&pool_id, &PoolState::Paused);
+    let result = client.try_update_pool_state(&pool_id, &creator, &PoolState::Paused);
     assert_eq!(result, Err(Ok(CrowdfundingError::InvalidPoolState)));
 }
 
@@ -914,12 +914,12 @@ fn test_update_pool_state_blocked_when_paused() {
     client.pause();
 
     // Try to update pool state - should fail
-    let result = client.try_update_pool_state(&pool_id, &PoolState::Paused);
+    let result = client.try_update_pool_state(&pool_id, &creator, &PoolState::Paused);
     assert_eq!(result, Err(Ok(CrowdfundingError::ContractPaused)));
 
     // Unpause and verify it works
     client.unpause();
-    client.update_pool_state(&pool_id, &PoolState::Paused);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Paused);
 }
 
 #[test]
@@ -3755,4 +3755,159 @@ fn test_refund_campaign() {
     // Trying second time fails
     let result = client.try_refund_campaign(&campaign_id, &donor);
     assert_eq!(result, Err(Ok(CrowdfundingError::NoContributionToRefund)));
+}
+
+#[test]
+fn test_update_pool_state_validator_authorization() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    client.initialize(&admin, &token_contract.address(), &0);
+
+    // Create a pool
+    let creator = Address::generate(&env);
+    let validator = Address::generate(&env);
+    let config = PoolConfig {
+        name: String::from_str(&env, "Test Pool"),
+        description: String::from_str(&env, "Test pool for validator auth"),
+        target_amount: 10_000i128,
+        min_contribution: 0,
+        is_private: false,
+        duration: 86400,
+        created_at: env.ledger().timestamp(),
+        token_address: token_contract.address(),
+        validator: validator.clone(),
+    };
+
+    let pool_id = client.create_pool(&creator, &config);
+
+    // Creator should be able to update state
+    client.update_pool_state(&pool_id, &creator, &PoolState::Paused);
+
+    // Validator should be able to update state
+    client.update_pool_state(&pool_id, &validator, &PoolState::Completed);
+
+    // Random address should not be able to update state
+    let random_user = Address::generate(&env);
+    let result = client.try_update_pool_state(&pool_id, &random_user, &PoolState::Active);
+    assert_eq!(result, Err(Ok(CrowdfundingError::Unauthorized)));
+}
+
+#[test]
+fn test_update_pool_state_lock_mechanics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    client.initialize(&admin, &token_contract.address(), &0);
+
+    // Create a pool
+    let creator = Address::generate(&env);
+    let config = PoolConfig {
+        name: String::from_str(&env, "Test Pool"),
+        description: String::from_str(&env, "Test pool for lock mechanics"),
+        target_amount: 10_000i128,
+        min_contribution: 0,
+        is_private: false,
+        duration: 86400,
+        created_at: env.ledger().timestamp(),
+        token_address: token_contract.address(),
+        validator: creator.clone(),
+    };
+
+    let pool_id = client.create_pool(&creator, &config);
+
+    // Set to Completed
+    client.update_pool_state(&pool_id, &creator, &PoolState::Completed);
+
+    // Try to change from Completed - should fail
+    let result = client.try_update_pool_state(&pool_id, &creator, &PoolState::Active);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidPoolState)));
+
+    let result = client.try_update_pool_state(&pool_id, &creator, &PoolState::Paused);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidPoolState)));
+
+    let result = client.try_update_pool_state(&pool_id, &creator, &PoolState::Cancelled);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidPoolState)));
+
+    // Set to Cancelled
+    client.update_pool_state(&pool_id, &creator, &PoolState::Cancelled);
+
+    // Try to change from Cancelled - should fail
+    let result = client.try_update_pool_state(&pool_id, &creator, &PoolState::Active);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidPoolState)));
+}
+
+#[test]
+fn test_validator_malicious_modification_prevention() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    client.initialize(&admin, &token_contract.address(), &0);
+
+    // Create multiple pools with different validators
+    let creator1 = Address::generate(&env);
+    let validator1 = Address::generate(&env);
+    let config1 = PoolConfig {
+        name: String::from_str(&env, "Pool 1"),
+        description: String::from_str(&env, "Pool 1"),
+        target_amount: 10_000i128,
+        min_contribution: 0,
+        is_private: false,
+        duration: 86400,
+        created_at: env.ledger().timestamp(),
+        token_address: token_contract.address(),
+        validator: validator1.clone(),
+    };
+    let pool_id1 = client.create_pool(&creator1, &config1);
+
+    let creator2 = Address::generate(&env);
+    let validator2 = Address::generate(&env);
+    let config2 = PoolConfig {
+        name: String::from_str(&env, "Pool 2"),
+        description: String::from_str(&env, "Pool 2"),
+        target_amount: 10_000i128,
+        min_contribution: 0,
+        is_private: false,
+        duration: 86400,
+        created_at: env.ledger().timestamp(),
+        token_address: token_contract.address(),
+        validator: validator2.clone(),
+    };
+    let pool_id2 = client.create_pool(&creator2, &config2);
+
+    // validator1 should not be able to modify pool_id2
+    let result = client.try_update_pool_state(&pool_id2, &validator1, &PoolState::Paused);
+    assert_eq!(result, Err(Ok(CrowdfundingError::Unauthorized)));
+
+    // creator1 should not be able to modify pool_id2
+    let result = client.try_update_pool_state(&pool_id2, &creator1, &PoolState::Paused);
+    assert_eq!(result, Err(Ok(CrowdfundingError::Unauthorized)));
+
+    // validator2 should not be able to modify pool_id1
+    let result = client.try_update_pool_state(&pool_id1, &validator2, &PoolState::Paused);
+    assert_eq!(result, Err(Ok(CrowdfundingError::Unauthorized)));
+
+    // But validator1 can modify pool_id1
+    client.update_pool_state(&pool_id1, &validator1, &PoolState::Paused);
+
+    // And validator2 can modify pool_id2
+    client.update_pool_state(&pool_id2, &validator2, &PoolState::Completed);
 }
