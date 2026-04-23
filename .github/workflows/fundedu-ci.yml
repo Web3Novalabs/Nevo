@@ -1,0 +1,53 @@
+name: FundEdu CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'FundEdu/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'FundEdu/**'
+
+jobs:
+  lint-docs:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint markdown files
+        uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: 'FundEdu/**/*.md'
+
+  build-and-test:
+    name: Build & Test (Rust)
+    runs-on: ubuntu-latest
+    # Runs only when a Cargo.toml is present in FundEdu/
+    if: hashFiles('FundEdu/Cargo.toml') != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Add wasm32v1-none target
+        run: rustup target add wasm32v1-none
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+        working-directory: ./FundEdu
+
+      - name: Build WASM
+        run: cargo build --target wasm32v1-none --release
+        working-directory: ./FundEdu
+
+      - name: Run tests
+        run: cargo test
+        working-directory: ./FundEdu

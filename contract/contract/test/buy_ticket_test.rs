@@ -58,6 +58,12 @@ fn mint_and_buy(
     (buyer, result)
 }
 
+fn read_i128_storage(env: &Env, client: &CrowdfundingContractClient<'_>, key: &StorageKey) -> i128 {
+    env.as_contract(&client.address, || {
+        env.storage().instance().get(key).unwrap_or(0)
+    })
+}
+
 // ── full success ──────────────────────────────────────────────────────────────
 
 #[test]
@@ -118,10 +124,11 @@ fn test_buy_ticket_full_success() {
             "EventPlatformFees storage updated"
         );
 
-        let has_ticket: bool = storage
-            .get(&StorageKey::UserTicket(pool_id, buyer.clone()))
-            .unwrap_or(false);
-        assert!(has_ticket, "UserTicket storage set to true");
+        let fee_treasury_amount: i128 = storage.get(&StorageKey::EventFeeTreasury).unwrap_or(0);
+        assert_eq!(
+            fee_treasury_amount, fee_amount,
+            "EventFeeTreasury storage updated"
+        );
     });
 
     // 7. Assertions - Events
@@ -171,6 +178,18 @@ fn test_buy_ticket_zero_fee_bps_full_amount_to_event_pool() {
     assert_eq!(event_amount, 10_000, "full price must go to event pool");
     assert_eq!(fee_amount, 0, "no platform fee when bps = 0");
     assert_eq!(event_amount + fee_amount, price, "split must sum to price");
+    assert_eq!(
+        read_i128_storage(&env, &client, &StorageKey::EventPool(pool_id)),
+        price
+    );
+    assert_eq!(
+        read_i128_storage(&env, &client, &StorageKey::EventPlatformFees(pool_id)),
+        0
+    );
+    assert_eq!(
+        read_i128_storage(&env, &client, &StorageKey::EventFeeTreasury),
+        0
+    );
 }
 
 #[test]
@@ -280,6 +299,18 @@ fn test_buy_ticket_accumulates_across_multiple_purchases() {
         contract_balance,
         price * 3,
         "contract holds all ticket revenue"
+    );
+    assert_eq!(
+        read_i128_storage(&env, &client, &StorageKey::EventPool(pool_id)),
+        29_250
+    );
+    assert_eq!(
+        read_i128_storage(&env, &client, &StorageKey::EventPlatformFees(pool_id)),
+        750
+    );
+    assert_eq!(
+        read_i128_storage(&env, &client, &StorageKey::EventFeeTreasury),
+        750
     );
 }
 

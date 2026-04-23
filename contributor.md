@@ -56,6 +56,52 @@ Nevo/
 - Add NatSpec-style documentation for public functions
 - Consider gas optimization where applicable
 
+## 🎓 FundEdu Module Contributions
+
+FundEdu is an on-chain scholarship system that lives in the `FundEdu/` directory. It is built on top of Nevo's existing donation-pool smart contract infrastructure.
+
+### Folder Structure
+```
+Nevo/
+├── FundEdu/
+│   ├── README.md          # Phase 1 conceptual overview
+│   └── Cargo.toml         # Added when Rust contract code is introduced
+```
+
+### CI Pipeline
+
+Two workflow files cover the `FundEdu/` directory:
+
+| Workflow | File | Triggers on |
+|---|---|---|
+| FundEdu CI | `.github/workflows/fundedu-ci.yml` | Any change under `FundEdu/**` |
+| Contract CI/CD | `.github/workflows/contracts-ci.yml` | Changes under `contract/**` or `FundEdu/**` |
+
+**FundEdu CI jobs:**
+
+- **Markdown Lint** — runs on every PR touching `FundEdu/**`. Uses `markdownlint-cli2` to enforce consistent formatting across all `.md` files.
+- **Build & Test (Rust)** — runs only when `FundEdu/Cargo.toml` exists. Checks formatting (`cargo fmt`), builds the WASM target, and runs `cargo test`.
+
+### Local checks before pushing
+
+```bash
+# Lint markdown (requires markdownlint-cli2)
+npx markdownlint-cli2 "FundEdu/**/*.md"
+
+# Once Rust contract code is added:
+cd FundEdu
+cargo fmt --all -- --check
+cargo build --target wasm32v1-none --release
+cargo test
+```
+
+### Standards
+- Follow the same Soroban best practices as the `contract/` module.
+- Every new contract function must have a corresponding test in `FundEdu/` (mirroring the `contract/contract/test/` convention).
+- See `FundEdu/README.md` for the full Phase 1 architecture, role definitions, and interaction examples.
+
+---
+
 ## 🚀 Contribution Workflow
 
 ### 1. Fork and Clone

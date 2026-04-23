@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod base;
+pub mod contract;
 pub mod crowdfunding;
 mod interfaces;
 

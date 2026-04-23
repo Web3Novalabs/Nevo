@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, String, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -196,7 +196,7 @@ impl EventMetrics {
 /// Represents the type of a ticket.
 /// Standard is the default type.
 #[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[repr(u32)]
 pub enum TicketType {
     /// Standard ticket for general access.
@@ -291,6 +291,26 @@ pub struct PoolContribution {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ApplicationStatus {
+    Pending = 0,
+    Approved = 1,
+    Rejected = 2,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ApplicationDetails {
+    pub pool_id: u64,
+    pub applicant: Address,
+    pub credentials: Bytes,
+    pub submitted_at: u64,
+    pub status: ApplicationStatus,
+    pub reviewer: Option<Address>,
+    pub review_note: Option<String>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StorageKey {
     Pool(u64),
     PoolState(u64),
@@ -301,6 +321,7 @@ pub enum StorageKey {
     Contribution(BytesN<32>, Address),
     PoolContribution(u64, Address),
     PoolContributors(u64),
+    Application(u64, Address),
 
     NextPoolId,
     IsPaused,
@@ -333,10 +354,14 @@ pub enum StorageKey {
     UserTicket(u64, Address),
     // Event details keyed by event id
     Event(BytesN<32>),
+    // track if a pool has been claimed
+    PoolClaimed(u64),
     // Per-event metrics (tickets sold, etc.)
     EventMetrics(BytesN<32>),
     // Scholarship application keyed by (pool_id, applicant)
     ScholarshipApplication(u64, Address),
+    // Locked token balance deposited by the sponsor at pool creation
+    PoolBalance(u64),
 }
 
 #[cfg(test)]

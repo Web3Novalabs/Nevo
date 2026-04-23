@@ -5,11 +5,13 @@ on:
         branches: [main, develop]
         paths: 
             - 'contract/**'
+            - 'FundEdu/**'
 
     pull_request:
         branches: [ main, develop ]
         paths:
             - 'contract/**'
+            - 'FundEdu/**'
 
 jobs:
   build:
@@ -34,11 +36,11 @@ jobs:
         run: cargo fmt --all -- --check
         working-directory: ./contract/contract
 
-      - name: Install wasm32v1-none target
-        run: rustup target add wasm32v1-none
+      - name: Install wasm32-unknown-unknown target
+        run: rustup target add wasm32-unknown-unknown
 
       - name: Build contract WASM (required for upgrade integration test)
-        run: cargo build --target wasm32v1-none --release
+        run: cargo build --target wasm32-unknown-unknown --release
         working-directory: ./contract/contract
 
       - name: Run contract tests

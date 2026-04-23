@@ -40,7 +40,7 @@ fn create_test_pool(
         duration: 86400, // 1 day
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
-        validator: creator.clone(),
+        validator: creator.clone(), // For simplicity, creator is also validator
     };
 
     client.create_pool(creator, &config)
@@ -55,14 +55,14 @@ fn test_close_pool_success_after_disbursement() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     // Update pool state to Disbursed
-    client.update_pool_state(&pool_id, &PoolState::Disbursed);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Disbursed);
 
     // Close the pool as admin
     client.close_pool(&pool_id, &admin);
 
     // Verify pool is closed
     let is_closed = client.is_closed(&pool_id);
-    assert_eq!(is_closed, true);
+    assert!(is_closed);
 }
 
 #[test]
@@ -74,14 +74,14 @@ fn test_close_pool_success_after_cancellation() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     // Update pool state to Cancelled
-    client.update_pool_state(&pool_id, &PoolState::Cancelled);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Cancelled);
 
     // Close the pool as admin
     client.close_pool(&pool_id, &admin);
 
     // Verify pool is closed
     let is_closed = client.is_closed(&pool_id);
-    assert_eq!(is_closed, true);
+    assert!(is_closed);
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn test_close_pool_already_closed() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     // Update pool state to Disbursed
-    client.update_pool_state(&pool_id, &PoolState::Disbursed);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Disbursed);
 
     // Close the pool
     client.close_pool(&pool_id, &admin);
@@ -128,7 +128,7 @@ fn test_close_pool_paused_state() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     // Update pool state to Paused
-    client.update_pool_state(&pool_id, &PoolState::Paused);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Paused);
 
     // Try to close - should fail
     let result = client.try_close_pool(&pool_id, &admin);
@@ -147,7 +147,7 @@ fn test_close_pool_completed_state() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     // Update pool state to Completed
-    client.update_pool_state(&pool_id, &PoolState::Completed);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Completed);
 
     // Try to close - should fail
     let result = client.try_close_pool(&pool_id, &admin);
@@ -177,7 +177,7 @@ fn test_close_pool_unauthorized() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     // Update pool state to Disbursed
-    client.update_pool_state(&pool_id, &PoolState::Disbursed);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Disbursed);
 
     // Try to close as non-admin
     let unauthorized_user = Address::generate(&env);
@@ -194,7 +194,7 @@ fn test_is_closed_for_active_pool() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     let is_closed = client.is_closed(&pool_id);
-    assert_eq!(is_closed, false);
+    assert!(!is_closed);
 }
 
 #[test]
@@ -206,11 +206,11 @@ fn test_is_closed_for_closed_pool() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     // Update to Disbursed and close
-    client.update_pool_state(&pool_id, &PoolState::Disbursed);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Disbursed);
     client.close_pool(&pool_id, &admin);
 
     let is_closed = client.is_closed(&pool_id);
-    assert_eq!(is_closed, true);
+    assert!(is_closed);
 }
 
 #[test]
@@ -233,7 +233,7 @@ fn test_close_pool_emits_event() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     // Update pool state to Disbursed
-    client.update_pool_state(&pool_id, &PoolState::Disbursed);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Disbursed);
 
     // Close the pool
     client.close_pool(&pool_id, &admin);
@@ -241,7 +241,7 @@ fn test_close_pool_emits_event() {
     // Verify event was emitted (events are automatically captured in test environment)
     // The event emission is verified by the fact that the function completes successfully
     let is_closed = client.is_closed(&pool_id);
-    assert_eq!(is_closed, true);
+    assert!(is_closed);
 }
 
 #[test]
@@ -257,18 +257,18 @@ fn test_close_pool_multiple_pools() {
     let pool_id_3 = create_test_pool(&client, &env, &creator, &token_address);
 
     // Update states
-    client.update_pool_state(&pool_id_1, &PoolState::Disbursed);
-    client.update_pool_state(&pool_id_2, &PoolState::Cancelled);
-    client.update_pool_state(&pool_id_3, &PoolState::Disbursed);
+    client.update_pool_state(&pool_id_1, &creator, &PoolState::Disbursed);
+    client.update_pool_state(&pool_id_2, &creator, &PoolState::Cancelled);
+    client.update_pool_state(&pool_id_3, &creator, &PoolState::Disbursed);
 
     // Close pools 1 and 3
     client.close_pool(&pool_id_1, &admin);
     client.close_pool(&pool_id_3, &admin);
 
     // Verify states
-    assert_eq!(client.is_closed(&pool_id_1), true);
-    assert_eq!(client.is_closed(&pool_id_2), false);
-    assert_eq!(client.is_closed(&pool_id_3), true);
+    assert!(client.is_closed(&pool_id_1));
+    assert!(!client.is_closed(&pool_id_2));
+    assert!(client.is_closed(&pool_id_3));
 }
 
 #[test]
@@ -280,7 +280,7 @@ fn test_close_pool_state_transition_sequence() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     // Initial state: Active
-    assert_eq!(client.is_closed(&pool_id), false);
+    assert!(!client.is_closed(&pool_id));
 
     // Try to close from Active - should fail
     let result = client.try_close_pool(&pool_id, &admin);
@@ -290,12 +290,12 @@ fn test_close_pool_state_transition_sequence() {
     );
 
     // Transition to Disbursed
-    client.update_pool_state(&pool_id, &PoolState::Disbursed);
-    assert_eq!(client.is_closed(&pool_id), false);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Disbursed);
+    assert!(!client.is_closed(&pool_id));
 
     // Now close should succeed
     client.close_pool(&pool_id, &admin);
-    assert_eq!(client.is_closed(&pool_id), true);
+    assert!(client.is_closed(&pool_id));
 }
 
 #[test]
@@ -307,13 +307,13 @@ fn test_close_pool_after_refund_scenario() {
     let pool_id = create_test_pool(&client, &env, &creator, &token_address);
 
     // Simulate refund scenario by setting state to Cancelled
-    client.update_pool_state(&pool_id, &PoolState::Cancelled);
+    client.update_pool_state(&pool_id, &creator, &PoolState::Cancelled);
 
     // Close the pool
     client.close_pool(&pool_id, &admin);
 
     // Verify pool is closed
-    assert_eq!(client.is_closed(&pool_id), true);
+    assert!(client.is_closed(&pool_id));
 }
 
 #[test]
@@ -332,18 +332,18 @@ fn test_is_closed_for_different_states() {
     let pool_closed = create_test_pool(&client, &env, &creator, &token_address);
 
     // Set states
-    client.update_pool_state(&pool_paused, &PoolState::Paused);
-    client.update_pool_state(&pool_completed, &PoolState::Completed);
-    client.update_pool_state(&pool_cancelled, &PoolState::Cancelled);
-    client.update_pool_state(&pool_disbursed, &PoolState::Disbursed);
-    client.update_pool_state(&pool_closed, &PoolState::Disbursed);
+    client.update_pool_state(&pool_paused, &creator, &PoolState::Paused);
+    client.update_pool_state(&pool_completed, &creator, &PoolState::Completed);
+    client.update_pool_state(&pool_cancelled, &creator, &PoolState::Cancelled);
+    client.update_pool_state(&pool_disbursed, &creator, &PoolState::Disbursed);
+    client.update_pool_state(&pool_closed, &creator, &PoolState::Disbursed);
     client.close_pool(&pool_closed, &admin);
 
     // Verify is_closed returns false for all except Closed state
-    assert_eq!(client.is_closed(&pool_active), false);
-    assert_eq!(client.is_closed(&pool_paused), false);
-    assert_eq!(client.is_closed(&pool_completed), false);
-    assert_eq!(client.is_closed(&pool_cancelled), false);
-    assert_eq!(client.is_closed(&pool_disbursed), false);
-    assert_eq!(client.is_closed(&pool_closed), true);
+    assert!(!client.is_closed(&pool_active));
+    assert!(!client.is_closed(&pool_paused));
+    assert!(!client.is_closed(&pool_completed));
+    assert!(!client.is_closed(&pool_cancelled));
+    assert!(!client.is_closed(&pool_disbursed));
+    assert!(client.is_closed(&pool_closed));
 }

@@ -12,3 +12,6 @@ contract/test_snapshots
 
 # Snapshots
 test_snapshots/
+.DS_Store
+**/.DS_Store
+**/.DS_Store

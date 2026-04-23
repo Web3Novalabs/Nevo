@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env, IntoVal};
+use soroban_sdk::{symbol_short, testutils::Address as _, testutils::Events, Address, Env, IntoVal};
 
 use crate::crowdfunding::{CrowdfundingContract, CrowdfundingContractClient};
 
@@ -10,6 +10,13 @@ fn create_client() -> (Env, CrowdfundingContractClient<'static>) {
     let contract_id = env.register(CrowdfundingContract, ());
     let client = CrowdfundingContractClient::new(&env, &contract_id);
     (env, client)
+}
+
+fn setup(env: &Env, client: &CrowdfundingContractClient) -> (Address, Address) {
+    let admin = Address::generate(env);
+    let token = Address::generate(env);
+    client.initialize(&admin, &token, &1000);
+    (admin, token)
 }
 
 #[test]
@@ -27,7 +34,7 @@ fn test_verify_cause_success() {
     client.verify_cause(&cause);
 
     // Check if it is verified
-    assert_eq!(client.is_cause_verified(&cause), true);
+    assert!(client.is_cause_verified(&cause));
 }
 
 #[test]
@@ -67,4 +74,78 @@ fn test_verify_cause_not_initialized() {
 
     // Should panic with NotInitialized
     client.verify_cause(&cause);
+}
+
+#[test]
+fn test_verify_cause_emits_app_apprv_event() {
+    let (env, client) = create_client();
+    let (_, _) = setup(&env, &client);
+    let cause = Address::generate(&env);
+
+    client.verify_cause(&cause);
+
+    let events = env.events().all();
+    let found = events.iter().any(|(_, topics, data)| {
+        if topics.is_empty() {
+            return false;
+        }
+        use soroban_sdk::FromVal;
+        let sym = soroban_sdk::Symbol::from_val(&env, &topics.get(0).unwrap());
+        if sym != symbol_short!("AppApprv") {
+            return false;
+        }
+        let emitted_cause = Address::from_val(&env, &data);
+        emitted_cause == cause
+    });
+    assert!(found, "AppApprv event not emitted by verify_cause");
+}
+
+#[test]
+fn test_reject_cause_removes_verification_and_emits_event() {
+    let (env, client) = create_client();
+    let (_, _) = setup(&env, &client);
+    let cause = Address::generate(&env);
+
+    client.verify_cause(&cause);
+    assert!(client.is_cause_verified(&cause));
+
+    client.reject_cause(&cause);
+    assert!(!client.is_cause_verified(&cause));
+
+    let events = env.events().all();
+    let found = events.iter().any(|(_, topics, data)| {
+        if topics.is_empty() {
+            return false;
+        }
+        use soroban_sdk::FromVal;
+        let sym = soroban_sdk::Symbol::from_val(&env, &topics.get(0).unwrap());
+        if sym != symbol_short!("AppRej") {
+            return false;
+        }
+        let emitted_cause = Address::from_val(&env, &data);
+        emitted_cause == cause
+    });
+    assert!(found, "AppRej event not emitted by reject_cause");
+}
+
+#[test]
+fn test_reject_cause_on_unverified_address_emits_event() {
+    let (env, client) = create_client();
+    let (_, _) = setup(&env, &client);
+    let cause = Address::generate(&env);
+
+    // reject without prior verify — should still fire the event
+    client.reject_cause(&cause);
+    assert!(!client.is_cause_verified(&cause));
+
+    let events = env.events().all();
+    let found = events.iter().any(|(_, topics, _)| {
+        if topics.is_empty() {
+            return false;
+        }
+        use soroban_sdk::FromVal;
+        let sym = soroban_sdk::Symbol::from_val(&env, &topics.get(0).unwrap());
+        sym == symbol_short!("AppRej")
+    });
+    assert!(found, "AppRej event not emitted on unverified reject");
 }
