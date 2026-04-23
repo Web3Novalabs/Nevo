@@ -312,6 +312,7 @@ pub struct ApplicationDetails {
     pub pool_id: u64,
     pub applicant: Address,
     pub credentials: Bytes,
+    pub requested_amount: i128,
     pub submitted_at: u64,
     pub status: ApplicationStatus,
     pub reviewer: Option<Address>,

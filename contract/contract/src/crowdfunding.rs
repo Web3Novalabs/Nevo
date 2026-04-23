@@ -2229,6 +2229,7 @@ impl ApplicationTrait for CrowdfundingContract {
         pool_id: u64,
         applicant: Address,
         application_credentials: Bytes,
+        requested_amount: i128,
     ) -> Result<(), CrowdfundingError> {
         let pool_key = StorageKey::Pool(pool_id);
         if !env.storage().instance().has(&pool_key) {
@@ -2250,15 +2251,45 @@ impl ApplicationTrait for CrowdfundingContract {
             return Err(CrowdfundingError::InvalidApplicationCredentials);
         }
 
+        // Check for duplicate application
         let application_key = StorageKey::Application(pool_id, applicant.clone());
         if env.storage().instance().has(&application_key) {
             return Err(CrowdfundingError::ApplicationAlreadySubmitted);
+        }
+
+        // Validate requested_amount is positive
+        if requested_amount <= 0 {
+            return Err(CrowdfundingError::InvalidAmount);
+        }
+
+        // Get pool configuration to check remaining funds
+        let pool: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(CrowdfundingError::PoolNotFound)?;
+
+        // Get pool metrics to calculate remaining funds
+        let metrics_key = StorageKey::PoolMetrics(pool_id);
+        let metrics: PoolMetrics = env
+            .storage()
+            .instance()
+            .get(&metrics_key)
+            .unwrap_or_default();
+
+        // Calculate remaining funds: target_amount - total_raised
+        let remaining_funds = pool.target_amount - metrics.total_raised;
+
+        // Check that requested_amount does not exceed remaining funds
+        if requested_amount > remaining_funds {
+            return Err(CrowdfundingError::InvalidAmount);
         }
 
         let application = ApplicationDetails {
             pool_id,
             applicant: applicant.clone(),
             credentials: application_credentials,
+            requested_amount,
             submitted_at: env.ledger().timestamp(),
             status: ApplicationStatus::Pending,
             reviewer: None,

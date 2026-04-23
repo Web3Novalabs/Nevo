@@ -11,12 +11,18 @@ pub trait ApplicationTrait {
     /// Apply for a FundEdu scholarship pool.
     ///
     /// The caller must be the applicant and provide verifiable credentials as raw
-    /// bytes that can be referenced off-chain by validators.
+    /// bytes that can be referenced off-chain by validators. The requested_amount
+    /// specifies how much scholarship funding is being requested.
+    ///
+    /// Returns DuplicateApplication error if the applicant has already submitted
+    /// an application for this pool. Returns InvalidAmount if requested_amount
+    /// exceeds the remaining funds in the pool.
     fn apply_for_scholarship(
         env: Env,
         pool_id: u64,
         applicant: Address,
         application_credentials: Bytes,
+        requested_amount: i128,
     ) -> Result<(), CrowdfundingError>;
 
     /// Approve a pending scholarship application.
