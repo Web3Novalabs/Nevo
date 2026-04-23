@@ -10,6 +10,7 @@ mod get_pool_contributions_paginated_test;
 mod platform_fee_test;
 mod pool_remaining_time_test;
 mod renounce_admin_test;
+mod scholarship_validation_test;
 mod set_platform_fee_bps_test;
 // mod update_pool_metadata_test; // Features not yet implemented
 mod upgrade_contract_test;

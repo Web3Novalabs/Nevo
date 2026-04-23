@@ -51,6 +51,7 @@ fn test_get_pool_contributions_paginated_with_10_contributors() {
         token_address: token_client.address.clone(),
         duration: 30 * 24 * 60 * 60, // 30 days
         created_at: env.ledger().timestamp(),
+        validator: creator.clone(),
     };
 
     let pool_id = client.create_pool(&creator, &pool_config);
@@ -129,6 +130,7 @@ fn test_get_pool_contributions_paginated_empty_pool() {
         token_address: token_client.address.clone(),
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
+        validator: creator.clone(),
     };
 
     let pool_id = client.create_pool(&creator, &pool_config);
@@ -168,6 +170,7 @@ fn test_get_pool_contributions_paginated_single_contributor_multiple_contributio
         token_address: token_client.address.clone(),
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
+        validator: creator.clone(),
     };
 
     let pool_id = client.create_pool(&creator, &pool_config);

@@ -40,6 +40,27 @@ pub struct PoolConfig {
     pub duration: u64,
     pub created_at: u64,
     pub token_address: Address,
+    /// The address authorized to approve or reject scholarship applications for this pool.
+    pub validator: Address,
+}
+
+/// Status of a scholarship application.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum ApplicationStatus {
+    Pending = 0,
+    Approved = 1,
+    Rejected = 2,
+}
+
+/// A scholarship application submitted to a pool.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScholarshipApplication {
+    pub pool_id: u64,
+    pub applicant: Address,
+    pub status: ApplicationStatus,
 }
 
 #[contracttype]
@@ -314,6 +335,8 @@ pub enum StorageKey {
     Event(BytesN<32>),
     // Per-event metrics (tickets sold, etc.)
     EventMetrics(BytesN<32>),
+    // Scholarship application keyed by (pool_id, applicant)
+    ScholarshipApplication(u64, Address),
 }
 
 #[cfg(test)]
@@ -325,6 +348,7 @@ mod tests {
     fn pool_config_validation_success() {
         let env = Env::default();
         let token = Address::generate(&env);
+        let validator = Address::generate(&env);
         let cfg = PoolConfig {
             name: String::from_str(&env, "Education Fund"),
             description: String::from_str(&env, "Fund for student education materials"),
@@ -334,6 +358,7 @@ mod tests {
             duration: 30 * 24 * 60 * 60,
             created_at: 1,
             token_address: token,
+            validator,
         };
 
         cfg.validate();
@@ -344,6 +369,7 @@ mod tests {
     fn pool_config_invalid_target_amount_panics() {
         let env = Env::default();
         let token = Address::generate(&env);
+        let validator = Address::generate(&env);
         let cfg = PoolConfig {
             name: String::from_str(&env, "Invalid Target"),
             description: String::from_str(&env, "Description"),
@@ -353,6 +379,7 @@ mod tests {
             duration: 30 * 24 * 60 * 60,
             created_at: 1,
             token_address: token,
+            validator,
         };
 
         cfg.validate();

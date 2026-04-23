@@ -30,7 +30,7 @@ fn setup_test(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
 }
 
 /// Create a pool that expires at timestamp 1_001 (created_at=1_000, duration=1).
-fn make_pool(env: &Env, client: &CrowdfundingContractClient<'_>, admin: &Address) -> u64 {
+fn make_pool(env: &Env, client: &CrowdfundingContractClient<'_>, admin: &Address, token_id: &Address) -> u64 {
     env.ledger().with_mut(|li| li.timestamp = 1_000);
 
     let config = PoolConfig {
@@ -41,6 +41,8 @@ fn make_pool(env: &Env, client: &CrowdfundingContractClient<'_>, admin: &Address
         is_private: false,
         duration: 1, // deadline = created_at + duration = 1_001
         created_at: 1_000,
+        token_address: token_id.clone(),
+        validator: admin.clone(),
     };
 
     client.create_pool(admin, &config)
@@ -61,8 +63,8 @@ fn advance_past_grace(env: &Env) {
 #[test]
 fn test_lock_released_after_each_call() {
     let env = Env::default();
-    let (client, admin, _) = setup_test(&env);
-    let pool_id = make_pool(&env, &client, &admin);
+    let (client, admin, token_id) = setup_test(&env);
+    let pool_id = make_pool(&env, &client, &admin, &token_id);
     advance_past_grace(&env);
 
     let contributor = Address::generate(&env);
@@ -93,7 +95,7 @@ fn test_lock_released_after_each_call() {
 fn test_double_withdrawal_prevented() {
     let env = Env::default();
     let (client, admin, token_id) = setup_test(&env);
-    let pool_id = make_pool(&env, &client, &admin);
+    let pool_id = make_pool(&env, &client, &admin, &token_id);
 
     // Fund contributor and contribute while pool is active
     let contributor = Address::generate(&env);
@@ -124,7 +126,7 @@ fn test_double_withdrawal_prevented() {
 fn test_independent_contributors_refund_independently() {
     let env = Env::default();
     let (client, admin, token_id) = setup_test(&env);
-    let pool_id = make_pool(&env, &client, &admin);
+    let pool_id = make_pool(&env, &client, &admin, &token_id);
 
     let contributor_a = Address::generate(&env);
     let contributor_b = Address::generate(&env);
@@ -160,8 +162,8 @@ fn test_independent_contributors_refund_independently() {
 #[test]
 fn test_refund_blocked_when_paused() {
     let env = Env::default();
-    let (client, admin, _) = setup_test(&env);
-    let pool_id = make_pool(&env, &client, &admin);
+    let (client, admin, token_id) = setup_test(&env);
+    let pool_id = make_pool(&env, &client, &admin, &token_id);
     advance_past_grace(&env);
 
     client.pause();
@@ -178,8 +180,8 @@ fn test_refund_blocked_when_paused() {
 #[test]
 fn test_refund_rejected_before_deadline() {
     let env = Env::default();
-    let (client, admin, _) = setup_test(&env);
-    let pool_id = make_pool(&env, &client, &admin);
+    let (client, admin, token_id) = setup_test(&env);
+    let pool_id = make_pool(&env, &client, &admin, &token_id);
     // pool created at t=1_000 with duration=1 → deadline=1_001
     // ledger stays at 1_000 — pool has not yet expired
     assert_eq!(
@@ -193,8 +195,8 @@ fn test_refund_rejected_before_deadline() {
 #[test]
 fn test_refund_rejected_inside_grace_period() {
     let env = Env::default();
-    let (client, admin, _) = setup_test(&env);
-    let pool_id = make_pool(&env, &client, &admin);
+    let (client, admin, token_id) = setup_test(&env);
+    let pool_id = make_pool(&env, &client, &admin, &token_id);
 
     // Past deadline (1_001) but still one second inside the 7-day grace window
     env.ledger()
@@ -212,7 +214,7 @@ fn test_refund_rejected_inside_grace_period() {
 fn test_refund_rejected_on_disbursed_pool() {
     let env = Env::default();
     let (client, admin, token_id) = setup_test(&env);
-    let pool_id = make_pool(&env, &client, &admin);
+    let pool_id = make_pool(&env, &client, &admin, &token_id);
 
     let contributor = Address::generate(&env);
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);

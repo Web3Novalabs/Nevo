@@ -195,3 +195,18 @@ pub fn ticket_sold(
     env.events()
         .publish(topics, (price, event_amount, fee_amount));
 }
+
+pub fn scholarship_applied(env: &Env, pool_id: u64, applicant: Address) {
+    let topics = (Symbol::new(env, "scholarship_applied"), pool_id, applicant);
+    env.events().publish(topics, ());
+}
+
+pub fn scholarship_approved(env: &Env, pool_id: u64, applicant: Address, validator: Address) {
+    let topics = (Symbol::new(env, "scholarship_approved"), pool_id, applicant);
+    env.events().publish(topics, validator);
+}
+
+pub fn scholarship_rejected(env: &Env, pool_id: u64, applicant: Address, validator: Address) {
+    let topics = (Symbol::new(env, "scholarship_rejected"), pool_id, applicant);
+    env.events().publish(topics, validator);
+}

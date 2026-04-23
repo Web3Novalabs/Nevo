@@ -40,6 +40,7 @@ fn create_private_pool(
         duration: 86400,
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
+        validator: creator.clone(),
     };
     client.create_pool(creator, &config)
 }
@@ -59,6 +60,7 @@ fn create_public_pool(
         duration: 86400,
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
+        validator: creator.clone(),
     };
     client.create_pool(creator, &config)
 }

@@ -40,6 +40,7 @@ fn create_test_pool(
         duration: 86400, // 1 day
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
+        validator: creator.clone(),
     };
 
     client.create_pool(creator, &config)

@@ -44,6 +44,7 @@ fn test_pool_remaining_time_future() {
         token_address: token_address.clone(),
         duration: 500,
         created_at: env.ledger().timestamp(),
+        validator: creator.clone(),
     };
 
     let pool_id = client.create_pool(&creator, &config);
@@ -69,6 +70,7 @@ fn test_pool_remaining_time_expired_returns_zero() {
         token_address: token_address.clone(),
         duration: 100,
         created_at: env.ledger().timestamp(),
+        validator: creator.clone(),
     };
 
     let pool_id = client.create_pool(&creator, &config);

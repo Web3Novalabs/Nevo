@@ -27,7 +27,7 @@ fn setup_test(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
     (client, admin, token_id)
 }
 
-fn create_test_pool(env: &Env, client: &CrowdfundingContractClient<'_>, creator: &Address) -> u64 {
+fn create_test_pool(env: &Env, client: &CrowdfundingContractClient<'_>, creator: &Address, token_id: &Address) -> u64 {
     env.ledger().with_mut(|li| li.timestamp = 1_000);
 
     let config = PoolConfig {
@@ -38,6 +38,8 @@ fn create_test_pool(env: &Env, client: &CrowdfundingContractClient<'_>, creator:
         is_private: false,
         duration: 86400, // 1 day
         created_at: 1_000,
+        token_address: token_id.clone(),
+        validator: creator.clone(),
     };
 
     client.create_pool(creator, &config)
@@ -46,10 +48,10 @@ fn create_test_pool(env: &Env, client: &CrowdfundingContractClient<'_>, creator:
 #[test]
 fn test_update_pool_metadata_hash_success() {
     let env = Env::default();
-    let (client, _admin, _token_id) = setup_test(&env);
+    let (client, _admin, token_id) = setup_test(&env);
 
     let creator = Address::generate(&env);
-    let pool_id = create_test_pool(&env, &client, &creator);
+    let pool_id = create_test_pool(&env, &client, &creator, &token_id);
 
     let new_hash = String::from_str(&env, "QmNewHash123456789");
 
@@ -64,11 +66,11 @@ fn test_update_pool_metadata_hash_success() {
 #[test]
 fn test_update_pool_metadata_hash_only_creator_can_update() {
     let env = Env::default();
-    let (client, _admin, _token_id) = setup_test(&env);
+    let (client, _admin, token_id) = setup_test(&env);
 
     let creator = Address::generate(&env);
     let non_creator = Address::generate(&env);
-    let pool_id = create_test_pool(&env, &client, &creator);
+    let pool_id = create_test_pool(&env, &client, &creator, &token_id);
 
     let new_hash = String::from_str(&env, "QmNewHash123456789");
 
@@ -100,10 +102,10 @@ fn test_update_pool_metadata_hash_nonexistent_pool() {
 #[test]
 fn test_update_pool_metadata_hash_too_long() {
     let env = Env::default();
-    let (client, _admin, _token_id) = setup_test(&env);
+    let (client, _admin, token_id) = setup_test(&env);
 
     let creator = Address::generate(&env);
-    let pool_id = create_test_pool(&env, &client, &creator);
+    let pool_id = create_test_pool(&env, &client, &creator, &token_id);
 
     // Create a hash that exceeds MAX_HASH_LENGTH (100 characters)
     let long_hash = String::from_str(
@@ -122,10 +124,10 @@ fn test_update_pool_metadata_hash_too_long() {
 #[test]
 fn test_update_pool_metadata_hash_when_paused() {
     let env = Env::default();
-    let (client, _admin, _token_id) = setup_test(&env);
+    let (client, _admin, token_id) = setup_test(&env);
 
     let creator = Address::generate(&env);
-    let pool_id = create_test_pool(&env, &client, &creator);
+    let pool_id = create_test_pool(&env, &client, &creator, &token_id);
 
     // Pause the contract
     client.pause();
@@ -143,10 +145,10 @@ fn test_update_pool_metadata_hash_when_paused() {
 #[test]
 fn test_update_pool_metadata_hash_multiple_times() {
     let env = Env::default();
-    let (client, _admin, _token_id) = setup_test(&env);
+    let (client, _admin, token_id) = setup_test(&env);
 
     let creator = Address::generate(&env);
-    let pool_id = create_test_pool(&env, &client, &creator);
+    let pool_id = create_test_pool(&env, &client, &creator, &token_id);
 
     // First update
     let hash1 = String::from_str(&env, "QmFirstHash");
@@ -168,10 +170,10 @@ fn test_update_pool_metadata_hash_multiple_times() {
 #[test]
 fn test_update_pool_metadata_hash_event_emission() {
     let env = Env::default();
-    let (client, _admin, _token_id) = setup_test(&env);
+    let (client, _admin, token_id) = setup_test(&env);
 
     let creator = Address::generate(&env);
-    let pool_id = create_test_pool(&env, &client, &creator);
+    let pool_id = create_test_pool(&env, &client, &creator, &token_id);
 
     let new_hash = String::from_str(&env, "QmNewHash123456789");
 

@@ -43,6 +43,7 @@ fn test_create_pool_success() {
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
+        validator: creator.clone(),
     };
 
     let pool_id = client.create_pool(&creator, &config);
@@ -75,6 +76,7 @@ fn test_create_pool_invalid_token_fails() {
         duration: 86400,
         created_at: env.ledger().timestamp(),
         token_address: wrong_token,
+        validator: creator.clone(),
     };
 
     let result = client.try_create_pool(&creator, &config);
@@ -99,6 +101,7 @@ fn test_create_pool_panic_description_length() {
         duration: 86400,
         created_at: env.ledger().timestamp(),
         token_address,
+        validator: creator.clone(),
     };
 
     client.create_pool(&creator, &config);
@@ -121,6 +124,7 @@ fn test_create_pool_invalid_description_length() {
         duration: 86400,
         created_at: env.ledger().timestamp(),
         token_address,
+        validator: creator.clone(),
     };
 
     let _result = client.try_create_pool(&creator, &config);
@@ -143,6 +147,7 @@ fn test_create_pool_validation_logic() {
         duration: 86400,
         created_at: env.ledger().timestamp(),
         token_address,
+        validator: creator.clone(),
     };
 
     let result = client.try_create_pool(&creator, &config);
@@ -180,6 +185,7 @@ fn test_create_pool_emits_event_created() {
         duration,
         created_at,
         token_address,
+        validator: creator.clone(),
     };
 
     let _pool_id = client.create_pool(&creator, &config);
