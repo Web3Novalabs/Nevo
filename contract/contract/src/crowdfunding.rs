@@ -1264,7 +1264,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         }
         contributor.require_auth();
 
-        if amount <= 0 {
+        if amount < 0 {
             return Err(CrowdfundingError::InvalidAmount);
         }
 
@@ -1304,9 +1304,11 @@ impl CrowdfundingTrait for CrowdfundingContract {
         // Transfer tokens
         // Note: In a real implementation we would use the token client.
         // For this task we assume the token interface is available via soroban_sdk::token
-        use soroban_sdk::token;
-        let token_client = token::Client::new(&env, &asset);
-        token_client.transfer(&contributor, env.current_contract_address(), &amount);
+        if amount > 0 {
+            use soroban_sdk::token;
+            let token_client = token::Client::new(&env, &asset);
+            token_client.transfer(&contributor, env.current_contract_address(), &amount);
+        }
 
         // Update metrics
         let metrics_key = StorageKey::PoolMetrics(pool_id);
@@ -1597,6 +1599,83 @@ impl CrowdfundingTrait for CrowdfundingContract {
         release_emergency_lock(&env);
 
         events::emergency_withdraw_executed(&env, admin, request.token, request.amount);
+
+        Ok(())
+    }
+
+    fn claim_pool_funds(env: Env, pool_id: u64, student: Address) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+        student.require_auth();
+
+        // 1. Ensure pool exists
+        let pool_key = StorageKey::Pool(pool_id);
+        let pool: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(CrowdfundingError::PoolNotFound)?;
+
+        // 2. Ensure pool is not already claimed
+        let claimed_key = StorageKey::PoolClaimed(pool_id);
+        if env.storage().instance().has(&claimed_key) {
+            return Err(CrowdfundingError::PoolAlreadyDisbursed);
+        }
+
+        // 3. Check pool state
+        let state_key = StorageKey::PoolState(pool_id);
+        let current_state: PoolState = env
+            .storage()
+            .instance()
+            .get(&state_key)
+            .unwrap_or(PoolState::Active);
+
+        if current_state == PoolState::Closed || current_state == PoolState::Cancelled {
+            return Err(CrowdfundingError::InvalidPoolState);
+        }
+
+        // 4. Validate student is verified
+        if !Self::is_cause_verified(env.clone(), student.clone()) {
+            return Err(CrowdfundingError::Unauthorized);
+        }
+
+        // 5. Check if student actually applied (has a PoolContribution record)
+        let contribution_key = StorageKey::PoolContribution(pool_id, student.clone());
+        if !env
+            .storage()
+            .instance()
+            .has::<StorageKey>(&contribution_key)
+        {
+            return Err(CrowdfundingError::NoContributionToRefund);
+        }
+
+        // 6. Transfer raised funds
+        let metrics_key = StorageKey::PoolMetrics(pool_id);
+        let metrics: PoolMetrics = env
+            .storage()
+            .instance()
+            .get(&metrics_key)
+            .unwrap_or_default();
+        let amount_to_transfer = metrics.total_raised;
+
+        if amount_to_transfer > 0 {
+            use soroban_sdk::token;
+            let token_client = token::Client::new(&env, &pool.token_address);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &student,
+                &amount_to_transfer,
+            );
+        }
+
+        // 7. Mark as Claimed/Disbursed
+        env.storage().instance().set(&claimed_key, &true);
+        env.storage()
+            .instance()
+            .set(&state_key, &PoolState::Disbursed);
+
+        events::pool_state_updated(&env, pool_id, PoolState::Disbursed);
 
         Ok(())
     }

@@ -216,5 +216,7 @@ pub trait CrowdfundingTrait {
         price: i128,
     ) -> Result<(i128, i128), CrowdfundingError>;
 
+    fn claim_pool_funds(env: Env, pool_id: u64, student: Address) -> Result<(), CrowdfundingError>;
+
     fn upgrade_contract(env: Env, new_wasm_hash: BytesN<32>) -> Result<(), CrowdfundingError>;
 }
