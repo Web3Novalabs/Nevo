@@ -17,6 +17,7 @@ mod pool_lifecycle_events_test;
 mod pool_remaining_time_test;
 mod renounce_admin_test;
 mod scholarship_validation_test;
+mod school_registry_events_test;
 mod set_platform_fee_bps_test;
 // mod update_pool_metadata_test; // Features not yet implemented
 mod test;
