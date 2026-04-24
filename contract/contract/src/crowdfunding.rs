@@ -1399,6 +1399,47 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .unwrap_or(false)
     }
 
+    fn unpause_pool(env: Env, pool_id: u64, caller: Address) -> Result<(), CrowdfundingError> {
+        // Verify pool exists
+        let pool_key = StorageKey::Pool(pool_id);
+        if !env.storage().instance().has(&pool_key) {
+            return Err(CrowdfundingError::PoolNotFound);
+        }
+
+        // Only the pool creator (sponsor) may unpause
+        let creator_key = StorageKey::PoolCreator(pool_id);
+        let creator: Address = env
+            .storage()
+            .instance()
+            .get(&creator_key)
+            .ok_or(CrowdfundingError::Unauthorized)?;
+
+        if caller != creator {
+            return Err(CrowdfundingError::Unauthorized);
+        }
+        caller.require_auth();
+
+        // Pool must currently be Paused
+        let state_key = StorageKey::PoolState(pool_id);
+        let current_state: PoolState = env
+            .storage()
+            .instance()
+            .get(&state_key)
+            .unwrap_or(PoolState::Active);
+
+        if current_state != PoolState::Paused {
+            return Err(CrowdfundingError::ContractAlreadyUnpaused);
+        }
+
+        // Reinstate Active state
+        env.storage().instance().set(&state_key, &PoolState::Active);
+
+        events::pool_unpaused(&env, pool_id);
+        events::pool_state_updated(&env, pool_id, PoolState::Active);
+
+        Ok(())
+    }
+
     fn contribute(
         env: Env,
         pool_id: u64,

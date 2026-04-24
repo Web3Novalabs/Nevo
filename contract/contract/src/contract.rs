@@ -253,6 +253,10 @@ impl CrowdfundingTrait for FundEduContract {
         CrowdfundingContract::is_paused(env)
     }
 
+    fn unpause_pool(env: Env, pool_id: u64, caller: Address) -> Result<(), CrowdfundingError> {
+        CrowdfundingContract::unpause_pool(env, pool_id, caller)
+    }
+
     fn contribute(
         env: Env,
         pool_id: u64,

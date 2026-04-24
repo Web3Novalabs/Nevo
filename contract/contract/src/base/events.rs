@@ -101,6 +101,11 @@ pub fn pool_paused(env: &Env, pool_id: u64) {
     env.events().publish(topics, ());
 }
 
+pub fn pool_unpaused(env: &Env, pool_id: u64) {
+    let topics = (symbol_short!("PoolUnp"), pool_id);
+    env.events().publish(topics, ());
+}
+
 pub fn event_created(
     env: &Env,
     pool_id: u64,
