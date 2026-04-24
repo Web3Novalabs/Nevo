@@ -1,4 +1,5 @@
 // mod blacklist_test; // Features not yet implemented
+mod asset_discount_test;
 mod batch_claim_test;
 mod buy_ticket_test;
 mod close_pool_test;
@@ -24,5 +25,4 @@ mod application_test;
 mod validate_string_length_test;
 mod verify_cause;
 mod withdraw_platform_fees_test;
-mod application_test;
 mod unpause_pool_test;

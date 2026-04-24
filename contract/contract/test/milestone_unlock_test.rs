@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation},
-    Address, Env, String,
+    token, Address, Env, String,
 };
 
 use crate::{
@@ -11,18 +11,25 @@ use crate::{
         types::{MilestoneDetails, PoolConfig},
     },
     crowdfunding::{CrowdfundingContract, CrowdfundingContractClient},
-    test::create_token_contract,
 };
+
+fn create_token_contract<'a>(env: &Env, admin: &Address) -> token::StellarAssetClient<'a> {
+    let token_address = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    token::StellarAssetClient::new(env, &token_address)
+}
 
 fn setup() -> (Env, CrowdfundingContractClient<'static>, Address, Address) {
     let env = Env::default();
     env.mock_all_auths();
 
-    let contract_id = env.register_contract(None, CrowdfundingContract);
+    let contract_id = env.register(CrowdfundingContract, ());
     let client = CrowdfundingContractClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
-    let token = create_token_contract(&env, &admin);
+    let token_client = create_token_contract(&env, &admin);
+    let token = token_client.address.clone();
 
     client.initialize(&admin, &token, &1000);
 
