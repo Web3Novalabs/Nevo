@@ -43,6 +43,7 @@ fn make_pool(env: &Env, client: &CrowdfundingContractClient<'_>, admin: &Address
         created_at: 1_000,
         token_address: token_id.clone(),
         validator: admin.clone(),
+            application_deadline: 0,
     };
 
     client.create_pool(admin, &config)
@@ -242,7 +243,7 @@ fn test_refund_rejected_on_disbursed_pool() {
 #[test]
 fn test_emergency_withdraw_cannot_execute_twice() {
     let env = Env::default();
-    let (client, _admin, token_id) = setup_test(&env);
+    let (client, admin, token_id) = setup_test(&env);
 
     // Mint tokens into the contract so the withdrawal has funds
     let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
@@ -271,7 +272,7 @@ fn test_emergency_withdraw_cannot_execute_twice() {
 #[test]
 fn test_emergency_withdraw_cannot_request_twice() {
     let env = Env::default();
-    let (client, _admin, token_id) = setup_test(&env);
+    let (client, admin, token_id) = setup_test(&env);
 
     client.request_emergency_withdraw(&token_id, &100_000);
 
@@ -287,7 +288,7 @@ fn test_emergency_withdraw_cannot_request_twice() {
 #[test]
 fn test_emergency_withdraw_blocked_before_grace_period() {
     let env = Env::default();
-    let (client, _admin, token_id) = setup_test(&env);
+    let (client, admin, token_id) = setup_test(&env);
 
     env.ledger().with_mut(|li| li.timestamp = 0);
     client.request_emergency_withdraw(&token_id, &100_000);

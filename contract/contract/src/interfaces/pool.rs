@@ -1,9 +1,10 @@
-use soroban_sdk::{Address, Env, String};
+use soroban_sdk::{Address, Env};
 
-use crate::base::types::{PoolConfig, PoolDetails, PoolMetadata, PoolMetrics, PoolState};
+use crate::base::types::{PoolConfig, PoolDetails};
 
 /// Trait defining the core functionality for managing Scholarship Pools.
 /// This trait ensures consistent interfaces for pool operations across different implementations.
+#[allow(dead_code)]
 pub trait PoolTrait {
     /// Creates a new scholarship pool with the given configuration.
     ///

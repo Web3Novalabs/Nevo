@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
 use crate::base::{

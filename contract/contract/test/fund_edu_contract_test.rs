@@ -34,6 +34,7 @@ fn test_fund_edu_create_pool_success() {
     let (client, _, token_address) = setup(&env);
 
     let creator = Address::generate(&env);
+    let validator = Address::generate(&env);
     let config = PoolConfig {
         name: String::from_str(&env, "STEM 2026 Q1"),
         description: String::from_str(&env, "Scholarship for STEM students"),
@@ -43,7 +44,8 @@ fn test_fund_edu_create_pool_success() {
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
-        validator: admin.clone(),
+        validator,
+        application_deadline: 0,
     };
 
     let pool_id = client.create_pool(&creator, &config);
@@ -74,6 +76,7 @@ fn test_fund_edu_create_pool_paused_returns_error() {
     client.pause();
 
     let creator = Address::generate(&env);
+    let validator = Address::generate(&env);
     let config = PoolConfig {
         name: String::from_str(&env, "Blocked Pool"),
         description: String::from_str(&env, "Should fail"),
@@ -83,6 +86,8 @@ fn test_fund_edu_create_pool_paused_returns_error() {
         duration: 86_400,
         created_at: env.ledger().timestamp(),
         token_address,
+        validator,
+        application_deadline: 0,
     };
 
     let result = client.try_create_pool(&creator, &config);

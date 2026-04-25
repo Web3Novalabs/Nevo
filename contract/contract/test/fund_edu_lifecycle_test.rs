@@ -66,7 +66,8 @@ fn test_fund_edu_lifecycle() {
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
-        validator: admin.clone(),
+        validator: sponsor.clone(),
+        application_deadline: 0,
     };
 
     let pool_id = client.create_pool(&sponsor, &config);

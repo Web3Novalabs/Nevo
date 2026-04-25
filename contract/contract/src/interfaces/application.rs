@@ -1,6 +1,6 @@
 use soroban_sdk::{Address, Bytes, Env, String};
 
-use crate::base::{errors::CrowdfundingError, types::ApplicationDetails};
+use crate::base::{errors::SecondCrowdfundingError, types::ApplicationDetails};
 
 /// Defines the user and validator-facing application lifecycle for FundEdu pools.
 ///
@@ -23,7 +23,7 @@ pub trait ApplicationTrait {
         applicant: Address,
         application_credentials: Bytes,
         requested_amount: i128,
-    ) -> Result<(), CrowdfundingError>;
+    ) -> Result<(), SecondCrowdfundingError>;
 
     /// Approve a pending scholarship application.
     ///
@@ -35,7 +35,7 @@ pub trait ApplicationTrait {
         applicant: Address,
         validator: Address,
         review_note: Option<String>,
-    ) -> Result<(), CrowdfundingError>;
+    ) -> Result<(), SecondCrowdfundingError>;
 
     /// Reject a pending scholarship application.
     ///
@@ -47,12 +47,12 @@ pub trait ApplicationTrait {
         applicant: Address,
         validator: Address,
         rejection_reason: Option<String>,
-    ) -> Result<(), CrowdfundingError>;
+    ) -> Result<(), SecondCrowdfundingError>;
 
     /// Retrieve an application record by pool and applicant.
     fn get_application(
         env: Env,
         pool_id: u64,
         applicant: Address,
-    ) -> Result<ApplicationDetails, CrowdfundingError>;
+    ) -> Result<ApplicationDetails, SecondCrowdfundingError>;
 }

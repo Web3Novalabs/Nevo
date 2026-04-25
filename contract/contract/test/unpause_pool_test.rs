@@ -43,6 +43,7 @@ fn create_pool(
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: creator.clone(),
+        application_deadline: 0,
     };
 
     let pool_id = client.create_pool(&creator, &config);

@@ -8,7 +8,7 @@ use soroban_sdk::{
 use crate::{
     base::{
         errors::CrowdfundingError,
-        types::{PoolMetadata, PoolState},
+        types::{PoolConfig, PoolMetadata, PoolState},
     },
     crowdfunding::{CrowdfundingContract, CrowdfundingContractClient},
 };
@@ -383,7 +383,7 @@ fn test_extend_campaign_too_long() {
 fn test_get_campaign_fee_history() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, _admin, token_address) = setup_test(&env);
+    let (client, admin, token_address) = setup_test(&env);
 
     // Using token_admin pattern from other tests
     let _token_admin = Address::generate(&env);
@@ -742,8 +742,8 @@ fn test_multiple_pools() {
     assert_eq!(pool2.target_amount, target2);
 
     // Update different states
-    client.update_pool_state(&pool_id1, &admin, &PoolState::Paused);
-    client.update_pool_state(&pool_id2, &admin, &PoolState::Active);
+    client.update_pool_state(&pool_id1, &creator1, &PoolState::Paused);
+    client.update_pool_state(&pool_id2, &creator2, &PoolState::Active);
 }
 
 #[test]
@@ -3513,7 +3513,7 @@ fn test_withdraw_event_fees_insufficient_fees() {
 #[test]
 fn test_set_emergency_contact_success() {
     let env = Env::default();
-    let (client, _admin, _) = setup_test(&env);
+    let (client, admin, _) = setup_test(&env);
 
     let emergency_contact = Address::generate(&env);
 
@@ -3527,7 +3527,7 @@ fn test_set_emergency_contact_success() {
 #[test]
 fn test_set_emergency_contact_updates_existing() {
     let env = Env::default();
-    let (client, _admin, _) = setup_test(&env);
+    let (client, admin, _) = setup_test(&env);
 
     let contact1 = Address::generate(&env);
     client.set_emergency_contact(&contact1);
@@ -3552,7 +3552,7 @@ fn test_get_emergency_contact_not_initialized() {
 #[test]
 fn test_emergency_contact_multiple_updates() {
     let env = Env::default();
-    let (client, _admin, _) = setup_test(&env);
+    let (client, admin, _) = setup_test(&env);
 
     let contact1 = Address::generate(&env);
     client.set_emergency_contact(&contact1);
@@ -3783,8 +3783,8 @@ fn test_update_pool_state_validator_authorization() {
         duration: 86400,
         created_at: env.ledger().timestamp(),
         token_address: token_contract.address(),
-        validator: admin.clone(),
-        validator: validator.clone(),
+        validator: creator.clone(),
+        application_deadline: 0,
     };
 
     let pool_id = client.create_pool(&creator, &config);
@@ -3825,8 +3825,8 @@ fn test_update_pool_state_lock_mechanics() {
         duration: 86400,
         created_at: env.ledger().timestamp(),
         token_address: token_contract.address(),
-        validator: admin.clone(),
         validator: creator.clone(),
+        application_deadline: 0,
     };
 
     let pool_id = client.create_pool(&creator, &config);
@@ -3877,8 +3877,8 @@ fn test_validator_malicious_modification_prevention() {
         duration: 86400,
         created_at: env.ledger().timestamp(),
         token_address: token_contract.address(),
-        validator: admin.clone(),
-        validator: validator1.clone(),
+        validator: creator1.clone(),
+        application_deadline: 0,
     };
     let pool_id1 = client.create_pool(&creator1, &config1);
 
@@ -3893,8 +3893,8 @@ fn test_validator_malicious_modification_prevention() {
         duration: 86400,
         created_at: env.ledger().timestamp(),
         token_address: token_contract.address(),
-        validator: admin.clone(),
         validator: validator2.clone(),
+        application_deadline: 0,
     };
     let pool_id2 = client.create_pool(&creator2, &config2);
 

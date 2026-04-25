@@ -33,7 +33,8 @@ fn create_pool(client: &CrowdfundingContractClient<'_>, env: &Env, token: &Addre
         duration: 86_400,
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
-            validator: admin.clone(),
+            validator: creator.clone(),
+                application_deadline: 0,
     };
     client.create_pool(&creator, &config)
 }

@@ -41,6 +41,7 @@ fn create_private_pool(
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: creator.clone(),
+        application_deadline: 0,
     };
     client.create_pool(creator, &config)
 }
@@ -61,6 +62,7 @@ fn create_public_pool(
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: creator.clone(),
+        application_deadline: 0,
     };
     client.create_pool(creator, &config)
 }
@@ -68,7 +70,7 @@ fn create_public_pool(
 #[test]
 fn test_owner_can_close_private_pool() {
     let env = Env::default();
-    let (client, _admin, token_address) = setup_test(&env);
+    let (client, admin, token_address) = setup_test(&env);
 
     let owner = Address::generate(&env);
     let pool_id = create_private_pool(&client, &env, &owner, &token_address);
@@ -97,7 +99,7 @@ fn test_contribute_fails_on_closed_private_pool() {
 #[test]
 fn test_owner_cannot_close_public_pool_when_active() {
     let env = Env::default();
-    let (client, _admin, token_address) = setup_test(&env);
+    let (client, admin, token_address) = setup_test(&env);
 
     let owner = Address::generate(&env);
     let pool_id = create_public_pool(&client, &env, &owner, &token_address);
@@ -112,7 +114,7 @@ fn test_owner_cannot_close_public_pool_when_active() {
 #[test]
 fn test_non_owner_cannot_close_private_pool() {
     let env = Env::default();
-    let (client, _admin, token_address) = setup_test(&env);
+    let (client, admin, token_address) = setup_test(&env);
 
     let owner = Address::generate(&env);
     let non_owner = Address::generate(&env);
@@ -140,7 +142,7 @@ fn test_admin_can_close_private_pool() {
 #[test]
 fn test_owner_can_close_paused_private_pool() {
     let env = Env::default();
-    let (client, _admin, token_address) = setup_test(&env);
+    let (client, admin, token_address) = setup_test(&env);
 
     let owner = Address::generate(&env);
     let pool_id = create_private_pool(&client, &env, &owner, &token_address);
@@ -155,7 +157,7 @@ fn test_owner_can_close_paused_private_pool() {
 #[test]
 fn test_owner_cannot_close_completed_private_pool() {
     let env = Env::default();
-    let (client, _admin, token_address) = setup_test(&env);
+    let (client, admin, token_address) = setup_test(&env);
 
     let owner = Address::generate(&env);
     let pool_id = create_private_pool(&client, &env, &owner, &token_address);
@@ -191,7 +193,7 @@ fn test_close_private_pool_before_deadline() {
 #[test]
 fn test_close_already_closed_private_pool() {
     let env = Env::default();
-    let (client, _admin, token_address) = setup_test(&env);
+    let (client, admin, token_address) = setup_test(&env);
 
     let owner = Address::generate(&env);
     let pool_id = create_private_pool(&client, &env, &owner, &token_address);
@@ -246,7 +248,7 @@ fn test_admin_can_close_after_disbursement() {
 #[test]
 fn test_owner_can_close_after_cancellation() {
     let env = Env::default();
-    let (client, _admin, token_address) = setup_test(&env);
+    let (client, admin, token_address) = setup_test(&env);
 
     let owner = Address::generate(&env);
     let pool_id = create_private_pool(&client, &env, &owner, &token_address);

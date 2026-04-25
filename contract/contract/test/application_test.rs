@@ -2,12 +2,12 @@
 
 use crate::{
     base::{
-        errors::CrowdfundingError,
+        errors::{CrowdfundingError, SecondCrowdfundingError},
         types::{ApplicationStatus, PoolConfig},
     },
     crowdfunding::{CrowdfundingContract, CrowdfundingContractClient},
 };
-use soroban_sdk::{testutils::Address as _, Address, Bytes, Env, String};
+use soroban_sdk::{testutils::Address as _, token, Address, Bytes, Env, String};
 
 fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
     env.mock_all_auths();
@@ -26,6 +26,7 @@ fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
 
 fn create_pool(env: &Env, client: &CrowdfundingContractClient<'_>, token_address: &Address) -> u64 {
     let creator = Address::generate(env);
+    token::StellarAssetClient::new(env, token_address).mint(&creator, &100_000i128);
     let config = PoolConfig {
         name: String::from_str(env, "Scholarship Fund"),
         description: String::from_str(env, "Fund for student scholarships"),
@@ -35,7 +36,8 @@ fn create_pool(env: &Env, client: &CrowdfundingContractClient<'_>, token_address
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
-        validator: admin.clone(),
+        validator: creator.clone(),
+        application_deadline: 0,
     };
 
     client.create_pool(&creator, &config)
@@ -121,7 +123,7 @@ fn test_apply_for_scholarship_empty_credentials_fails() {
         client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::InvalidApplicationCredentials))
+        Err(Ok(SecondCrowdfundingError::InvalidApplicationCredentials))
     );
 }
 
@@ -143,7 +145,7 @@ fn test_apply_for_scholarship_duplicate_application_fails() {
         client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::ApplicationAlreadySubmitted))
+        Err(Ok(SecondCrowdfundingError::ApplicationAlreadySubmitted))
     );
 }
 
@@ -161,7 +163,7 @@ fn test_apply_for_scholarship_exceeds_remaining_funds_fails() {
 
     let result =
         client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
-    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidAmount)));
+    assert_eq!(result, Err(Ok(SecondCrowdfundingError::InvalidAmount)));
 }
 
 #[test]
@@ -176,7 +178,7 @@ fn test_apply_for_scholarship_zero_amount_fails() {
 
     let result =
         client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
-    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidAmount)));
+    assert_eq!(result, Err(Ok(SecondCrowdfundingError::InvalidAmount)));
 }
 
 #[test]
@@ -191,7 +193,7 @@ fn test_apply_for_scholarship_negative_amount_fails() {
 
     let result =
         client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
-    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidAmount)));
+    assert_eq!(result, Err(Ok(SecondCrowdfundingError::InvalidAmount)));
 }
 
 #[test]

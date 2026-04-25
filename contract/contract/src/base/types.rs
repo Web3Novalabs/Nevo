@@ -74,25 +74,8 @@ pub struct PoolConfig {
     pub token_address: Address,
     /// The address authorized to approve or reject scholarship applications for this pool.
     pub validator: Address,
-}
-
-/// Status of a scholarship application.
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[repr(u32)]
-pub enum ApplicationStatus {
-    Pending = 0,
-    Approved = 1,
-    Rejected = 2,
-}
-
-/// A scholarship application submitted to a pool.
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ScholarshipApplication {
-    pub pool_id: u64,
-    pub applicant: Address,
-    pub status: ApplicationStatus,
+    /// Deadline (Unix timestamp) after which new applications are rejected.
+    pub application_deadline: u64,
 }
 
 /// Documentation for this item.
@@ -587,6 +570,7 @@ mod tests {
             created_at: 1,
             token_address: token,
             validator,
+            application_deadline: 1,
         };
 
         cfg.validate();
@@ -608,6 +592,7 @@ mod tests {
             created_at: 1,
             token_address: token,
             validator,
+            application_deadline: 1,
         };
 
         cfg.validate();
@@ -765,6 +750,7 @@ mod tests {
         let env = Env::default();
         let creator = Address::generate(&env);
         let token = Address::generate(&env);
+        let validator = Address::generate(&env);
         let config = PoolConfig {
             name: String::from_str(&env, "Test Pool"),
             description: String::from_str(&env, "A test scholarship pool"),
@@ -774,6 +760,8 @@ mod tests {
             duration: 86400,
             created_at: 1234567890,
             token_address: token.clone(),
+            validator,
+            application_deadline: 1234567890,
         };
         let metadata = PoolMetadata {
             description: String::from_str(&env, "Metadata description"),

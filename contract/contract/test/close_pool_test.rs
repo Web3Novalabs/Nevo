@@ -41,6 +41,7 @@ fn create_test_pool(
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: creator.clone(), // For simplicity, creator is also validator
+        application_deadline: 0,
     };
 
     client.create_pool(creator, &config)

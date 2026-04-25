@@ -44,6 +44,7 @@ fn create_funded_pool(
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: sponsor.clone(),
+        application_deadline: 0,
     };
 
     let pool_id = client.create_pool(&sponsor, &config);
@@ -57,7 +58,7 @@ fn submit_and_approve(
     token_address: &Address,
     amount: i128,
 ) -> Address {
-    let env = client.env();
+    let env = &client.env;
     let applicant = Address::generate(env);
     let creds = Bytes::from_slice(env, b"credentials");
 
@@ -74,7 +75,7 @@ fn test_liquid_balance_equals_total_when_no_approvals() {
     let (client, _admin, token_address) = setup(&env);
     let (pool_id, _sponsor) = create_funded_pool(&env, &client, &token_address, 10_000);
 
-    let liquid = client.get_pool_liquid_balance(&pool_id).unwrap();
+    let liquid = client.get_pool_liquid_balance(&pool_id);
     assert_eq!(liquid, 10_000);
 }
 
@@ -86,7 +87,7 @@ fn test_liquid_balance_decreases_on_approval() {
 
     submit_and_approve(&client, pool_id, &sponsor, &token_address, 3_000);
 
-    let liquid = client.get_pool_liquid_balance(&pool_id).unwrap();
+    let liquid = client.get_pool_liquid_balance(&pool_id);
     assert_eq!(liquid, 7_000);
 }
 
@@ -99,7 +100,7 @@ fn test_liquid_balance_multiple_approvals() {
     submit_and_approve(&client, pool_id, &sponsor, &token_address, 2_000);
     submit_and_approve(&client, pool_id, &sponsor, &token_address, 3_000);
 
-    let liquid = client.get_pool_liquid_balance(&pool_id).unwrap();
+    let liquid = client.get_pool_liquid_balance(&pool_id);
     assert_eq!(liquid, 5_000);
 }
 
@@ -126,7 +127,7 @@ fn test_withdraw_unallocated_succeeds_within_liquid_balance() {
     // Withdraw 5_000 (within liquid)
     client.withdraw_unallocated(&pool_id, &sponsor, &5_000i128);
 
-    let liquid = client.get_pool_liquid_balance(&pool_id).unwrap();
+    let liquid = client.get_pool_liquid_balance(&pool_id);
     assert_eq!(liquid, 2_000);
 }
 

@@ -107,8 +107,17 @@ pub enum CrowdfundingError {
     UserBlacklisted = 49,
     /// CampaignCancelled = 50.
     CampaignCancelled = 50,
-    DeadlinePassed = 51,
-    VectorLimitExceeded = 52,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum ValidationError {
+    PoolNotFound = 1,
+    Unauthorized = 2,
+    ApplicationNotFound = 3,
+    ApplicationAlreadyExists = 4,
+    ApplicationAlreadyProcessed = 5,
 }
 
 /// Documentation for this item.
@@ -131,6 +140,11 @@ pub enum SecondCrowdfundingError {
     ApplicationAlreadySubmitted = 7,
     ApplicationAlreadyReviewed = 8,
     InvalidApplicationCredentials = 9,
+    DeadlinePassed = 10,
+    VectorLimitExceeded = 11,
+    InvalidPoolState = 12,
+    InvalidAmount = 13,
+    PoolNotFound = 14,
 }
 
 #[cfg(test)]

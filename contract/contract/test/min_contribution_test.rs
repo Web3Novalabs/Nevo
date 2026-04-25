@@ -33,6 +33,7 @@ fn test_contribute_below_minimum_fails() {
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: creator.clone(),
+            application_deadline: 0,
     };
 
     let pool_id = client.create_pool(&creator, &config);

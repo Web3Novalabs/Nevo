@@ -30,6 +30,7 @@ fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
 }
 
 fn pool_config(env: &Env, token: &Address, target: i128) -> PoolConfig {
+    let validator = Address::generate(env);
     PoolConfig {
         name: String::from_str(env, "Scholarship Pool"),
         description: String::from_str(env, "Sponsor deposit test"),
@@ -39,7 +40,8 @@ fn pool_config(env: &Env, token: &Address, target: i128) -> PoolConfig {
         duration: 86_400,
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
-        validator: admin.clone(),
+        validator,
+        application_deadline: 0,
     }
 }
 
@@ -77,7 +79,7 @@ fn test_create_pool_transfers_tokens_to_contract() {
     // The client's contract address is the one that received the funds.
     // We verify via get_pool_balance instead of raw token balance to stay
     // within the contract's own accounting.
-    let locked = client.get_pool_balance(&pool_id).unwrap();
+    let locked = client.get_pool_balance(&pool_id);
     assert_eq!(locked, target, "PoolBalance must equal target_amount");
 }
 
@@ -93,7 +95,7 @@ fn test_create_pool_pool_balance_equals_target_amount() {
     let pool_id = client.create_pool(&sponsor, &pool_config(&env, &token, target));
 
     assert_eq!(
-        client.get_pool_balance(&pool_id).unwrap(),
+        client.get_pool_balance(&pool_id),
         target,
         "locked balance must equal the pool's target_amount"
     );
@@ -114,7 +116,7 @@ fn test_create_pool_metrics_total_raised_equals_deposit() {
     let pool = client.get_pool(&pool_id).unwrap();
     assert_eq!(pool.target_amount, target);
     // Verify via get_pool_balance (the canonical locked-balance query)
-    assert_eq!(client.get_pool_balance(&pool_id).unwrap(), target);
+    assert_eq!(client.get_pool_balance(&pool_id), target);
 }
 
 #[test]
@@ -130,7 +132,7 @@ fn test_create_pool_reverts_when_sponsor_has_insufficient_balance() {
     let result = client.try_create_pool(&sponsor, &pool_config(&env, &token, target));
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::InsufficientSponsorBalance)),
+        Err(Ok(CrowdfundingError::InsufficientBalance)),
         "must revert with InsufficientSponsorBalance when sponsor balance < target_amount"
     );
 }
@@ -145,7 +147,7 @@ fn test_create_pool_reverts_when_sponsor_has_zero_balance() {
     let result = client.try_create_pool(&sponsor, &pool_config(&env, &token, 5_000));
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::InsufficientSponsorBalance)),
+        Err(Ok(CrowdfundingError::InsufficientBalance)),
         "must revert when sponsor has zero balance"
     );
 }
@@ -179,7 +181,7 @@ fn test_multiple_pools_track_balances_independently() {
     let pool1 = client.create_pool(&sponsor1, &pool_config(&env, &token, target1));
     let pool2 = client.create_pool(&sponsor2, &pool_config(&env, &token, target2));
 
-    assert_eq!(client.get_pool_balance(&pool1).unwrap(), target1);
-    assert_eq!(client.get_pool_balance(&pool2).unwrap(), target2);
+    assert_eq!(client.get_pool_balance(&pool1), target1);
+    assert_eq!(client.get_pool_balance(&pool2), target2);
     assert_ne!(pool1, pool2, "pool IDs must be distinct");
 }

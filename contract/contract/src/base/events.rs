@@ -501,7 +501,6 @@ pub fn pool_metadata_updated(env: &Env, pool_id: u64, updater: Address, new_meta
 /// # Panics
 ///
 /// Panics if the internal state is invalid or required conditions are not met.
-
 pub fn platform_fee_bps_set(env: &Env, admin: Address, fee_bps: u32) {
     let topics = (Symbol::new(env, "platform_fee_bps_set"), admin);
     env.events().publish(topics, fee_bps);
@@ -569,4 +568,8 @@ pub fn application_rejected(env: &Env, _admin: Address, cause: Address) {
 pub fn application_submitted(env: &Env, pool_id: u64, student: Address, requested_amount: i128) {
     let topics = (symbol_short!("AppSub"), pool_id, student);
     env.events().publish(topics, requested_amount);
+}
+pub fn pool_unallocated_withdrawn(env: &Env, pool_id: u64, sponsor: Address, amount: i128) {
+    let topics = (symbol_short!("PoolWdr"), pool_id, sponsor);
+    env.events().publish(topics, amount);
 }
