@@ -569,7 +569,8 @@ pub fn application_submitted(env: &Env, pool_id: u64, student: Address, requeste
     let topics = (symbol_short!("AppSub"), pool_id, student);
     env.events().publish(topics, requested_amount);
 }
-pub fn pool_unallocated_withdrawn(env: &Env, pool_id: u64, sponsor: Address, amount: i128) {
-    let topics = (symbol_short!("PoolWdr"), pool_id, sponsor);
-    env.events().publish(topics, amount);
+
+pub fn school_removed(env: &Env, admin: Address, school_addr: Address, pool_id: u64) {
+    let topics = (Symbol::new(env, "school_removed"), admin, school_addr);
+    env.events().publish(topics, pool_id);
 }

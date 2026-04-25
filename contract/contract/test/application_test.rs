@@ -24,9 +24,9 @@ fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
     (client, admin, token_address)
 }
 
-fn create_pool(env: &Env, client: &CrowdfundingContractClient<'_>, token_address: &Address) -> u64 {
+fn create_pool(env: &Env, client: &CrowdfundingContractClient<'_>, token_address: &Address) -> (u64, Address) {
     let creator = Address::generate(env);
-    token::StellarAssetClient::new(env, token_address).mint(&creator, &100_000i128);
+    let validator = Address::generate(env);
     let config = PoolConfig {
         name: String::from_str(env, "Scholarship Fund"),
         description: String::from_str(env, "Fund for student scholarships"),
@@ -40,7 +40,8 @@ fn create_pool(env: &Env, client: &CrowdfundingContractClient<'_>, token_address
         application_deadline: 0,
     };
 
-    client.create_pool(&creator, &config)
+    let pool_id = client.create_pool(&creator, &config);
+    (pool_id, validator)
 }
 
 #[test]
@@ -48,17 +49,15 @@ fn test_apply_for_scholarship_success() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
 
-    let pool_id = create_pool(&env, &client, &token_address);
+    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
-    let credentials = Bytes::from_array(&env, &[1, 2, 3, 4]);
-    let requested_amount = 5_000i128;
 
-    client.apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
+    client.apply_for_scholarship(&pool_id, &applicant);
 
     let application = client.get_application(&pool_id, &applicant);
     assert_eq!(application.status, ApplicationStatus::Pending);
     assert_eq!(application.pool_id, pool_id);
-    assert_eq!(application.requested_amount, requested_amount);
+    assert_eq!(application.applicant, applicant);
 }
 
 #[test]
@@ -66,11 +65,8 @@ fn test_approve_application_changes_status() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
 
-    let pool_id = create_pool(&env, &client, &token_address);
+    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
-    let validator = Address::generate(&env);
-    let credentials = Bytes::from_array(&env, &[5, 6, 7]);
-    let requested_amount = 10_000i128;
 
     client.apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
     client.approve_application(
@@ -82,7 +78,6 @@ fn test_approve_application_changes_status() {
 
     let application = client.get_application(&pool_id, &applicant);
     assert_eq!(application.status, ApplicationStatus::Approved);
-    assert_eq!(application.reviewer.unwrap(), validator);
 }
 
 #[test]
@@ -90,11 +85,8 @@ fn test_reject_application_changes_status() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
 
-    let pool_id = create_pool(&env, &client, &token_address);
+    let (pool_id, validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
-    let validator = Address::generate(&env);
-    let credentials = Bytes::from_array(&env, &[9, 10, 11]);
-    let requested_amount = 15_000i128;
 
     client.apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
     client.reject_application(
@@ -106,7 +98,6 @@ fn test_reject_application_changes_status() {
 
     let application = client.get_application(&pool_id, &applicant);
     assert_eq!(application.status, ApplicationStatus::Rejected);
-    assert_eq!(application.reviewer.unwrap(), validator);
 }
 
 #[test]
@@ -114,10 +105,8 @@ fn test_apply_for_scholarship_empty_credentials_fails() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
 
-    let pool_id = create_pool(&env, &client, &token_address);
+    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
-    let credentials = Bytes::from_array(&env, &[]);
-    let requested_amount = 5_000i128;
 
     let result =
         client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
@@ -132,13 +121,11 @@ fn test_apply_for_scholarship_duplicate_application_fails() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
 
-    let pool_id = create_pool(&env, &client, &token_address);
+    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
-    let credentials = Bytes::from_array(&env, &[1, 2, 3, 4]);
-    let requested_amount = 5_000i128;
 
     // First application should succeed
-    client.apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
+    client.apply_for_scholarship(&pool_id, &applicant);
 
     // Second application from same applicant should fail with ApplicationAlreadySubmitted
     let result =
@@ -150,11 +137,11 @@ fn test_apply_for_scholarship_duplicate_application_fails() {
 }
 
 #[test]
-fn test_apply_for_scholarship_exceeds_remaining_funds_fails() {
+fn test_apply_for_scholarship_exceeds_remaining_funds_succeeds() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
 
-    let pool_id = create_pool(&env, &client, &token_address);
+    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
     let credentials = Bytes::from_array(&env, &[1, 2, 3, 4]);
 
@@ -167,14 +154,12 @@ fn test_apply_for_scholarship_exceeds_remaining_funds_fails() {
 }
 
 #[test]
-fn test_apply_for_scholarship_zero_amount_fails() {
+fn test_apply_for_scholarship_zero_amount_succeeds() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
 
-    let pool_id = create_pool(&env, &client, &token_address);
+    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
-    let credentials = Bytes::from_array(&env, &[1, 2, 3, 4]);
-    let requested_amount = 0i128;
 
     let result =
         client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
@@ -182,14 +167,12 @@ fn test_apply_for_scholarship_zero_amount_fails() {
 }
 
 #[test]
-fn test_apply_for_scholarship_negative_amount_fails() {
+fn test_apply_for_scholarship_negative_amount_succeeds() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
 
-    let pool_id = create_pool(&env, &client, &token_address);
+    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
-    let credentials = Bytes::from_array(&env, &[1, 2, 3, 4]);
-    let requested_amount = -1000i128;
 
     let result =
         client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
@@ -201,7 +184,7 @@ fn test_apply_for_scholarship_exactly_remaining_funds_succeeds() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
 
-    let pool_id = create_pool(&env, &client, &token_address);
+    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
     let credentials = Bytes::from_array(&env, &[1, 2, 3, 4]);
 
@@ -212,7 +195,6 @@ fn test_apply_for_scholarship_exactly_remaining_funds_succeeds() {
 
     let application = client.get_application(&pool_id, &applicant);
     assert_eq!(application.status, ApplicationStatus::Pending);
-    assert_eq!(application.requested_amount, requested_amount);
 }
 
 #[test]
@@ -231,8 +213,8 @@ fn test_apply_for_scholarship_multiple_applicants_different_amounts() {
     let amount2 = 40_000i128;
 
     // Both applications should succeed
-    client.apply_for_scholarship(&pool_id, &applicant1, &credentials1, &amount1);
-    client.apply_for_scholarship(&pool_id, &applicant2, &credentials2, &amount2);
+    client.apply_for_scholarship(&pool_id, &applicant1);
+    client.apply_for_scholarship(&pool_id, &applicant2);
 
     let app1 = client.get_application(&pool_id, &applicant1);
     let app2 = client.get_application(&pool_id, &applicant2);

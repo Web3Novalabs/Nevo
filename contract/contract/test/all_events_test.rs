@@ -37,8 +37,6 @@ fn pool_config(env: &Env, token: &Address) -> PoolConfig {
         duration: 86_400,
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
-            validator: creator.clone(),
-                application_deadline: 0,
     }
 }
 

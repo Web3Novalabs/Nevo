@@ -3,8 +3,8 @@ use soroban_sdk::{Address, BytesN, Env, String, Vec};
 use crate::base::{
     errors::CrowdfundingError,
     types::{
-        CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
-        PoolState,
+        ApplicationDetails, CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
+        PoolState, ScholarshipApplication,
     },
 };
 
@@ -245,5 +245,66 @@ pub trait CrowdfundingTrait {
         pool_id: u64,
         sponsor: Address,
         amount: i128,
+    ) -> Result<(), CrowdfundingError>;
+
+    /// Submit a scholarship application for a pool.
+    /// The applicant must sign the transaction.
+    fn apply_for_scholarship(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+    ) -> Result<(), ValidationError>;
+
+    /// Approve a pending scholarship application.
+    /// Only the pool's designated validator may call this.
+    /// The validator identity is enforced via `pool.validator.require_auth()`.
+    fn approve_application(env: Env, pool_id: u32, student: Address)
+        -> Result<(), ValidationError>;
+
+    /// Reject a pending scholarship application.
+    /// Only the pool's designated validator may call this.
+    fn reject_application(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+        validator: Address,
+    ) -> Result<(), ValidationError>;
+
+    /// Retrieve a scholarship application.
+    fn get_application(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+    ) -> Result<ScholarshipApplication, ValidationError>;
+
+    /// Remove a school (pool) and all associated data.
+    /// Only protocol admins can call this function.
+    /// This permanently removes the pool and all related storage.
+    fn remove_school(env: Env, school_addr: Address) -> Result<(), CrowdfundingError>;
+
+    /// Get detailed application information including milestones.
+    fn get_application_details(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+    ) -> Result<ApplicationDetails, CrowdfundingError>;
+
+    /// Add a milestone to an approved scholarship application.
+    /// Only approved applications can have milestones added.
+    fn add_milestone(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+        unlock_date: u64,
+        amount: i128,
+    ) -> Result<(), CrowdfundingError>;
+
+    /// Unlock a milestone for disbursement.
+    /// The milestone's unlock date must have passed.
+    fn unlock_milestone(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+        milestone_index: u32,
     ) -> Result<(), CrowdfundingError>;
 }

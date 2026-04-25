@@ -3,10 +3,10 @@
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
 use crate::base::{
-    errors::CrowdfundingError,
+    errors::{CrowdfundingError, ValidationError},
     types::{
-        CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
-        PoolState,
+        ApplicationDetails, CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
+        PoolState, ScholarshipApplication,
     },
 };
 use crate::crowdfunding::CrowdfundingContract;
