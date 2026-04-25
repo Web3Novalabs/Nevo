@@ -41,7 +41,6 @@ fn create_pool_with_funds(
         duration: 86_400,
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
-            validator: admin.clone(),
     };
     let pool_id = client.create_pool(&creator, &config);
 
@@ -123,7 +122,6 @@ fn test_withdraw_event_pool_no_funds() {
         duration: 86_400,
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
-            validator: admin.clone(),
     };
     let pool_id = client.create_pool(&creator, &config);
 

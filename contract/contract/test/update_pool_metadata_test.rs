@@ -40,7 +40,6 @@ fn create_test_pool(env: &Env, client: &CrowdfundingContractClient<'_>, creator:
         duration: 86400, // 1 day
         created_at: 1_000,
         token_address: token_id.clone(),
-            validator: admin.clone(),
     };
 
     StellarAssetClient::new(env, token_id).mint(creator, &config.target_amount);

@@ -30,7 +30,6 @@ fn test_event_repro() {
         duration: 86_400,
         created_at: 0,
         token_address: token.clone(),
-            validator: admin.clone(),
     };
     client.create_pool(&creator, &config);
 
