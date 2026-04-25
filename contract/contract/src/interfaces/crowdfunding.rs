@@ -152,6 +152,8 @@ pub trait CrowdfundingTrait {
 
     fn is_paused(env: Env) -> bool;
 
+    fn unpause_pool(env: Env, pool_id: u64, caller: Address) -> Result<(), CrowdfundingError>;
+
     fn contribute(
         env: Env,
         pool_id: u64,
@@ -231,6 +233,19 @@ pub trait CrowdfundingTrait {
     fn claim_pool_funds(env: Env, pool_id: u64, student: Address) -> Result<(), CrowdfundingError>;
 
     fn upgrade_contract(env: Env, new_wasm_hash: BytesN<32>) -> Result<(), CrowdfundingError>;
+
+    /// Returns the liquid (unallocated) balance of a pool:
+    /// `pool_balance - allocated_to_approved_applications`.
+    fn get_pool_liquid_balance(env: Env, pool_id: u64) -> Result<i128, CrowdfundingError>;
+
+    /// Allows the pool sponsor to withdraw only the unallocated portion of pool
+    /// funds, ensuring capital committed to Approved applications is never touched.
+    fn withdraw_unallocated(
+        env: Env,
+        pool_id: u64,
+        sponsor: Address,
+        amount: i128,
+    ) -> Result<(), CrowdfundingError>;
 
     /// Submit a scholarship application for a pool.
     /// The applicant must sign the transaction.

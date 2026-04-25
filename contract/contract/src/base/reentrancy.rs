@@ -3,6 +3,20 @@ use soroban_sdk::Env;
 
 // ── per-pool lock ────────────────────────────────────────────────────────────
 
+/// Executes the acquire pool lock operation.
+///
+/// # Arguments
+///
+/// * `env` - The execution environment.
+/// * `pool_id` - The pool id.
+///
+/// # Returns
+///
+/// Returns `Result<(), CrowdfundingError>`.
+///
+/// # Panics
+///
+/// Panics if the internal state is invalid or required conditions are not met.
 pub fn acquire_pool_lock(env: &Env, pool_id: u64) -> Result<(), CrowdfundingError> {
     let key = StorageKey::ReentrancyLock(pool_id);
     if env
@@ -17,6 +31,16 @@ pub fn acquire_pool_lock(env: &Env, pool_id: u64) -> Result<(), CrowdfundingErro
     Ok(())
 }
 
+/// Executes the release pool lock operation.
+///
+/// # Arguments
+///
+/// * `env` - The execution environment.
+/// * `pool_id` - The pool id.
+///
+/// # Panics
+///
+/// Panics if the internal state is invalid or required conditions are not met.
 pub fn release_pool_lock(env: &Env, pool_id: u64) {
     env.storage()
         .instance()
@@ -25,6 +49,19 @@ pub fn release_pool_lock(env: &Env, pool_id: u64) {
 
 // ── global emergency-withdrawal lock ────────────────────────────────────────
 
+/// Executes the acquire emergency lock operation.
+///
+/// # Arguments
+///
+/// * `env` - The execution environment.
+///
+/// # Returns
+///
+/// Returns `Result<(), CrowdfundingError>`.
+///
+/// # Panics
+///
+/// Panics if the internal state is invalid or required conditions are not met.
 pub fn acquire_emergency_lock(env: &Env) -> Result<(), CrowdfundingError> {
     let key = StorageKey::EmergencyWithdrawalLock;
     if env
@@ -39,6 +76,15 @@ pub fn acquire_emergency_lock(env: &Env) -> Result<(), CrowdfundingError> {
     Ok(())
 }
 
+/// Executes the release emergency lock operation.
+///
+/// # Arguments
+///
+/// * `env` - The execution environment.
+///
+/// # Panics
+///
+/// Panics if the internal state is invalid or required conditions are not met.
 pub fn release_emergency_lock(env: &Env) {
     env.storage()
         .instance()

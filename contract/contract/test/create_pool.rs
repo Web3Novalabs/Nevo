@@ -224,3 +224,96 @@ fn test_create_pool_emits_event_created() {
 
     assert!(found, "event_created was not emitted by create_pool");
 }
+
+#[test]
+fn test_create_pool_zero_funds_fails() {
+    let env = Env::default();
+    let (client, _, token_address) = setup(&env);
+
+    let creator = Address::generate(&env);
+    let config = PoolConfig {
+        name: String::from_str(&env, "Zero Fund Pool"),
+        description: String::from_str(&env, "Pool with no funds"),
+        target_amount: 1_000i128,
+        min_contribution: 0,
+        is_private: false,
+        duration: 86400,
+        created_at: env.ledger().timestamp(),
+        token_address: token_address.clone(),
+        validator: creator.clone(),
+    };
+
+    // Creator has zero balance — no mint
+    let result = client.try_create_pool(&creator, &config);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InsufficientBalance)));
+
+    // Pool must not exist after the failed call
+    assert!(client.get_pool(&1).is_none());
+}
+
+#[test]
+fn test_create_pool_wrong_token_fails() {
+    let env = Env::default();
+    let (client, _, _) = setup(&env);
+
+    let creator = Address::generate(&env);
+    let wrong_token_admin = Address::generate(&env);
+    let wrong_token = env
+        .register_stellar_asset_contract_v2(wrong_token_admin)
+        .address();
+
+    let config = PoolConfig {
+        name: String::from_str(&env, "Wrong Token Pool"),
+        description: String::from_str(&env, "Pool with invalid token"),
+        target_amount: 1_000i128,
+        min_contribution: 0,
+        is_private: false,
+        duration: 86400,
+        created_at: env.ledger().timestamp(),
+        token_address: wrong_token,
+        validator: creator.clone(),
+    };
+
+    let result = client.try_create_pool(&creator, &config);
+    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidToken)));
+
+    // Pool must not exist after the failed call
+    assert!(client.get_pool(&1).is_none());
+}
+
+#[test]
+fn test_create_pool_unauthorized_fails() {
+    let env = Env::default();
+    // Do NOT call mock_all_auths — auth is enforced
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token_address = env
+        .register_stellar_asset_contract_v2(token_admin)
+        .address();
+
+    env.mock_all_auths();
+    client.initialize(&admin, &token_address, &0);
+    env.set_auths(&[]);
+
+    let creator = Address::generate(&env);
+    let config = PoolConfig {
+        name: String::from_str(&env, "Unauthorized Pool"),
+        description: String::from_str(&env, "Pool without auth"),
+        target_amount: 1_000i128,
+        min_contribution: 0,
+        is_private: false,
+        duration: 86400,
+        created_at: env.ledger().timestamp(),
+        token_address: token_address.clone(),
+        validator: creator.clone(),
+    };
+
+    let result = client.try_create_pool(&creator, &config);
+    assert!(result.is_err());
+
+    // Pool must not exist after the failed call
+    assert!(client.get_pool(&1).is_none());
+}

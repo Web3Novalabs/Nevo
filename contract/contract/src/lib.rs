@@ -1,6 +1,8 @@
 #![no_std]
 
+/// The mod base;.
 pub mod base;
+/// The mod crowdfunding;.
 pub mod contract;
 pub mod crowdfunding;
 mod interfaces;

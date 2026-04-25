@@ -79,7 +79,7 @@ fn test_verify_cause_not_initialized() {
 }
 
 #[test]
-fn test_verify_cause_emits_app_apprv_event() {
+fn test_verify_cause_emits_school_registered_event() {
     let (env, client) = create_client();
     let (_, _) = setup(&env, &client);
     let cause = Address::generate(&env);
@@ -93,17 +93,18 @@ fn test_verify_cause_emits_app_apprv_event() {
         }
         use soroban_sdk::FromVal;
         let sym = soroban_sdk::Symbol::from_val(&env, &topics.get(0).unwrap());
-        if sym != symbol_short!("AppApprv") {
+        if sym != symbol_short!("SchReg") {
             return false;
         }
-        let emitted_cause = Address::from_val(&env, &data);
+        let emitted_cause = Address::from_val(&env, &topics.get(1).unwrap());
+        let _ = data;
         emitted_cause == cause
     });
-    assert!(found, "AppApprv event not emitted by verify_cause");
+    assert!(found, "SchReg event not emitted by verify_cause");
 }
 
 #[test]
-fn test_reject_cause_removes_verification_and_emits_event() {
+fn test_reject_cause_removes_verification_and_emits_school_revoked_event() {
     let (env, client) = create_client();
     let (_, _) = setup(&env, &client);
     let cause = Address::generate(&env);
@@ -121,13 +122,14 @@ fn test_reject_cause_removes_verification_and_emits_event() {
         }
         use soroban_sdk::FromVal;
         let sym = soroban_sdk::Symbol::from_val(&env, &topics.get(0).unwrap());
-        if sym != symbol_short!("AppRej") {
+        if sym != symbol_short!("SchRev") {
             return false;
         }
-        let emitted_cause = Address::from_val(&env, &data);
+        let emitted_cause = Address::from_val(&env, &topics.get(1).unwrap());
+        let _ = data;
         emitted_cause == cause
     });
-    assert!(found, "AppRej event not emitted by reject_cause");
+    assert!(found, "SchRev event not emitted by reject_cause");
 }
 
 #[test]
@@ -147,7 +149,7 @@ fn test_reject_cause_on_unverified_address_emits_event() {
         }
         use soroban_sdk::FromVal;
         let sym = soroban_sdk::Symbol::from_val(&env, &topics.get(0).unwrap());
-        sym == symbol_short!("AppRej")
+        sym == symbol_short!("SchRev")
     });
-    assert!(found, "AppRej event not emitted on unverified reject");
+    assert!(found, "SchRev event not emitted on unverified reject");
 }

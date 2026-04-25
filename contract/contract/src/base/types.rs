@@ -1,44 +1,76 @@
 use soroban_sdk::{contracttype, Address, Bytes, BytesN, String, Vec};
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// Represents a campaigndetails.
 pub struct CampaignDetails {
+    /// The id.
     pub id: BytesN<32>,
+    /// The title.
     pub title: String,
+    /// The creator.
     pub creator: Address,
+    /// The goal.
     pub goal: i128,
+    /// The deadline.
     pub deadline: u64,
+    /// The total raised.
     pub total_raised: i128,
+    /// The token address.
     pub token_address: Address,
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// Represents a contribution.
 pub struct Contribution {
+    /// The campaign id.
     pub campaign_id: BytesN<32>,
+    /// The contributor.
     pub contributor: Address,
+    /// The amount.
     pub amount: i128,
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// Represents a multisigconfig.
 pub struct MultiSigConfig {
+    /// The required signatures.
     pub required_signatures: u32,
+    /// The signers.
     pub signers: Vec<Address>,
 }
 
 // Updated pool configuration for donation pools
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Represents a poolconfig.
 pub struct PoolConfig {
+    /// The name.
     pub name: String,
+    /// The description.
     pub description: String,
+    /// The target amount.
     pub target_amount: i128,
     // Minimum contribution allowed for this pool (in token smallest units)
+    /// The min contribution.
     pub min_contribution: i128,
+    /// The is private.
     pub is_private: bool,
+    /// The duration.
     pub duration: u64,
+    /// The created at.
     pub created_at: u64,
+    /// The token address.
     pub token_address: Address,
     /// The address authorized to approve or reject scholarship applications for this pool.
     pub validator: Address,
@@ -63,14 +95,21 @@ pub struct ScholarshipApplication {
     pub status: ApplicationStatus,
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Represents a poolmetadata.
 pub struct PoolMetadata {
+    /// The description.
     pub description: String,
+    /// The external url.
     pub external_url: String,
+    /// The image hash.
     pub image_hash: String,
 }
 
+/// The const MAX DESCRIPTION LENGTH.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PoolDetails {
@@ -81,9 +120,13 @@ pub struct PoolDetails {
 }
 
 pub const MAX_DESCRIPTION_LENGTH: u32 = 500;
+/// The const MAX URL LENGTH.
 pub const MAX_URL_LENGTH: u32 = 200;
+/// The const MAX HASH LENGTH.
 pub const MAX_HASH_LENGTH: u32 = 100;
+/// The const MAX STRING LENGTH.
 pub const MAX_STRING_LENGTH: u32 = 200;
+pub const MAX_SINGLE_OP_ITEMS: u32 = 200;
 
 impl PoolConfig {
     /// Validate pool configuration according to Nevo invariants.
@@ -113,20 +156,50 @@ impl PoolConfig {
 
         // Duration must be strictly positive (non-zero)
         assert!(self.duration > 0, "duration must be > 0");
+
+        // application_deadline must not be before pool creation time
+        assert!(
+            self.application_deadline >= self.created_at,
+            "application_deadline must be >= created_at"
+        );
     }
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(u32)]
+/// Defines the possible states or errors for campaignlifecyclestatus.
 pub enum CampaignLifecycleStatus {
+    /// Live = 0.
     Live = 0,
+    /// Cancelled = 1.
     Cancelled = 1,
+    /// Successful = 2.
     Successful = 2,
+    /// Expired = 3.
     Expired = 3,
 }
 
 impl CampaignLifecycleStatus {
+    /// Executes the get status operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `total_raised` - The total raised.
+    /// * `goal` - The goal.
+    /// * `deadline` - The deadline.
+    /// * `current_time` - The current time.
+    /// * `is_cancelled` - The is cancelled.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Self`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal state is invalid or required conditions are not met.
     pub fn get_status(
         total_raised: i128,
         goal: i128,
@@ -150,42 +223,71 @@ impl CampaignLifecycleStatus {
     }
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(u32)]
+/// Defines the possible states or errors for poolstate.
 pub enum PoolState {
+    /// Active = 0.
     Active = 0,
+    /// Paused = 1.
     Paused = 1,
+    /// Completed = 2.
     Completed = 2,
+    /// Cancelled = 3.
     Cancelled = 3,
+    /// Disbursed = 4.
     Disbursed = 4,
+    /// Closed = 5.
     Closed = 5,
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(u32)]
+/// Defines the possible states or errors for eventstatus.
 pub enum EventStatus {
+    /// Active = 0.
     Active = 0,
+    /// Cancelled = 1.
     Cancelled = 1,
+    /// Completed = 2.
     Completed = 2,
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Represents a eventdetails.
 pub struct EventDetails {
+    /// The id.
     pub id: BytesN<32>,
+    /// The title.
     pub title: String,
+    /// The creator.
     pub creator: Address,
+    /// The ticket price.
     pub ticket_price: i128,
+    /// The max attendees.
     pub max_attendees: u32,
+    /// The deadline.
     pub deadline: u64,
+    /// The token.
     pub token: Address,
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Represents a eventmetrics.
 pub struct EventMetrics {
+    /// The tickets sold.
     pub tickets_sold: u32,
 }
 
@@ -204,6 +306,8 @@ impl EventMetrics {
 
 /// Represents the type of a ticket.
 /// Standard is the default type.
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[repr(u32)]
@@ -215,13 +319,21 @@ pub enum TicketType {
     VIP = 1,
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Represents a campaignmetrics.
 pub struct CampaignMetrics {
+    /// The total raised.
     pub total_raised: i128,
+    /// The contributor count.
     pub contributor_count: u32,
+    /// The last donation at.
     pub last_donation_at: u64,
+    /// The max donation.
     pub max_donation: i128,
+    /// The top contributor.
     pub top_contributor: Option<Address>,
 }
 
@@ -232,6 +344,15 @@ impl Default for CampaignMetrics {
 }
 
 impl CampaignMetrics {
+    /// Executes the new operation.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Self`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal state is invalid or required conditions are not met.
     pub fn new() -> Self {
         Self {
             total_raised: 0,
@@ -243,11 +364,17 @@ impl CampaignMetrics {
     }
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Represents a poolmetrics.
 pub struct PoolMetrics {
+    /// The total raised.
     pub total_raised: i128,
+    /// The contributor count.
     pub contributor_count: u32,
+    /// The last donation at.
     pub last_donation_at: u64,
 }
 
@@ -268,38 +395,65 @@ impl PoolMetrics {
     }
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// Represents a disbursementrequest.
 pub struct DisbursementRequest {
+    /// The pool id.
     pub pool_id: u64,
+    /// The amount.
     pub amount: i128,
+    /// The recipient.
     pub recipient: Address,
+    /// The approvals.
     pub approvals: Vec<Address>,
+    /// The created at.
     pub created_at: u64,
+    /// The executed.
     pub executed: bool,
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// Represents a emergencywithdrawal.
 pub struct EmergencyWithdrawal {
+    /// The recipient.
     pub recipient: Address,
+    /// The amount.
     pub amount: i128,
+    /// The token.
     pub token: Address,
+    /// The requested at.
     pub requested_at: u64,
+    /// The executed.
     pub executed: bool,
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// Represents a poolcontribution.
 pub struct PoolContribution {
+    /// The pool id.
     pub pool_id: u64,
+    /// The contributor.
     pub contributor: Address,
+    /// The amount.
     pub amount: i128,
+    /// The asset.
     pub asset: Address,
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// Defines the possible states or errors for storagekey.
 pub enum ApplicationStatus {
     Pending = 0,
     Approved = 1,
@@ -322,56 +476,95 @@ pub struct ApplicationDetails {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StorageKey {
+    /// Pool.
     Pool(u64),
+    /// PoolState.
     PoolState(u64),
+    /// PoolMetrics.
     PoolMetrics(u64),
+    /// AllCampaigns.
     AllCampaigns,
+    /// CampaignMetrics.
     CampaignMetrics(BytesN<32>),
+    /// CampaignDonor.
     CampaignDonor(BytesN<32>, Address),
+    /// Contribution.
     Contribution(BytesN<32>, Address),
+    /// PoolContribution.
     PoolContribution(u64, Address),
+    /// PoolContributors.
     PoolContributors(u64),
     Application(u64, Address),
 
+    /// NextPoolId.
     NextPoolId,
+    /// IsPaused.
     IsPaused,
+    /// Admin.
     Admin,
+    /// MultiSigConfig.
     MultiSigConfig(u64),
+    /// DisbursementRequest.
     DisbursementRequest(u64, u64),
+    /// PoolMetadata.
     PoolMetadata(u64),
+    /// NextDisbursementId.
     NextDisbursementId(u64),
+    /// EmergencyWithdrawal.
     EmergencyWithdrawal,
+    /// CrowdfundingToken.
     CrowdfundingToken,
+    /// CreationFee.
     CreationFee,
+    /// VerifiedCause.
     VerifiedCause(Address),
+    /// PlatformFees.
     PlatformFees,
+    /// GlobalTotalRaised.
     GlobalTotalRaised,
+    /// CampaignCancelled.
     CampaignCancelled(BytesN<32>),
+    /// CampaignClaimed.
     CampaignClaimed(BytesN<32>),
+    /// EmergencyContact.
     EmergencyContact,
+    /// CampaignFeeHistory.
     CampaignFeeHistory(BytesN<32>),
+    /// Blacklist.
     Blacklist(Address),
+    /// ReentrancyLock.
     ReentrancyLock(u64),
+    /// EmergencyWithdrawalLock.
     EmergencyWithdrawalLock,
+    /// PoolCreator.
     PoolCreator(u64),
+    /// EventFeeTreasury.
     EventFeeTreasury,
+    /// PlatformFeeBps.
     PlatformFeeBps,
     // Per-pool revenue split: tokens destined for the event creator
+    /// EventPool.
     EventPool(u64),
     // Per-pool revenue split: tokens accumulated as platform fee
+    /// EventPlatformFees.
     EventPlatformFees(u64),
     // Track if someone bought a ticket
+    /// UserTicket.
     UserTicket(u64, Address),
     // Event details keyed by event id
+    /// Event.
     Event(BytesN<32>),
     // track if a pool has been claimed
     PoolClaimed(u64),
     // Per-event metrics (tickets sold, etc.)
+    /// EventMetrics.
     EventMetrics(BytesN<32>),
     // Scholarship application keyed by (pool_id, applicant)
     ScholarshipApplication(u64, Address),
     // Locked token balance deposited by the sponsor at pool creation
     PoolBalance(u64),
+    // Sum of requested_amount for all Approved applications on a pool
+    PoolAllocated(u64),
 }
 
 #[cfg(test)]

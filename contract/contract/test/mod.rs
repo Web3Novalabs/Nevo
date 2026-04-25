@@ -17,8 +17,11 @@ mod renounce_admin_test;
 mod scholarship_validation_test;
 mod set_platform_fee_bps_test;
 // mod update_pool_metadata_test; // Features not yet implemented
+mod test;
 // mod upgrade_contract_test; // broken on missing hello_world.wasm
 mod application_test;
 mod validate_string_length_test;
 mod verify_cause;
 mod withdraw_platform_fees_test;
+mod application_test;
+mod unpause_pool_test;

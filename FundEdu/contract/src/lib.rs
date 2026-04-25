@@ -5,7 +5,7 @@ mod errors;
 mod storage;
 mod types;
 
-pub use contract::FundEduContract;
+pub use contract::{FundEduContract, FundEduError};
 
 #[cfg(test)]
 extern crate std;

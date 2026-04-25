@@ -253,6 +253,10 @@ impl CrowdfundingTrait for FundEduContract {
         CrowdfundingContract::is_paused(env)
     }
 
+    fn unpause_pool(env: Env, pool_id: u64, caller: Address) -> Result<(), CrowdfundingError> {
+        CrowdfundingContract::unpause_pool(env, pool_id, caller)
+    }
+
     fn contribute(
         env: Env,
         pool_id: u64,
@@ -374,5 +378,18 @@ impl CrowdfundingTrait for FundEduContract {
 
     fn claim_pool_funds(env: Env, pool_id: u64, student: Address) -> Result<(), CrowdfundingError> {
         CrowdfundingContract::claim_pool_funds(env, pool_id, student)
+    }
+
+    fn get_pool_liquid_balance(env: Env, pool_id: u64) -> Result<i128, CrowdfundingError> {
+        CrowdfundingContract::get_pool_liquid_balance(env, pool_id)
+    }
+
+    fn withdraw_unallocated(
+        env: Env,
+        pool_id: u64,
+        sponsor: Address,
+        amount: i128,
+    ) -> Result<(), CrowdfundingError> {
+        CrowdfundingContract::withdraw_unallocated(env, pool_id, sponsor, amount)
     }
 }

@@ -49,6 +49,7 @@ fn test_get_pool_contributions_paginated_with_10_contributors() {
         min_contribution: 1000,
         is_private: false,
         token_address: token_client.address.clone(),
+        validator: admin.clone(),
         duration: 30 * 24 * 60 * 60, // 30 days
         created_at: env.ledger().timestamp(),
         validator: creator.clone(),
@@ -128,6 +129,7 @@ fn test_get_pool_contributions_paginated_empty_pool() {
         min_contribution: 1000,
         is_private: false,
         token_address: token_client.address.clone(),
+        validator: admin.clone(),
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
         validator: creator.clone(),
@@ -168,6 +170,7 @@ fn test_get_pool_contributions_paginated_single_contributor_multiple_contributio
         min_contribution: 1000,
         is_private: false,
         token_address: token_client.address.clone(),
+        validator: admin.clone(),
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
         validator: creator.clone(),
