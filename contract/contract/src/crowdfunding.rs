@@ -1037,6 +1037,52 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .unwrap_or(false)
     }
 
+    fn pause_pool(env: Env, pool_id: u64, sponsor: Address) -> Result<(), CrowdfundingError> {
+        // Pool must exist
+        let pool_key = StorageKey::Pool(pool_id);
+        if !env.storage().instance().has(&pool_key) {
+            return Err(CrowdfundingError::PoolNotFound);
+        }
+
+        // Only the pool sponsor (creator) may pause
+        let creator_key = StorageKey::PoolCreator(pool_id);
+        let creator: Address = env
+            .storage()
+            .instance()
+            .get(&creator_key)
+            .ok_or(CrowdfundingError::Unauthorized)?;
+
+        if sponsor != creator {
+            return Err(CrowdfundingError::Unauthorized);
+        }
+        sponsor.require_auth();
+
+        // Pool must currently be Active
+        let state_key = StorageKey::PoolState(pool_id);
+        let current_state: PoolState = env
+            .storage()
+            .instance()
+            .get(&state_key)
+            .unwrap_or(PoolState::Active);
+
+        if current_state == PoolState::Paused {
+            return Err(CrowdfundingError::ContractAlreadyPaused);
+        }
+
+        if current_state == PoolState::Closed || current_state == PoolState::Cancelled {
+            return Err(CrowdfundingError::InvalidPoolState);
+        }
+
+        env.storage().instance().set(&state_key, &PoolState::Paused);
+
+        events::pool_paused(&env, pool_id);
+        events::pool_state_updated(&env, pool_id, PoolState::Paused);
+
+        Ok(())
+    }
+
+    fn unpause_pool(env: Env, pool_id: u64, caller: Address) -> Result<(), CrowdfundingError> {
+        // Verify pool exists
     fn contribute(
         env: Env,
         pool_id: u64,
@@ -1409,6 +1455,83 @@ impl CrowdfundingTrait for CrowdfundingContract {
         release_emergency_lock(&env);
 
         events::emergency_withdraw_executed(&env, admin, request.token, request.amount);
+
+        Ok(())
+    }
+
+    fn claim_pool_funds(env: Env, pool_id: u64, student: Address) -> Result<(), CrowdfundingError> {
+        if Self::is_paused(env.clone()) {
+            return Err(CrowdfundingError::ContractPaused);
+        }
+        student.require_auth();
+
+        // 1. Ensure pool exists
+        let pool_key = StorageKey::Pool(pool_id);
+        let pool: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(CrowdfundingError::PoolNotFound)?;
+
+        // 2. Ensure pool is not already claimed
+        let claimed_key = StorageKey::PoolClaimed(pool_id);
+        if env.storage().instance().has(&claimed_key) {
+            return Err(CrowdfundingError::PoolAlreadyDisbursed);
+        }
+
+        // 3. Check pool state
+        let state_key = StorageKey::PoolState(pool_id);
+        let current_state: PoolState = env
+            .storage()
+            .instance()
+            .get(&state_key)
+            .unwrap_or(PoolState::Active);
+
+        if current_state == PoolState::Closed || current_state == PoolState::Cancelled || current_state == PoolState::Paused {
+            return Err(CrowdfundingError::InvalidPoolState);
+        }
+
+        // 4. Validate student is verified
+        if !Self::is_cause_verified(env.clone(), student.clone()) {
+            return Err(CrowdfundingError::Unauthorized);
+        }
+
+        // 5. Check if student actually applied (has a PoolContribution record)
+        let contribution_key = StorageKey::PoolContribution(pool_id, student.clone());
+        if !env
+            .storage()
+            .instance()
+            .has::<StorageKey>(&contribution_key)
+        {
+            return Err(CrowdfundingError::NoContributionToRefund);
+        }
+
+        // 6. Transfer raised funds
+        let metrics_key = StorageKey::PoolMetrics(pool_id);
+        let metrics: PoolMetrics = env
+            .storage()
+            .instance()
+            .get(&metrics_key)
+            .unwrap_or_default();
+        let amount_to_transfer = metrics.total_raised;
+
+        if amount_to_transfer > 0 {
+            use soroban_sdk::token;
+            let token_client = token::Client::new(&env, &pool.token_address);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &student,
+                &amount_to_transfer,
+            );
+        }
+
+        // 7. Mark as Claimed/Disbursed
+        env.storage().instance().set(&claimed_key, &true);
+        env.storage()
+            .instance()
+            .set(&state_key, &PoolState::Disbursed);
+
+        events::pool_state_updated(&env, pool_id, PoolState::Disbursed);
 
         Ok(())
     }
@@ -2126,6 +2249,53 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         // Save updated application
         env.storage().instance().set(&app_key, &application);
+
+        Ok(())
+    }
+
+    fn revoke_scholarship(
+        env: Env,
+        pool_id: u64,
+        student: Address,
+        validator: Address,
+    ) -> Result<(), CrowdfundingError> {
+        // Pool must exist and validator must match
+        let pool_key = StorageKey::Pool(pool_id);
+        let pool: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(CrowdfundingError::PoolNotFound)?;
+
+        if validator != pool.validator {
+            return Err(CrowdfundingError::Unauthorized);
+        }
+        validator.require_auth();
+
+        // Application must exist and be Approved
+        let application_key = StorageKey::Application(pool_id, student.clone());
+        let mut application: ApplicationDetails = env
+            .storage()
+            .instance()
+            .get(&application_key)
+            .ok_or(CrowdfundingError::ApplicationNotFound)?;
+
+        if application.status != ApplicationStatus::Approved {
+            return Err(CrowdfundingError::ApplicationAlreadyReviewed);
+        }
+
+        // Flip status to Revoked
+        application.status = ApplicationStatus::Revoked;
+        env.storage().instance().set(&application_key, &application);
+
+        // Return the previously allocated amount to the unallocated pool
+        let alloc_key = StorageKey::PoolAllocated(pool_id);
+        let current_alloc: i128 = env.storage().instance().get(&alloc_key).unwrap_or(0);
+        env.storage()
+            .instance()
+            .set(&alloc_key, &current_alloc.saturating_sub(application.requested_amount));
+
+        events::scholarship_revoked(&env, pool_id, student, validator);
 
         Ok(())
     }

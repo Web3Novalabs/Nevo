@@ -135,6 +135,10 @@ pub trait CrowdfundingTrait {
 
     fn is_paused(env: Env) -> bool;
 
+    fn pause_pool(env: Env, pool_id: u64, sponsor: Address) -> Result<(), CrowdfundingError>;
+
+    fn unpause_pool(env: Env, pool_id: u64, caller: Address) -> Result<(), CrowdfundingError>;
+
     fn contribute(
         env: Env,
         pool_id: u64,

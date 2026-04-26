@@ -27,3 +27,5 @@ mod validate_string_length_test;
 mod verify_cause;
 mod withdraw_platform_fees_test;
 mod unpause_pool_test;
+mod pause_pool_test;
+mod revoke_scholarship_test;

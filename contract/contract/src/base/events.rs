@@ -182,6 +182,38 @@ pub fn milestone_unlocked(
     unlocked_by: Address,
     performance_override: bool,
 ) {
+    let topics = (Symbol::new(env, "ticket_sold"), pool_id, buyer);
+    env.events()
+        .publish(topics, (price, event_amount, fee_amount));
+}
+
+pub fn scholarship_applied(env: &Env, pool_id: u64, applicant: Address) {
+    let topics = (Symbol::new(env, "scholarship_applied"), pool_id, applicant);
+    env.events().publish(topics, ());
+}
+
+pub fn scholarship_approved(env: &Env, pool_id: u64, applicant: Address, validator: Address) {
+    let topics = (Symbol::new(env, "scholarship_approved"), pool_id, applicant);
+    env.events().publish(topics, validator);
+}
+
+pub fn scholarship_rejected(env: &Env, pool_id: u64, applicant: Address, validator: Address) {
+    let topics = (Symbol::new(env, "scholarship_rejected"), pool_id, applicant);
+    env.events().publish(topics, validator);
+}
+
+pub fn scholarship_revoked(env: &Env, pool_id: u64, student: Address, validator: Address) {
+    let topics = (Symbol::new(env, "scholarship_revoked"), pool_id, student);
+    env.events().publish(topics, validator);
+}
+pub fn school_registered(env: &Env, school_addr: Address) {
+    let topics = (symbol_short!("SchReg"), school_addr);
+    env.events().publish(topics, ());
+}
+
+pub fn school_revoked(env: &Env, school_addr: Address) {
+    let topics = (symbol_short!("SchRev"), school_addr);
+    env.events().publish(topics, ());
     let topics = (Symbol::new(env, "milestone_unlocked"), pool_id, unlocked_by);
     env.events().publish(topics, (milestone_index, performance_override));
 }

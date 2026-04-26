@@ -45,6 +45,28 @@ pub struct PoolConfig {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum ApplicationStatus {
+    Pending = 0,
+    Approved = 1,
+    Rejected = 2,
+    Revoked = 3,
+}
+
+/// A scholarship application submitted to a pool.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScholarshipApplication {
+    pub pool_id: u64,
+    pub applicant: Address,
+    pub status: ApplicationStatus,
+}
+
+/// Documentation for this item.
+#[allow(missing_docs)]
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+/// Represents a poolmetadata.
 pub struct PoolMetadata {
     pub description: String,
     pub external_url: String,
@@ -223,6 +245,7 @@ pub enum ApplicationStatus {
     Pending = 0,
     Approved = 1,
     Rejected = 2,
+    Revoked = 3,
 }
 
 #[contracttype]
