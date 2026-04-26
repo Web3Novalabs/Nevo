@@ -48,7 +48,9 @@ fn create_pool(client: &CrowdfundingContractClient<'_>, env: &Env, admin: &Addre
         duration: 86_400,
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
-        validator: admin.clone(),
+        validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
     client.create_pool(&creator, &config)
 }

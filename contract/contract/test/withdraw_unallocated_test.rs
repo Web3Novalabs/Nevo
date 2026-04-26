@@ -51,6 +51,8 @@ fn create_funded_pool(
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: sponsor.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     let pool_id = client.create_pool(&sponsor, &config);

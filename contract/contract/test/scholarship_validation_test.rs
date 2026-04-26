@@ -51,6 +51,8 @@ fn create_pool_with_validator(
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
         validator: validator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
     client.create_pool(creator, &config)
 }

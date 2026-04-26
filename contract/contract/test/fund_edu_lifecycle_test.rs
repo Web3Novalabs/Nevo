@@ -75,6 +75,8 @@ fn test_fund_edu_lifecycle() {
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: admin.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     let pool_id = client.create_pool(&sponsor, &config);

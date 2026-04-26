@@ -52,6 +52,9 @@ fn create_pool_with_funds(
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
         validator: admin.clone(),
+            validator: creator.clone(),
+            application_deadline: env.ledger().timestamp(),
+            milestones: soroban_sdk::Vec::new(&env),
     };
     let pool_id = client.create_pool(&creator, &config);
 
@@ -134,6 +137,9 @@ fn test_withdraw_event_pool_no_funds() {
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
         validator: admin.clone(),
+            validator: creator.clone(),
+            application_deadline: env.ledger().timestamp(),
+            milestones: soroban_sdk::Vec::new(&env),
     };
     let pool_id = client.create_pool(&creator, &config);
 

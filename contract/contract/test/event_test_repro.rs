@@ -37,6 +37,9 @@ fn test_event_repro() {
         created_at: 0,
         token_address: token.clone(),
         validator: admin.clone(),
+            validator: creator.clone(),
+            application_deadline: env.ledger().timestamp(),
+            milestones: soroban_sdk::Vec::new(&env),
     };
     client.create_pool(&creator, &config);
 

@@ -52,7 +52,9 @@ fn test_fund_edu_create_pool_success() {
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
-        validator: admin.clone(),
+        validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     let pool_id = client.create_pool(&creator, &config);
@@ -91,7 +93,10 @@ fn test_fund_edu_create_pool_paused_returns_error() {
         is_private: false,
         duration: 86_400,
         created_at: env.ledger().timestamp(),
-        token_address,
+        token_address: token_address.clone(),
+        validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     let result = client.try_create_pool(&creator, &config);

@@ -48,7 +48,9 @@ fn pool_config(env: &Env, admin: &Address, token: &Address, target: i128) -> Poo
         duration: 86_400,
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
-        validator: admin.clone(),
+        validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     }
 }
 

@@ -65,6 +65,8 @@ fn test_create_pool_success() {
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     mint(&env, &token_address, &creator, config.target_amount);
@@ -106,6 +108,8 @@ fn test_create_pool_invalid_token_fails() {
         created_at: env.ledger().timestamp(),
         token_address: wrong_token,
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     let result = client.try_create_pool(&creator, &config);
@@ -131,6 +135,8 @@ fn test_create_pool_panic_description_length() {
         created_at: env.ledger().timestamp(),
         token_address,
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     client.create_pool(&creator, &config);
@@ -154,6 +160,8 @@ fn test_create_pool_invalid_description_length() {
         created_at: env.ledger().timestamp(),
         token_address,
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     let _result = client.try_create_pool(&creator, &config);
@@ -178,6 +186,8 @@ fn test_create_pool_validation_logic() {
         created_at: env.ledger().timestamp(),
         token_address,
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     let result = client.try_create_pool(&creator, &config);
@@ -222,6 +232,8 @@ fn test_create_pool_emits_event_created() {
         created_at,
         token_address: token_address.clone(),
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     mint(&env, &token_address, &creator, target_amount);
@@ -274,6 +286,8 @@ fn test_create_pool_zero_funds_fails() {
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     // Creator has zero balance — no mint
@@ -311,6 +325,8 @@ fn test_create_pool_wrong_token_fails() {
         created_at: env.ledger().timestamp(),
         token_address: wrong_token,
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     let result = client.try_create_pool(&creator, &config);
@@ -348,6 +364,8 @@ fn test_create_pool_unauthorized_fails() {
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     let result = client.try_create_pool(&creator, &config);

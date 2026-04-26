@@ -3784,6 +3784,8 @@ fn test_update_pool_state_validator_authorization() {
         created_at: env.ledger().timestamp(),
         token_address: token_contract.address(),
         validator: validator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     client.register_school(
@@ -3831,6 +3833,8 @@ fn test_update_pool_state_lock_mechanics() {
         created_at: env.ledger().timestamp(),
         token_address: token_contract.address(),
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     client.register_school(
@@ -3888,6 +3892,8 @@ fn test_validator_malicious_modification_prevention() {
         created_at: env.ledger().timestamp(),
         token_address: token_contract.address(),
         validator: validator1.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
     client.register_school(
         &validator1,
@@ -3909,6 +3915,8 @@ fn test_validator_malicious_modification_prevention() {
         created_at: env.ledger().timestamp(),
         token_address: token_contract.address(),
         validator: validator2.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
     client.register_school(
         &validator2,

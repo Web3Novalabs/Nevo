@@ -1,8 +1,11 @@
-use soroban_sdk::{contract, contractimpl, contracterror, Address, Env, String};
+use soroban_sdk::{contract, contractimpl, contracterror, Address, BytesN, Env, String};
 
 use crate::{
-    storage::{get_pool, next_pool_id, set_pool},
+    storage::{get_admin, get_pool, next_pool_id, set_admin, set_pool},
     types::ScholarshipPool,
+    errors::ContractError,
+    storage::{get_application, get_pool, next_pool_id, set_application, set_pool},
+    types::{ApplicationStatus, ScholarshipPool},
 };
 
 /// Errors returned by FundEduContract entry points.
@@ -26,6 +29,10 @@ pub enum FundEduError {
     InvalidFunding = 7,
     /// No pool exists for the given `pool_id`.
     PoolNotFound = 8,
+    /// Caller is not the contract admin.
+    Unauthorized = 9,
+    /// Contract has already been initialized.
+    AlreadyInitialized = 10,
 }
 
 #[contract]
@@ -33,6 +40,29 @@ pub struct FundEduContract;
 
 #[contractimpl]
 impl FundEduContract {
+    /// Initialise the contract and record the admin address.
+    ///
+    /// Must be called once after deployment. Subsequent calls return
+    /// [`FundEduError::AlreadyInitialized`].
+    pub fn initialize(env: Env, admin: Address) -> Result<(), FundEduError> {
+        if get_admin(&env).is_some() {
+            return Err(FundEduError::AlreadyInitialized);
+        }
+        admin.require_auth();
+        set_admin(&env, &admin);
+        Ok(())
+    }
+
+    /// Upgrade the contract WASM to `new_wasm_hash`.
+    ///
+    /// Only the admin recorded at initialisation may call this.
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) -> Result<(), FundEduError> {
+        let admin = get_admin(&env).ok_or(FundEduError::Unauthorized)?;
+        admin.require_auth();
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        Ok(())
+    }
+
     /// Create a new scholarship pool.
     ///
     /// # Arguments
@@ -85,5 +115,47 @@ impl FundEduContract {
     /// Retrieve a scholarship pool by its id. Returns `None` if not found.
     pub fn get_pool(env: Env, pool_id: u64) -> Option<ScholarshipPool> {
         get_pool(&env, pool_id)
+    }
+
+    /// Claim awarded scholarship funds.
+    /// Follows Check-Effects-Interactions (CEI) pattern.
+    pub fn claim_funds(
+        env: Env,
+        pool_id: u64,
+        student: Address,
+        amount: i128,
+    ) -> Result<(), ContractError> {
+        student.require_auth();
+
+        if amount <= 0 {
+            return Err(ContractError::InvalidAmount);
+        }
+
+        // 1. Checks
+        let pool = get_pool(&env, pool_id).ok_or(ContractError::PoolNotFound)?;
+        if !pool.is_active {
+            return Err(ContractError::PoolNotActive);
+        }
+
+        let mut app = get_application(&env, pool_id, student.clone())
+            .ok_or(ContractError::ApplicationNotFound)?;
+
+        if app.status != ApplicationStatus::Approved {
+            return Err(ContractError::NotApproved);
+        }
+
+        if app.amount_claimed + amount > app.total_granted {
+            return Err(ContractError::ExceedsGrant);
+        }
+
+        // 2. Effects (Update state BEFORE interaction)
+        app.amount_claimed += amount;
+        set_application(&env, pool_id, student.clone(), &app);
+
+        // 3. Interactions (External call after state update)
+        let token_client = token::Client::new(&env, &pool.token_address);
+        token_client.transfer(&env.current_contract_address(), &student, &amount);
+
+        Ok(())
     }
 }

@@ -4,6 +4,7 @@ use crate::base::{
     errors::{CrowdfundingError, ValidationError},
     types::{
         CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
+        ApplicationDetails, CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
         PoolState, ScholarshipApplication,
     },
 };
@@ -251,6 +252,10 @@ impl CrowdfundingTrait for FundEduContract {
 
     fn is_paused(env: Env) -> bool {
         CrowdfundingContract::is_paused(env)
+    }
+
+    fn pause_pool(env: Env, pool_id: u64, sponsor: Address) -> Result<(), CrowdfundingError> {
+        CrowdfundingContract::pause_pool(env, pool_id, sponsor)
     }
 
     fn unpause_pool(env: Env, pool_id: u64, caller: Address) -> Result<(), CrowdfundingError> {

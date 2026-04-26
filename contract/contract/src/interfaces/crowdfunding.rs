@@ -1,9 +1,9 @@
 use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 use crate::base::{
-    errors::{CrowdfundingError, ValidationError},
+    errors::CrowdfundingError,
     types::{
-        CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
+        ApplicationDetails, CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
         PoolState, ScholarshipApplication,
     },
 };
@@ -74,13 +74,6 @@ pub trait CrowdfundingTrait {
         new_deadline: u64,
     ) -> Result<(), CrowdfundingError>;
 
-    fn claim_campaign_funds(env: Env, campaign_id: BytesN<32>) -> Result<(), CrowdfundingError>;
-
-    fn batch_claim_campaign_funds(
-        env: Env,
-        campaign_ids: Vec<BytesN<32>>,
-    ) -> Vec<Result<(), CrowdfundingError>>;
-
     fn get_campaign_fee_history(
         env: Env,
         campaign_id: BytesN<32>,
@@ -106,21 +99,11 @@ pub trait CrowdfundingTrait {
 
     fn get_pool(env: Env, pool_id: u64) -> Option<PoolConfig>;
 
-    fn get_pool_balance(env: Env, pool_id: u64) -> Result<i128, CrowdfundingError>;
-
     fn get_pool_metadata(env: Env, pool_id: u64) -> (String, String, String);
-
-    fn update_pool_metadata_hash(
-        env: Env,
-        pool_id: u64,
-        caller: Address,
-        new_hash: String,
-    ) -> Result<(), CrowdfundingError>;
 
     fn update_pool_state(
         env: Env,
         pool_id: u64,
-        caller: Address,
         new_state: PoolState,
     ) -> Result<(), CrowdfundingError>;
 
@@ -151,6 +134,8 @@ pub trait CrowdfundingTrait {
     fn unpause(env: Env) -> Result<(), CrowdfundingError>;
 
     fn is_paused(env: Env) -> bool;
+
+    fn pause_pool(env: Env, pool_id: u64, sponsor: Address) -> Result<(), CrowdfundingError>;
 
     fn unpause_pool(env: Env, pool_id: u64, caller: Address) -> Result<(), CrowdfundingError>;
 
@@ -186,13 +171,9 @@ pub trait CrowdfundingTrait {
 
     fn reject_cause(env: Env, cause: Address) -> Result<(), CrowdfundingError>;
 
-    fn withdraw_platform_fees(env: Env, to: Address, amount: i128)
-        -> Result<(), CrowdfundingError>;
-
-    fn withdraw_event_fees(
+    fn withdraw_platform_fees(
         env: Env,
         admin: Address,
-        to: Address,
         amount: i128,
     ) -> Result<(), CrowdfundingError>;
 
@@ -200,7 +181,23 @@ pub trait CrowdfundingTrait {
 
     fn get_emergency_contact(env: Env) -> Result<Address, CrowdfundingError>;
 
-    fn get_contract_version(env: Env) -> String;
+    fn set_asset_discount(
+        env: Env,
+        asset: Address,
+        discount_bps: u32,
+    ) -> Result<(), CrowdfundingError>;
+
+    fn get_asset_discount(env: Env, asset: Address) -> u32;
+
+    fn set_platform_fee_percentage(env: Env, fee_bps: u32) -> Result<(), CrowdfundingError>;
+
+    fn get_platform_fee_percentage(env: Env) -> u32;
+
+    fn blacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
+
+    fn unblacklist_address(env: Env, address: Address) -> Result<(), CrowdfundingError>;
+
+    fn is_blacklisted(env: Env, address: Address) -> bool;
 
     fn get_pool_contributions_paginated(
         env: Env,
@@ -211,67 +208,43 @@ pub trait CrowdfundingTrait {
 
     fn get_pool_remaining_time(env: Env, pool_id: u64) -> Result<u64, CrowdfundingError>;
 
-    fn set_platform_fee_bps(env: Env, fee_bps: u32) -> Result<(), CrowdfundingError>;
+    fn get_contract_version(env: Env) -> String;
 
-    fn get_platform_fee_bps(env: Env) -> Result<u32, CrowdfundingError>;
-
-    /// Purchase a ticket for a pool, splitting the payment between the event
-    /// pool and the platform fee pool using the current `PlatformFeeBps`.
-    ///
-    /// * `pool_id`  – target pool (must exist and be Active)
-    /// * `buyer`    – address paying for the ticket (requires auth)
-    /// * `asset`    – token used for payment
-    /// * `price`    – total ticket price (must be > 0)
-    fn buy_ticket(
+    // Milestone and Application functions
+    fn unlock_performance_milestone(
         env: Env,
         pool_id: u64,
-        buyer: Address,
-        asset: Address,
-        price: i128,
-    ) -> Result<(i128, i128), CrowdfundingError>;
-
-    fn claim_pool_funds(env: Env, pool_id: u64, student: Address) -> Result<(), CrowdfundingError>;
-
-    fn upgrade_contract(env: Env, new_wasm_hash: BytesN<32>) -> Result<(), CrowdfundingError>;
-
-    /// Returns the liquid (unallocated) balance of a pool:
-    /// `pool_balance - allocated_to_approved_applications`.
-    fn get_pool_liquid_balance(env: Env, pool_id: u64) -> Result<i128, CrowdfundingError>;
-
-    /// Allows the pool sponsor to withdraw only the unallocated portion of pool
-    /// funds, ensuring capital committed to Approved applications is never touched.
-    fn withdraw_unallocated(
-        env: Env,
-        pool_id: u64,
-        sponsor: Address,
-        amount: i128,
+        milestone_index: u32,
+        validator: Address,
     ) -> Result<(), CrowdfundingError>;
 
-    /// Submit a scholarship application for a pool.
-    /// The applicant must sign the transaction.
-    fn apply_for_scholarship(
+    fn get_milestone(
+        env: Env,
+        pool_id: u64,
+        milestone_index: u32,
+    ) -> Result<MilestoneDetails, CrowdfundingError>;
+
+    fn create_milestone(
         env: Env,
         pool_id: u64,
         applicant: Address,
-    ) -> Result<(), ValidationError>;
+    ) -> Result<ScholarshipApplication, ValidationError>;
 
-    /// Approve a pending scholarship application.
-    /// Only the pool's designated validator may call this.
-    /// The validator identity is enforced via `pool.validator.require_auth()`.
-    fn approve_application(env: Env, pool_id: u32, student: Address)
-        -> Result<(), ValidationError>;
+    /// Remove a school (pool) and all associated data.
+    /// Only protocol admins can call this function.
+    /// This permanently removes the pool and all related storage.
+    fn remove_school(env: Env, school_addr: Address) -> Result<(), CrowdfundingError>;
 
-    /// Reject a pending scholarship application.
-    /// Only the pool's designated validator may call this.
-    fn reject_application(
+    /// Get detailed application information including milestones.
+    fn get_application_details(
         env: Env,
         pool_id: u64,
         applicant: Address,
-        validator: Address,
-    ) -> Result<(), ValidationError>;
+    ) -> Result<ApplicationDetails, CrowdfundingError>;
 
-    /// Retrieve a scholarship application.
-    fn get_application(
+    /// Add a milestone to an approved scholarship application.
+    /// Only approved applications can have milestones added.
+    fn add_milestone(
         env: Env,
         pool_id: u64,
         applicant: Address,
@@ -289,4 +262,16 @@ pub trait CrowdfundingTrait {
 
     /// Returns `true` if `validator` is present in the school registry.
     fn is_validator_registered(env: Env, validator: Address) -> bool;
+        unlock_date: u64,
+        amount: i128,
+    ) -> Result<(), CrowdfundingError>;
+
+    /// Unlock a milestone for disbursement.
+    /// The milestone's unlock date must have passed.
+    fn unlock_milestone(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+        milestone_index: u32,
+    ) -> Result<(), CrowdfundingError>;
 }

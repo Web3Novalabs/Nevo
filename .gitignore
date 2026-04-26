@@ -1,0 +1,11 @@
+# Rust build artifacts
+target/
+**/target/
+
+# Local Soroban/Stellar settings
+.soroban/
+.stellar/
+
+# OS generated files
+.DS_Store
+**/ .DS_Store

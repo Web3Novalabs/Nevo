@@ -49,6 +49,9 @@ fn create_test_pool(env: &Env, client: &CrowdfundingContractClient<'_>, creator:
         created_at: 1_000,
         token_address: token_id.clone(),
         validator: admin.clone(),
+            validator: creator.clone(),
+            application_deadline: env.ledger().timestamp(),
+            milestones: soroban_sdk::Vec::new(&env),
     };
 
     StellarAssetClient::new(env, token_id).mint(creator, &config.target_amount);
