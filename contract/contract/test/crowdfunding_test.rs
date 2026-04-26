@@ -3788,6 +3788,12 @@ fn test_update_pool_state_validator_authorization() {
         milestones: soroban_sdk::Vec::new(&env),
     };
 
+    client.register_school(
+        &validator,
+        &String::from_str(&env, "Test University"),
+        &String::from_str(&env, "US"),
+        &String::from_str(&env, "ACC-001"),
+    );
     let pool_id = client.create_pool(&creator, &config);
 
     // Creator should be able to update state
@@ -3831,6 +3837,12 @@ fn test_update_pool_state_lock_mechanics() {
         milestones: soroban_sdk::Vec::new(&env),
     };
 
+    client.register_school(
+        &creator,
+        &String::from_str(&env, "Test University"),
+        &String::from_str(&env, "US"),
+        &String::from_str(&env, "ACC-002"),
+    );
     let pool_id = client.create_pool(&creator, &config);
 
     // Set to Completed
@@ -3883,6 +3895,12 @@ fn test_validator_malicious_modification_prevention() {
         application_deadline: env.ledger().timestamp(),
         milestones: soroban_sdk::Vec::new(&env),
     };
+    client.register_school(
+        &validator1,
+        &String::from_str(&env, "University 1"),
+        &String::from_str(&env, "US"),
+        &String::from_str(&env, "ACC-V1"),
+    );
     let pool_id1 = client.create_pool(&creator1, &config1);
 
     let creator2 = Address::generate(&env);
@@ -3900,6 +3918,12 @@ fn test_validator_malicious_modification_prevention() {
         application_deadline: env.ledger().timestamp(),
         milestones: soroban_sdk::Vec::new(&env),
     };
+    client.register_school(
+        &validator2,
+        &String::from_str(&env, "University 2"),
+        &String::from_str(&env, "US"),
+        &String::from_str(&env, "ACC-V2"),
+    );
     let pool_id2 = client.create_pool(&creator2, &config2);
 
     // validator1 should not be able to modify pool_id2

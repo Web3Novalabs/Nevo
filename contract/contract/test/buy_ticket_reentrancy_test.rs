@@ -19,10 +19,19 @@ fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
         .address();
 
     client.initialize(&admin, &token, &0);
+
+    // Register admin as a default validator for tests
+    client.register_school(
+        &admin,
+        &soroban_sdk::String::from_str(env, "Test University"),
+        &soroban_sdk::String::from_str(env, "US"),
+        &soroban_sdk::String::from_str(env, "ACC-001"),
+    );
+
     (client, admin, token)
 }
 
-fn create_pool(client: &CrowdfundingContractClient<'_>, env: &Env, token: &Address) -> u64 {
+fn create_pool(client: &CrowdfundingContractClient<'_>, env: &Env, admin: &Address, token: &Address) -> u64 {
     let creator = Address::generate(env);
     let config = PoolConfig {
         name: soroban_sdk::String::from_str(env, "Ticket Pool"),
@@ -33,6 +42,7 @@ fn create_pool(client: &CrowdfundingContractClient<'_>, env: &Env, token: &Addre
         duration: 86_400,
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
+        validator: admin.clone(),
             validator: creator.clone(),
             application_deadline: env.ledger().timestamp(),
             milestones: soroban_sdk::Vec::new(&env),
@@ -47,8 +57,8 @@ fn create_pool(client: &CrowdfundingContractClient<'_>, env: &Env, token: &Addre
 #[test]
 fn test_buy_ticket_reentrancy_lock_engaged_and_released() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
-    let pool_id = create_pool(&client, &env, &token);
+    let (client, admin, token) = setup(&env);
+    let pool_id = create_pool(&client, &env, &admin, &token);
 
     // Manually set the reentrancy lock to simulate a concurrent in-flight call
     env.as_contract(&client.address, || {

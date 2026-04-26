@@ -109,6 +109,27 @@ pub enum CrowdfundingError {
     CampaignCancelled = 50,
     DeadlinePassed = 51,
     VectorLimitExceeded = 52,
+    /// Validator address is not registered in the SchoolRegistry.
+    UnrecognizedValidator = 53,
+    /// Application not found.
+    ApplicationNotFound = 54,
+}
+
+/// Errors specific to scholarship application validation.
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum ValidationError {
+    /// Pool not found.
+    PoolNotFound = 1,
+    /// Caller is not authorized.
+    Unauthorized = 2,
+    /// Application already exists for this (pool, applicant) pair.
+    ApplicationAlreadyExists = 3,
+    /// Application not found.
+    ApplicationNotFound = 4,
+    /// Application has already been approved or rejected.
+    ApplicationAlreadyProcessed = 5,
     /// Next pending milestone's unlock_date has not been reached yet.
     MilestoneLocked = 53,
     /// Milestone has already been claimed.

@@ -49,6 +49,14 @@ fn test_fund_edu_lifecycle() {
     // Initialize the CrowdfundingContract
     client.initialize(&admin, &token_address, &0i128);
 
+    // Register admin as validator
+    client.register_school(
+        &admin,
+        &String::from_str(&env, "Test University"),
+        &String::from_str(&env, "US"),
+        &String::from_str(&env, "ACC-001"),
+    );
+
     // Give the sponsor some funds to start
     let deposit_amount = 50_000_000i128; // 50 USDC for example
     token_admin_client.mint(&sponsor, &deposit_amount);

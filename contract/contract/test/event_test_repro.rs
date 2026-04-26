@@ -21,6 +21,12 @@ fn test_event_repro() {
     client.initialize(&admin, &token, &0);
 
     let creator = Address::generate(&env);
+    client.register_school(
+        &admin,
+        &soroban_sdk::String::from_str(&env, "Test University"),
+        &soroban_sdk::String::from_str(&env, "US"),
+        &soroban_sdk::String::from_str(&env, "ACC-001"),
+    );
     let config = PoolConfig {
         name: soroban_sdk::String::from_str(&env, "Event Pool"),
         description: soroban_sdk::String::from_str(&env, "Test event"),
@@ -30,6 +36,7 @@ fn test_event_repro() {
         duration: 86_400,
         created_at: 0,
         token_address: token.clone(),
+        validator: admin.clone(),
             validator: creator.clone(),
             application_deadline: env.ledger().timestamp(),
             milestones: soroban_sdk::Vec::new(&env),

@@ -15,6 +15,8 @@ pub enum FundEduError {
     // Validation errors
     InvalidFunding = 7,  // target_amount must be > 0
     PoolNotFound = 8,
+    /// Validator address is not registered in the SchoolRegistry.
+    UnrecognizedValidator = 9,
 }
 
 #[cfg(test)]
@@ -31,6 +33,7 @@ mod tests {
         assert_eq!(FundEduError::AlreadyRejected as u32, 6);
         assert_eq!(FundEduError::InvalidFunding as u32, 7);
         assert_eq!(FundEduError::PoolNotFound as u32, 8);
+        assert_eq!(FundEduError::UnrecognizedValidator as u32, 9);
     }
 
     #[test]
@@ -44,6 +47,7 @@ mod tests {
             FundEduError::AlreadyRejected,
             FundEduError::InvalidFunding,
             FundEduError::PoolNotFound,
+            FundEduError::UnrecognizedValidator,
         ];
         for i in 0..variants.len() {
             for j in (i + 1)..variants.len() {
@@ -61,5 +65,6 @@ mod tests {
         assert!(FundEduError::NotPending < FundEduError::AlreadyRejected);
         assert!(FundEduError::AlreadyRejected < FundEduError::InvalidFunding);
         assert!(FundEduError::InvalidFunding < FundEduError::PoolNotFound);
+        assert!(FundEduError::PoolNotFound < FundEduError::UnrecognizedValidator);
     }
 }

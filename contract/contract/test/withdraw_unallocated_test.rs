@@ -34,6 +34,13 @@ fn create_funded_pool(
     let token_admin_client = token::StellarAssetClient::new(env, token_address);
     token_admin_client.mint(&sponsor, &target);
 
+    client.register_school(
+        &sponsor,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-SPONSOR"),
+    );
+
     let config = PoolConfig {
         name: String::from_str(env, "Scholarship Pool"),
         description: String::from_str(env, "Test pool"),

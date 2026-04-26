@@ -101,6 +101,28 @@ pub struct PoolMetadata {
     pub image_hash: String,
 }
 
+/// The const MAX DESCRIPTION LENGTH.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PoolDetails {
+    pub config: PoolConfig,
+    pub state: PoolState,
+    pub metrics: PoolMetrics,
+    pub metadata: PoolMetadata,
+}
+
+/// Verification metadata for a registered school/university validator.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SchoolRegistry {
+    /// Human-readable name of the institution.
+    pub name: String,
+    /// Country or jurisdiction of the institution.
+    pub country: String,
+    /// Arbitrary verification reference (e.g. accreditation ID).
+    pub accreditation_id: String,
+}
+
 pub const MAX_DESCRIPTION_LENGTH: u32 = 500;
 pub const MAX_URL_LENGTH: u32 = 200;
 pub const MAX_HASH_LENGTH: u32 = 100;
@@ -358,6 +380,8 @@ pub enum StorageKey {
     PoolBalance(u64),
     // Sum of requested_amount for all Approved applications on a pool
     PoolAllocated(u64),
+    /// Maps a validator/school address to its registry entry.
+    SchoolRegistry(Address),
     // Ordered milestone payouts for a pool
     PoolMilestones(u64),
     
@@ -564,6 +588,7 @@ mod tests {
         let env = Env::default();
         let creator = Address::generate(&env);
         let token = Address::generate(&env);
+        let validator = Address::generate(&env);
         let config = PoolConfig {
             name: String::from_str(&env, "Test Pool"),
             description: String::from_str(&env, "A test scholarship pool"),
@@ -574,6 +599,7 @@ mod tests {
             created_at: 1234567890,
             application_deadline: 1234567890,
             token_address: token.clone(),
+            validator,
             validator: creator.clone(),
             milestones: soroban_sdk::Vec::new(&env),
         };

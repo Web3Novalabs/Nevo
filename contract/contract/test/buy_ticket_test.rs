@@ -25,10 +25,19 @@ fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
         .address();
 
     client.initialize(&admin, &token, &0);
+
+    // Register admin as a default validator for tests
+    client.register_school(
+        &admin,
+        &soroban_sdk::String::from_str(env, "Test University"),
+        &soroban_sdk::String::from_str(env, "US"),
+        &soroban_sdk::String::from_str(env, "ACC-001"),
+    );
+
     (client, admin, token)
 }
 
-fn create_pool(client: &CrowdfundingContractClient<'_>, env: &Env, token: &Address) -> u64 {
+fn create_pool(client: &CrowdfundingContractClient<'_>, env: &Env, admin: &Address, token: &Address) -> u64 {
     let creator = Address::generate(env);
     let config = PoolConfig {
         name: soroban_sdk::String::from_str(env, "Event Pool"),
@@ -71,8 +80,8 @@ fn read_i128_storage(env: &Env, client: &CrowdfundingContractClient<'_>, key: &S
 #[test]
 fn test_buy_ticket_full_success() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
-    let pool_id = create_pool(&client, &env, &token);
+    let (client, admin, token) = setup(&env);
+    let pool_id = create_pool(&client, &env, &admin, &token);
 
     // 1. Configure platform fee (5% = 500 bps)
     client.set_platform_fee_bps(&500);
@@ -170,8 +179,8 @@ fn test_buy_ticket_full_success() {
 #[test]
 fn test_buy_ticket_zero_fee_bps_full_amount_to_event_pool() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
-    let pool_id = create_pool(&client, &env, &token);
+    let (client, admin, token) = setup(&env);
+    let pool_id = create_pool(&client, &env, &admin, &token);
 
     // fee_bps = 0 (default) → all goes to event pool
     let price = 10_000i128;
@@ -197,8 +206,8 @@ fn test_buy_ticket_zero_fee_bps_full_amount_to_event_pool() {
 #[test]
 fn test_buy_ticket_250_bps_split() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
-    let pool_id = create_pool(&client, &env, &token);
+    let (client, admin, token) = setup(&env);
+    let pool_id = create_pool(&client, &env, &admin, &token);
 
     client.set_platform_fee_bps(&250); // 2.5%
 

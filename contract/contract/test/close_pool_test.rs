@@ -22,6 +22,14 @@ fn setup_test(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
 
     client.initialize(&admin, &token_address, &0);
 
+    // Register admin as a default validator for tests
+    client.register_school(
+        &admin,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-001"),
+    );
+
     (client, admin, token_address)
 }
 
@@ -31,6 +39,14 @@ fn create_test_pool(
     creator: &Address,
     token_address: &Address,
 ) -> u64 {
+    // Use the admin as validator (registered in setup_test)
+    // We need to get the admin from the client — instead, register creator too
+    client.register_school(
+        creator,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-CREATOR"),
+    );
     let config = PoolConfig {
         name: String::from_str(env, "Test Pool"),
         description: String::from_str(env, "A test pool for closing"),

@@ -26,6 +26,14 @@ fn setup_test(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
 
     client.initialize(&admin, &token_id, &0);
 
+    // Register admin as a default validator for tests
+    client.register_school(
+        &admin,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-001"),
+    );
+
     (client, admin, token_id)
 }
 

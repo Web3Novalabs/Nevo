@@ -34,6 +34,13 @@ fn create_pool_with_validator(
     validator: &Address,
     token: &Address,
 ) -> u64 {
+    // Register the validator in the school registry before creating the pool
+    client.register_school(
+        validator,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-001"),
+    );
     let config = PoolConfig {
         name: String::from_str(env, "Scholarship Pool"),
         description: String::from_str(env, "A pool for scholarship applications"),

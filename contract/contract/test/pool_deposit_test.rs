@@ -26,10 +26,19 @@ fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
         .address();
 
     client.initialize(&admin, &token, &0);
+
+    // Register admin as a default validator for tests
+    client.register_school(
+        &admin,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-001"),
+    );
+
     (client, admin, token)
 }
 
-fn pool_config(env: &Env, token: &Address, target: i128) -> PoolConfig {
+fn pool_config(env: &Env, admin: &Address, token: &Address, target: i128) -> PoolConfig {
     PoolConfig {
         name: String::from_str(env, "Scholarship Pool"),
         description: String::from_str(env, "Sponsor deposit test"),
@@ -58,7 +67,7 @@ fn mint(env: &Env, token: &Address, to: &Address, amount: i128) {
 #[test]
 fn test_create_pool_transfers_tokens_to_contract() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let sponsor = Address::generate(&env);
     let target = 50_000i128;
 
@@ -69,7 +78,7 @@ fn test_create_pool_transfers_tokens_to_contract() {
     let balance_before = token_client.balance(&sponsor);
     assert_eq!(balance_before, target);
 
-    let pool_id = client.create_pool(&sponsor, &pool_config(&env, &token, target));
+    let pool_id = client.create_pool(&sponsor, &pool_config(&env, &admin, &token, target));
 
     // Sponsor's wallet must be drained by exactly target_amount
     assert_eq!(token_client.balance(&sponsor), 0);
@@ -86,13 +95,13 @@ fn test_create_pool_transfers_tokens_to_contract() {
 #[test]
 fn test_create_pool_pool_balance_equals_target_amount() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let sponsor = Address::generate(&env);
     let target = 10_000i128;
 
     mint(&env, &token, &sponsor, target * 2); // give extra so we can check exact amount
 
-    let pool_id = client.create_pool(&sponsor, &pool_config(&env, &token, target));
+    let pool_id = client.create_pool(&sponsor, &pool_config(&env, &admin, &token, target));
 
     assert_eq!(
         client.get_pool_balance(&pool_id).unwrap(),
@@ -104,13 +113,13 @@ fn test_create_pool_pool_balance_equals_target_amount() {
 #[test]
 fn test_create_pool_metrics_total_raised_equals_deposit() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let sponsor = Address::generate(&env);
     let target = 25_000i128;
 
     mint(&env, &token, &sponsor, target);
 
-    let pool_id = client.create_pool(&sponsor, &pool_config(&env, &token, target));
+    let pool_id = client.create_pool(&sponsor, &pool_config(&env, &admin, &token, target));
 
     // PoolMetrics.total_raised must reflect the sponsor deposit
     let pool = client.get_pool(&pool_id).unwrap();
@@ -122,14 +131,14 @@ fn test_create_pool_metrics_total_raised_equals_deposit() {
 #[test]
 fn test_create_pool_reverts_when_sponsor_has_insufficient_balance() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let sponsor = Address::generate(&env);
     let target = 100_000i128;
 
     // Mint less than target
     mint(&env, &token, &sponsor, target - 1);
 
-    let result = client.try_create_pool(&sponsor, &pool_config(&env, &token, target));
+    let result = client.try_create_pool(&sponsor, &pool_config(&env, &admin, &token, target));
     assert_eq!(
         result,
         Err(Ok(CrowdfundingError::InsufficientSponsorBalance)),
@@ -140,11 +149,11 @@ fn test_create_pool_reverts_when_sponsor_has_insufficient_balance() {
 #[test]
 fn test_create_pool_reverts_when_sponsor_has_zero_balance() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let sponsor = Address::generate(&env);
 
     // No mint — sponsor has 0 tokens
-    let result = client.try_create_pool(&sponsor, &pool_config(&env, &token, 5_000));
+    let result = client.try_create_pool(&sponsor, &pool_config(&env, &admin, &token, 5_000));
     assert_eq!(
         result,
         Err(Ok(CrowdfundingError::InsufficientSponsorBalance)),
@@ -168,7 +177,7 @@ fn test_get_pool_balance_returns_not_found_for_unknown_pool() {
 #[test]
 fn test_multiple_pools_track_balances_independently() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
 
     let sponsor1 = Address::generate(&env);
     let sponsor2 = Address::generate(&env);

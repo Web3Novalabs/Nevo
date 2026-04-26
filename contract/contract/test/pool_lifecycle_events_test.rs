@@ -23,10 +23,19 @@ fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
         .address();
 
     client.initialize(&admin, &token, &0);
+
+    // Register admin as a default validator for tests
+    client.register_school(
+        &admin,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-001"),
+    );
+
     (client, admin, token)
 }
 
-fn make_pool_config(env: &Env, token: &Address) -> PoolConfig {
+fn make_pool_config(env: &Env, admin: &Address, token: &Address) -> PoolConfig {
     PoolConfig {
         name: String::from_str(env, "Lifecycle Pool"),
         description: String::from_str(env, "Testing pool lifecycle events"),
@@ -45,10 +54,11 @@ fn make_pool_config(env: &Env, token: &Address) -> PoolConfig {
 fn mint_and_create(
     env: &Env,
     client: &CrowdfundingContractClient<'_>,
+    admin: &Address,
     token: &Address,
     creator: &Address,
 ) -> u64 {
-    let cfg = make_pool_config(env, token);
+    let cfg = make_pool_config(env, admin, token);
     StellarAssetClient::new(env, token).mint(creator, &cfg.target_amount);
     client.create_pool(creator, &cfg)
 }
@@ -60,10 +70,10 @@ fn mint_and_create(
 #[test]
 fn test_pool_cre_event_emitted_on_create_pool() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let creator = Address::generate(&env);
 
-    mint_and_create(&env, &client, &token, &creator);
+    mint_and_create(&env, &client, &admin, &token, &creator);
 
     let pool_cre = symbol_short!("PoolCre");
     let found = env.events().all().iter().any(|(_, topics, _)| {
@@ -79,10 +89,10 @@ fn test_pool_cre_event_emitted_on_create_pool() {
 #[test]
 fn test_pool_cre_event_contains_pool_id_and_creator() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let creator = Address::generate(&env);
 
-    let pool_id = mint_and_create(&env, &client, &token, &creator);
+    let pool_id = mint_and_create(&env, &client, &admin, &token, &creator);
 
     let pool_cre = symbol_short!("PoolCre");
     let found = env.events().all().iter().any(|(_, topics, _)| {
@@ -112,10 +122,10 @@ fn test_pool_cre_event_contains_pool_id_and_creator() {
 #[test]
 fn test_pool_upd_event_emitted_on_metadata_update() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let creator = Address::generate(&env);
 
-    let pool_id = mint_and_create(&env, &client, &token, &creator);
+    let pool_id = mint_and_create(&env, &client, &admin, &token, &creator);
     let new_hash = String::from_str(&env, "QmTestHash42");
 
     client.update_pool_metadata_hash(&pool_id, &creator, &new_hash);
@@ -137,10 +147,10 @@ fn test_pool_upd_event_emitted_on_metadata_update() {
 #[test]
 fn test_pool_upd_event_payload_contains_new_hash() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let creator = Address::generate(&env);
 
-    let pool_id = mint_and_create(&env, &client, &token, &creator);
+    let pool_id = mint_and_create(&env, &client, &admin, &token, &creator);
     let new_hash = String::from_str(&env, "QmPayloadHash99");
 
     client.update_pool_metadata_hash(&pool_id, &creator, &new_hash);
@@ -171,10 +181,10 @@ fn test_pool_upd_event_payload_contains_new_hash() {
 #[test]
 fn test_pool_pau_event_emitted_when_pool_paused() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let creator = Address::generate(&env);
 
-    let pool_id = mint_and_create(&env, &client, &token, &creator);
+    let pool_id = mint_and_create(&env, &client, &admin, &token, &creator);
     client.update_pool_state(&pool_id, &admin, &PoolState::Paused);
 
     let pool_pau = symbol_short!("PoolPau");
@@ -194,10 +204,10 @@ fn test_pool_pau_event_emitted_when_pool_paused() {
 #[test]
 fn test_pool_pau_not_emitted_for_non_pause_transitions() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let creator = Address::generate(&env);
 
-    let pool_id = mint_and_create(&env, &client, &token, &creator);
+    let pool_id = mint_and_create(&env, &client, &admin, &token, &creator);
     client.update_pool_state(&pool_id, &admin, &PoolState::Completed);
 
     let pool_pau = symbol_short!("PoolPau");
@@ -217,10 +227,10 @@ fn test_pool_pau_not_emitted_for_non_pause_transitions() {
 #[test]
 fn test_pool_pau_topic_contains_pool_id() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let creator = Address::generate(&env);
 
-    let pool_id = mint_and_create(&env, &client, &token, &creator);
+    let pool_id = mint_and_create(&env, &client, &admin, &token, &creator);
     client.update_pool_state(&pool_id, &admin, &PoolState::Paused);
 
     let pool_pau = symbol_short!("PoolPau");
@@ -246,10 +256,10 @@ fn test_pool_pau_topic_contains_pool_id() {
 #[test]
 fn test_pool_state_updated_event_reflects_accurate_state() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
     let creator = Address::generate(&env);
 
-    let pool_id = mint_and_create(&env, &client, &token, &creator);
+    let pool_id = mint_and_create(&env, &client, &admin, &token, &creator);
     client.update_pool_state(&pool_id, &admin, &PoolState::Paused);
 
     let state_updated = Symbol::new(&env, "pool_state_updated");

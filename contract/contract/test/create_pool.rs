@@ -26,6 +26,15 @@ fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
         .address();
 
     client.initialize(&admin, &token_address, &0);
+
+    // Register admin as a default validator for tests
+    client.register_school(
+        &admin,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-001"),
+    );
+
     (client, admin, token_address)
 }
 
@@ -37,9 +46,15 @@ fn mint(env: &Env, token: &Address, to: &Address, amount: i128) {
 #[test]
 fn test_create_pool_success() {
     let env = Env::default();
-    let (client, _, token_address) = setup(&env);
+    let (client, admin, token_address) = setup(&env);
 
     let creator = Address::generate(&env);
+    client.register_school(
+        &creator,
+        &String::from_str(&env, "Test University"),
+        &String::from_str(&env, "US"),
+        &String::from_str(&env, "ACC-CREATOR"),
+    );
     let config = PoolConfig {
         name: String::from_str(&env, "Community Garden"),
         description: String::from_str(&env, "A garden for the neighborhood"),
@@ -69,9 +84,15 @@ fn test_create_pool_success() {
 #[test]
 fn test_create_pool_invalid_token_fails() {
     let env = Env::default();
-    let (client, _, _) = setup(&env);
+    let (client, admin, _) = setup(&env);
 
     let creator = Address::generate(&env);
+    client.register_school(
+        &creator,
+        &String::from_str(&env, "Test University"),
+        &String::from_str(&env, "US"),
+        &String::from_str(&env, "ACC-CREATOR"),
+    );
     let wrong_token_admin = Address::generate(&env);
     let wrong_token = env
         .register_stellar_asset_contract_v2(wrong_token_admin)
@@ -195,6 +216,12 @@ fn test_create_pool_emits_event_created() {
     let duration = 30 * 24 * 60 * 60u64;
     let created_at = env.ledger().timestamp();
 
+    client.register_school(
+        &creator,
+        &String::from_str(&env, "Test University"),
+        &String::from_str(&env, "US"),
+        &String::from_str(&env, "ACC-CREATOR"),
+    );
     let config = PoolConfig {
         name: name.clone(),
         description: description.clone(),
@@ -240,9 +267,15 @@ fn test_create_pool_emits_event_created() {
 #[test]
 fn test_create_pool_zero_funds_fails() {
     let env = Env::default();
-    let (client, _, token_address) = setup(&env);
+    let (client, admin, token_address) = setup(&env);
 
     let creator = Address::generate(&env);
+    client.register_school(
+        &creator,
+        &String::from_str(&env, "Test University"),
+        &String::from_str(&env, "US"),
+        &String::from_str(&env, "ACC-CREATOR"),
+    );
     let config = PoolConfig {
         name: String::from_str(&env, "Zero Fund Pool"),
         description: String::from_str(&env, "Pool with no funds"),
@@ -268,9 +301,15 @@ fn test_create_pool_zero_funds_fails() {
 #[test]
 fn test_create_pool_wrong_token_fails() {
     let env = Env::default();
-    let (client, _, _) = setup(&env);
+    let (client, admin, _) = setup(&env);
 
     let creator = Address::generate(&env);
+    client.register_school(
+        &creator,
+        &String::from_str(&env, "Test University"),
+        &String::from_str(&env, "US"),
+        &String::from_str(&env, "ACC-CREATOR"),
+    );
     let wrong_token_admin = Address::generate(&env);
     let wrong_token = env
         .register_stellar_asset_contract_v2(wrong_token_admin)

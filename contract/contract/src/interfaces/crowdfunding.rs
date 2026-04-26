@@ -248,6 +248,20 @@ pub trait CrowdfundingTrait {
         env: Env,
         pool_id: u64,
         applicant: Address,
+    ) -> Result<ScholarshipApplication, ValidationError>;
+
+    /// Register a school/university address in the validator registry.
+    /// Only the contract admin may call this.
+    fn register_school(
+        env: Env,
+        school: Address,
+        name: String,
+        country: String,
+        accreditation_id: String,
+    ) -> Result<(), CrowdfundingError>;
+
+    /// Returns `true` if `validator` is present in the school registry.
+    fn is_validator_registered(env: Env, validator: Address) -> bool;
         unlock_date: u64,
         amount: i128,
     ) -> Result<(), CrowdfundingError>;

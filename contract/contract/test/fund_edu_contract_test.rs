@@ -18,6 +18,15 @@ fn setup(env: &Env) -> (FundEduContractClient<'_>, Address, Address) {
         .address();
 
     client.initialize(&admin, &token_address, &0);
+
+    // Register admin as a default validator for tests
+    client.register_school(
+        &admin,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-001"),
+    );
+
     (client, admin, token_address)
 }
 
@@ -31,7 +40,7 @@ fn test_fund_edu_initialize_and_is_paused() {
 #[test]
 fn test_fund_edu_create_pool_success() {
     let env = Env::default();
-    let (client, _, token_address) = setup(&env);
+    let (client, admin, token_address) = setup(&env);
 
     let creator = Address::generate(&env);
     let config = PoolConfig {

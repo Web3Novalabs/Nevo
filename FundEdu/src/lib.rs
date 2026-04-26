@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod errors;
+pub mod registry_interface;
 pub mod types;
 
 use errors::FundEduError;

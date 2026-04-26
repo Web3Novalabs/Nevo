@@ -31,6 +31,12 @@ fn create_private_pool(
     creator: &Address,
     token_address: &Address,
 ) -> u64 {
+    client.register_school(
+        creator,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-PRIV"),
+    );
     let config = PoolConfig {
         name: String::from_str(env, "Private Pool"),
         description: String::from_str(env, "A private pool for testing"),
@@ -53,6 +59,12 @@ fn create_public_pool(
     creator: &Address,
     token_address: &Address,
 ) -> u64 {
+    client.register_school(
+        creator,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-PUB"),
+    );
     let config = PoolConfig {
         name: String::from_str(env, "Public Pool"),
         description: String::from_str(env, "A public pool for testing"),
@@ -144,7 +156,7 @@ fn test_admin_can_close_private_pool() {
 #[test]
 fn test_owner_can_close_paused_private_pool() {
     let env = Env::default();
-    let (client, _admin, token_address) = setup_test(&env);
+    let (client, admin, token_address) = setup_test(&env);
 
     let owner = Address::generate(&env);
     let pool_id = create_private_pool(&client, &env, &owner, &token_address);
@@ -159,7 +171,7 @@ fn test_owner_can_close_paused_private_pool() {
 #[test]
 fn test_owner_cannot_close_completed_private_pool() {
     let env = Env::default();
-    let (client, _admin, token_address) = setup_test(&env);
+    let (client, admin, token_address) = setup_test(&env);
 
     let owner = Address::generate(&env);
     let pool_id = create_private_pool(&client, &env, &owner, &token_address);
@@ -250,7 +262,7 @@ fn test_admin_can_close_after_disbursement() {
 #[test]
 fn test_owner_can_close_after_cancellation() {
     let env = Env::default();
-    let (client, _admin, token_address) = setup_test(&env);
+    let (client, admin, token_address) = setup_test(&env);
 
     let owner = Address::generate(&env);
     let pool_id = create_private_pool(&client, &env, &owner, &token_address);

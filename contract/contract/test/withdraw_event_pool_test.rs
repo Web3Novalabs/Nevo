@@ -22,12 +22,22 @@ fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
         .address();
 
     client.initialize(&admin, &token, &0);
+
+    // Register admin as a default validator for tests
+    client.register_school(
+        &admin,
+        &soroban_sdk::String::from_str(env, "Test University"),
+        &soroban_sdk::String::from_str(env, "US"),
+        &soroban_sdk::String::from_str(env, "ACC-001"),
+    );
+
     (client, admin, token)
 }
 
 fn create_pool_with_funds(
     env: &Env,
     client: &CrowdfundingContractClient<'_>,
+    admin: &Address,
     token: &Address,
     amount: i128,
 ) -> u64 {
@@ -41,6 +51,7 @@ fn create_pool_with_funds(
         duration: 86_400,
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
+        validator: admin.clone(),
             validator: creator.clone(),
             application_deadline: env.ledger().timestamp(),
             milestones: soroban_sdk::Vec::new(&env),
@@ -63,8 +74,8 @@ fn create_pool_with_funds(
 #[test]
 fn test_withdraw_event_pool_success() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
-    let pool_id = create_pool_with_funds(&env, &client, &token, 1_000);
+    let (client, admin, token) = setup(&env);
+    let pool_id = create_pool_with_funds(&env, &client, &admin, &token, 1_000);
 
     let recipient = Address::generate(&env);
     let token_client = token::Client::new(&env, &token);
@@ -79,8 +90,8 @@ fn test_withdraw_event_pool_success() {
 #[test]
 fn test_withdraw_event_pool_double_withdrawal_prevented() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
-    let pool_id = create_pool_with_funds(&env, &client, &token, 1_000);
+    let (client, admin, token) = setup(&env);
+    let pool_id = create_pool_with_funds(&env, &client, &admin, &token, 1_000);
 
     let recipient = Address::generate(&env);
 
@@ -113,7 +124,7 @@ fn test_withdraw_event_pool_not_found() {
 #[test]
 fn test_withdraw_event_pool_no_funds() {
     let env = Env::default();
-    let (client, _, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
 
     let creator = Address::generate(&env);
     let config = PoolConfig {
@@ -125,6 +136,7 @@ fn test_withdraw_event_pool_no_funds() {
         duration: 86_400,
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
+        validator: admin.clone(),
             validator: creator.clone(),
             application_deadline: env.ledger().timestamp(),
             milestones: soroban_sdk::Vec::new(&env),

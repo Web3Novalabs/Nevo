@@ -32,6 +32,14 @@ fn test_create_pool_with_deposit() {
     let creation_fee = 100i128;
     client.initialize(&admin, &token_address, &creation_fee);
 
+    // Register admin as validator
+    client.register_school(
+        &admin,
+        &String::from_str(&env, "Test University"),
+        &String::from_str(&env, "US"),
+        &String::from_str(&env, "ACC-001"),
+    );
+
     // Setup creator and give them tokens
     let creator = Address::generate(&env);
     let initial_balance = 1000i128;
@@ -50,6 +58,7 @@ fn test_create_pool_with_deposit() {
         duration: 86400, // 1 day
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
+        validator: admin.clone(),
         validator: creator.clone(),
         application_deadline: env.ledger().timestamp(),
         milestones: soroban_sdk::Vec::new(&env),

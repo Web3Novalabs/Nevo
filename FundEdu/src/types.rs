@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address};
+use soroban_sdk::{contracttype, Address, String};
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -26,9 +26,23 @@ pub struct Application {
     pub milestone_index: u32,
 }
 
+/// Verification metadata for a registered school/university.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SchoolRegistry {
+    /// Human-readable name of the institution.
+    pub name: String,
+    /// Country or jurisdiction of the institution.
+    pub country: String,
+    /// Arbitrary verification reference (e.g. accreditation ID).
+    pub accreditation_id: String,
+}
+
 #[contracttype]
 pub enum DataKey {
     Pool(u64),
     Application(u64, Address),
     NextPoolId,
+    /// Maps a school/validator address to its registry entry.
+    SchoolRegistry(Address),
 }

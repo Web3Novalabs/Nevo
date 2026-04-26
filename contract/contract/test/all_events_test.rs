@@ -23,11 +23,20 @@ fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
         .address();
 
     client.initialize(&admin, &token, &0);
+
+    // Register admin as a default validator for tests
+    client.register_school(
+        &admin,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-001"),
+    );
+
     (client, admin, token)
 }
 
 /// Build a minimal valid PoolConfig using the contract's registered token.
-fn pool_config(env: &Env, token: &Address) -> PoolConfig {
+fn pool_config(env: &Env, admin: &Address, token: &Address) -> PoolConfig {
     PoolConfig {
         name: String::from_str(env, "Test Pool"),
         description: String::from_str(env, "A test pool"),
@@ -37,6 +46,7 @@ fn pool_config(env: &Env, token: &Address) -> PoolConfig {
         duration: 86_400,
         created_at: env.ledger().timestamp(),
         token_address: token.clone(),
+        validator: admin.clone(),
             validator: creator.clone(),
             application_deadline: env.ledger().timestamp(),
             milestones: soroban_sdk::Vec::new(&env),
@@ -47,11 +57,12 @@ fn pool_config(env: &Env, token: &Address) -> PoolConfig {
 fn mint_and_create(
     env: &Env,
     client: &CrowdfundingContractClient<'_>,
+    admin: &Address,
     token: &Address,
     creator: &Address,
 ) -> u64 {
     use soroban_sdk::token::StellarAssetClient;
-    let cfg = pool_config(env, token);
+    let cfg = pool_config(env, admin, token);
     StellarAssetClient::new(env, token).mint(creator, &cfg.target_amount);
     client.create_pool(creator, &cfg)
 }
@@ -94,10 +105,10 @@ fn test_initial_events_list_is_empty() {
 #[test]
 fn test_counter_increments_by_one_per_event() {
     let env = Env::default();
-    let (client, creator, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
 
     let before = client.get_all_events_count();
-    mint_and_create(&env, &client, &token, &creator);
+    mint_and_create(&env, &client, &admin, &token, &admin);
     let after = client.get_all_events_count();
 
     assert_eq!(
@@ -110,9 +121,9 @@ fn test_counter_increments_by_one_per_event() {
 #[test]
 fn test_list_size_matches_counter() {
     let env = Env::default();
-    let (client, creator, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
 
-    mint_and_create(&env, &client, &token, &creator);
+    mint_and_create(&env, &client, &admin, &token, &admin);
 
     let count = client.get_all_events_count();
     let list_len = client.get_all_events().len() as u64;
@@ -157,7 +168,7 @@ fn test_event_record_fields_are_correct() {
 #[test]
 fn test_counter_does_not_reset_across_multiple_events() {
     let env = Env::default();
-    let (client, creator, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
 
     client.pause();
     assert_eq!(client.get_all_events_count(), 1);
@@ -165,22 +176,22 @@ fn test_counter_does_not_reset_across_multiple_events() {
     client.unpause();
     assert_eq!(client.get_all_events_count(), 2);
 
-    mint_and_create(&env, &client, &token, &creator);
+    mint_and_create(&env, &client, &admin, &token, &admin);
     assert_eq!(client.get_all_events_count(), 4);
 
-    mint_and_create(&env, &client, &token, &creator);
+    mint_and_create(&env, &client, &admin, &token, &admin);
     assert_eq!(client.get_all_events_count(), 6);
 }
 
 #[test]
 fn test_list_grows_monotonically() {
     let env = Env::default();
-    let (client, creator, token) = setup(&env);
+    let (client, admin, token) = setup(&env);
 
     let mut prev_len = client.get_all_events().len();
 
     for _ in 0..3 {
-        mint_and_create(&env, &client, &token, &creator);
+        mint_and_create(&env, &client, &admin, &token, &admin);
         let new_len = client.get_all_events().len();
         assert!(
             new_len > prev_len,

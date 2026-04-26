@@ -33,6 +33,13 @@ fn create_pool(
     let token_admin_client = token::StellarAssetClient::new(env, token_address);
     token_admin_client.mint(&creator, &10_000i128);
 
+    client.register_school(
+        &creator,
+        &String::from_str(env, "Test University"),
+        &String::from_str(env, "US"),
+        &String::from_str(env, "ACC-CREATOR"),
+    );
+
     let config = PoolConfig {
         name: String::from_str(env, "Test Pool"),
         description: String::from_str(env, "A pool for testing"),

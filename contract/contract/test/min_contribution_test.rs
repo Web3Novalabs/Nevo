@@ -23,6 +23,12 @@ fn test_contribute_below_minimum_fails() {
     client.initialize(&admin, &token_address, &0);
 
     let creator = Address::generate(&env);
+    client.register_school(
+        &creator,
+        &String::from_str(&env, "Test University"),
+        &String::from_str(&env, "US"),
+        &String::from_str(&env, "ACC-001"),
+    );
     let config = PoolConfig {
         name: String::from_str(&env, "Min Pool"),
         description: String::from_str(&env, "Pool with min"),

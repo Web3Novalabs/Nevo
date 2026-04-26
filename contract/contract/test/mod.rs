@@ -1,32 +1,42 @@
 // mod blacklist_test; // Features not yet implemented
+mod application_test;
 mod asset_discount_test;
 mod batch_claim_test;
 mod buy_ticket_test;
+mod buy_ticket_reentrancy_test;
 mod close_pool_test;
 mod close_private_pool_test;
 mod create_event_test;
 mod create_pool;
 mod crowdfunding_test;
+mod event_test_repro;
 mod fund_edu_contract_test;
 mod fund_edu_lifecycle_test;
 mod get_pool_contributions_paginated_test;
+mod min_contribution_test;
 mod milestone_claim_test;
 mod milestone_unlock_test;
 mod platform_fee_test;
 mod pool_deposit_test;
 mod pool_lifecycle_events_test;
 mod pool_remaining_time_test;
+mod reentrancy_tests;
+mod registry_test;
 mod renounce_admin_test;
 mod scholarship_validation_test;
 mod school_registry_events_test;
 mod set_platform_fee_bps_test;
-// mod update_pool_metadata_test; // Features not yet implemented
 mod test;
+mod unpause_pool_test;
+// mod update_pool_metadata_test; // Features not yet implemented
 // mod upgrade_contract_test; // broken on missing hello_world.wasm
-mod application_test;
 mod validate_string_length_test;
 mod verify_cause;
 mod withdraw_platform_fees_test;
+mod withdraw_unallocated_test;
+mod withdraw_event_pool_test;
+mod all_events_test;
+mod update_pool_metadata_test;
 mod application_test;
 mod temporal_test;
 mod unpause_pool_test;
