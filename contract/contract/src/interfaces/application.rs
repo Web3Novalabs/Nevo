@@ -55,4 +55,16 @@ pub trait ApplicationTrait {
         pool_id: u64,
         applicant: Address,
     ) -> Result<ApplicationDetails, CrowdfundingError>;
+
+    /// Revoke an approved scholarship when a student drops out.
+    ///
+    /// Only the pool's designated validator may call this. The application must
+    /// currently be Approved. The previously allocated amount is returned to the
+    /// pool's unallocated balance so the sponsor can withdraw it.
+    fn revoke_scholarship(
+        env: Env,
+        pool_id: u64,
+        student: Address,
+        validator: Address,
+    ) -> Result<(), CrowdfundingError>;
 }

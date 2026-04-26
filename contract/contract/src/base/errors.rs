@@ -109,6 +109,22 @@ pub enum CrowdfundingError {
     CampaignCancelled = 50,
     DeadlinePassed = 51,
     VectorLimitExceeded = 52,
+    /// Next pending milestone's unlock_date has not been reached yet.
+    MilestoneLocked = 53,
+    /// Milestone has already been claimed.
+    MilestoneAlreadyClaimed = 54,
+    /// MilestoneNotFound = 53.
+    MilestoneNotFound = 53,
+    /// MilestoneAlreadyUnlocked = 54.
+    MilestoneAlreadyUnlocked = 54,
+    /// NotPoolValidator = 55.
+    NotPoolValidator = 55,
+    /// ApplicationNotFound = 56.
+    ApplicationNotFound = 56,
+    /// ApplicationAlreadySubmitted = 57.
+    ApplicationAlreadySubmitted = 57,
+    /// ApplicationAlreadyReviewed = 58.
+    ApplicationAlreadyReviewed = 58,
 }
 
 /// Documentation for this item.

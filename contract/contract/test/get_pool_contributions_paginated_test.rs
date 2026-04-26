@@ -49,10 +49,12 @@ fn test_get_pool_contributions_paginated_with_10_contributors() {
         min_contribution: 1000,
         is_private: false,
         token_address: token_client.address.clone(),
-        validator: admin.clone(),
+        validator: creator.clone(),
         duration: 30 * 24 * 60 * 60, // 30 days
         created_at: env.ledger().timestamp(),
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     let pool_id = client.create_pool(&creator, &pool_config);
@@ -129,10 +131,12 @@ fn test_get_pool_contributions_paginated_empty_pool() {
         min_contribution: 1000,
         is_private: false,
         token_address: token_client.address.clone(),
-        validator: admin.clone(),
+        validator: creator.clone(),
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     let pool_id = client.create_pool(&creator, &pool_config);
@@ -170,10 +174,12 @@ fn test_get_pool_contributions_paginated_single_contributor_multiple_contributio
         min_contribution: 1000,
         is_private: false,
         token_address: token_client.address.clone(),
-        validator: admin.clone(),
+        validator: creator.clone(),
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     let pool_id = client.create_pool(&creator, &pool_config);

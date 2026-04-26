@@ -41,6 +41,8 @@ fn create_private_pool(
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
     client.create_pool(creator, &config)
 }
@@ -61,6 +63,8 @@ fn create_public_pool(
         created_at: env.ledger().timestamp(),
         token_address: token_address.clone(),
         validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
     client.create_pool(creator, &config)
 }

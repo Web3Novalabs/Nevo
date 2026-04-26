@@ -49,6 +49,10 @@ fn test_create_pool_with_deposit() {
         is_private: false,
         duration: 86400, // 1 day
         created_at: env.ledger().timestamp(),
+        token_address: token_address.clone(),
+        validator: creator.clone(),
+        application_deadline: env.ledger().timestamp(),
+        milestones: soroban_sdk::Vec::new(&env),
     };
 
     // Call create_pool
