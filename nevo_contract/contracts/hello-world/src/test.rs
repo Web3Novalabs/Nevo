@@ -1,7 +1,10 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env, String};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger},
+    Address, Env, String,
+};
 
 #[test]
 fn test_create_pool() {
@@ -19,11 +22,11 @@ fn test_create_pool() {
     assert_eq!(pool_id, 1);
 
     let pool = client.get_pool(&pool_id);
-    assert_eq!(pool.0, 1);  // id
-    assert_eq!(pool.1, creator);  // creator
-    assert_eq!(pool.2, goal);  // goal
-    assert_eq!(pool.3, 0);  // collected
-    assert_eq!(pool.4, false);  // is_closed
+    assert_eq!(pool.0, 1); // id
+    assert_eq!(pool.1, creator); // creator
+    assert_eq!(pool.2, goal); // goal
+    assert_eq!(pool.3, 0); // collected
+    assert_eq!(pool.4, false); // is_closed
 }
 
 #[test]
@@ -45,7 +48,7 @@ fn test_donate() {
     client.donate(&pool_id, &donor, &donation_amount);
 
     let pool = client.get_pool(&pool_id);
-    assert_eq!(pool.3, donation_amount);  // collected amount
+    assert_eq!(pool.3, donation_amount); // collected amount
 }
 
 #[test]
@@ -70,7 +73,7 @@ fn test_multiple_donations() {
     client.donate(&pool_id, &donor2, &200_000_000);
 
     let pool = client.get_pool(&pool_id);
-    assert_eq!(pool.3, 300_000_000);  // collected amount
+    assert_eq!(pool.3, 300_000_000); // collected amount
 }
 
 #[test]
@@ -90,7 +93,7 @@ fn test_close_pool() {
     client.close_pool(&pool_id);
 
     let pool = client.get_pool(&pool_id);
-    assert_eq!(pool.4, true);  // is_closed
+    assert_eq!(pool.4, true); // is_closed
 }
 
 #[test]
@@ -139,4 +142,62 @@ fn test_multiple_pools() {
     assert_eq!(pool_id_1, 1);
     assert_eq!(pool_id_2, 2);
     assert_eq!(client.get_pool_count(), 2);
+}
+
+#[test]
+fn test_apply_for_scholarship_success() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let title = String::from_str(&env, "Scholarship Pool");
+    let description = String::from_str(&env, "For students");
+    let goal: u128 = 10_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+
+    let application_data = String::from_str(&env, "My application details");
+    let result = client.apply_for_scholarship(&pool_id, &student, &application_data);
+
+    assert_eq!(result.0, 1); // application id
+    assert_eq!(result.1, student);
+    assert_eq!(result.2, application_data);
+}
+
+#[test]
+#[should_panic(expected = "Duplicate application")]
+fn test_apply_for_scholarship_duplicate() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let title = String::from_str(&env, "Scholarship Pool");
+    let description = String::from_str(&env, "For students");
+    let goal: u128 = 10_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+
+    let application_data = String::from_str(&env, "My application details");
+    client.apply_for_scholarship(&pool_id, &student, &application_data);
+
+    // This should panic
+    client.apply_for_scholarship(&pool_id, &student, &application_data);
+}
+
+#[test]
+#[should_panic(expected = "Pool not found")]
+fn test_apply_for_scholarship_invalid_pool() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let student = Address::generate(&env);
+    let application_data = String::from_str(&env, "My application details");
+
+    // Invalid pool id
+    client.apply_for_scholarship(&999, &student, &application_data);
 }
