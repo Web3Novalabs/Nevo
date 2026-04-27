@@ -65,6 +65,7 @@ fn test_fund_edu_lifecycle() {
         is_private: false,
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_address.clone(),
         validator: admin.clone(),
     };
@@ -97,3 +98,4 @@ fn test_fund_edu_lifecycle() {
     client.close_pool(&pool_id, &sponsor);
     assert!(client.is_closed(&pool_id));
 }
+

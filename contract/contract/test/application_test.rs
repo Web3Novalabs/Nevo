@@ -2,12 +2,14 @@
 
 use crate::{
     base::{
-        errors::CrowdfundingError,
+        errors::ValidationError,
         types::{ApplicationStatus, PoolConfig},
     },
     crowdfunding::{CrowdfundingContract, CrowdfundingContractClient},
 };
-use soroban_sdk::{testutils::Address as _, Address, Bytes, Env, String};
+use soroban_sdk::{testutils::Address as _, token, Address, Env, String};
+
+// ── helpers ───────────────────────────────────────────────────────────────────
 
 fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
     env.mock_all_auths();
@@ -17,16 +19,28 @@ fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
     let admin = Address::generate(env);
     let token_admin = Address::generate(env);
     let token_address = env
-        .register_stellar_asset_contract_v2(token_admin)
+        .register_stellar_asset_contract_v2(token_admin.clone())
         .address();
+
+    let token_admin_client = token::StellarAssetClient::new(env, &token_address);
+    token_admin_client.mint(&admin, &10_000_000i128);
 
     client.initialize(&admin, &token_address, &0);
     (client, admin, token_address)
 }
 
-fn create_pool(env: &Env, client: &CrowdfundingContractClient<'_>, token_address: &Address) -> (u64, Address) {
+fn create_pool(
+    env: &Env,
+    client: &CrowdfundingContractClient<'_>,
+    token_address: &Address,
+) -> (u64, Address) {
     let creator = Address::generate(env);
     let validator = Address::generate(env);
+
+    let token_admin_client = token::StellarAssetClient::new(env, token_address);
+    token_admin_client.mint(&creator, &100_000i128);
+
+    let now = env.ledger().timestamp();
     let config = PoolConfig {
         name: String::from_str(env, "Scholarship Fund"),
         description: String::from_str(env, "Fund for student scholarships"),
@@ -34,20 +48,22 @@ fn create_pool(env: &Env, client: &CrowdfundingContractClient<'_>, token_address
         min_contribution: 0,
         is_private: false,
         duration: 30 * 24 * 60 * 60,
-        created_at: env.ledger().timestamp(),
+        created_at: now,
+        application_deadline: now + 30 * 24 * 60 * 60,
         token_address: token_address.clone(),
-        validator: admin.clone(),
+        validator: validator.clone(),
     };
 
     let pool_id = client.create_pool(&creator, &config);
     (pool_id, validator)
 }
 
+// ── tests ─────────────────────────────────────────────────────────────────────
+
 #[test]
 fn test_apply_for_scholarship_success() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
-
     let (pool_id, _validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
 
@@ -63,17 +79,11 @@ fn test_apply_for_scholarship_success() {
 fn test_approve_application_changes_status() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
-
     let (pool_id, _validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
 
-    client.apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
-    client.approve_application(
-        &pool_id,
-        &applicant,
-        &validator,
-        &Some(String::from_str(&env, "Approved")),
-    );
+    client.apply_for_scholarship(&pool_id, &applicant);
+    client.approve_application(&(pool_id as u32), &applicant);
 
     let application = client.get_application(&pool_id, &applicant);
     assert_eq!(application.status, ApplicationStatus::Approved);
@@ -83,141 +93,127 @@ fn test_approve_application_changes_status() {
 fn test_reject_application_changes_status() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
-
     let (pool_id, validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
 
-    client.apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
-    client.reject_application(
-        &pool_id,
-        &applicant,
-        &validator,
-        &Some(String::from_str(&env, "Rejected")),
-    );
+    client.apply_for_scholarship(&pool_id, &applicant);
+    client.reject_application(&pool_id, &applicant, &validator);
 
     let application = client.get_application(&pool_id, &applicant);
     assert_eq!(application.status, ApplicationStatus::Rejected);
 }
 
 #[test]
-fn test_apply_for_scholarship_empty_credentials_fails() {
+fn test_apply_for_scholarship_duplicate_fails() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
-
     let (pool_id, _validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
 
-    let result =
-        client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
-    assert_eq!(
-        result,
-        Err(Ok(CrowdfundingError::InvalidApplicationCredentials))
-    );
-}
-
-#[test]
-fn test_apply_for_scholarship_duplicate_application_fails() {
-    let env = Env::default();
-    let (client, _, token_address) = setup(&env);
-
-    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
-    let applicant = Address::generate(&env);
-
-    // First application should succeed
     client.apply_for_scholarship(&pool_id, &applicant);
 
-    // Second application from same applicant should fail with ApplicationAlreadySubmitted
-    let result =
-        client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
+    let result = client.try_apply_for_scholarship(&pool_id, &applicant);
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::ApplicationAlreadySubmitted))
+        Err(Ok(ValidationError::ApplicationAlreadyExists)),
+        "duplicate application must fail"
     );
 }
 
 #[test]
-fn test_apply_for_scholarship_exceeds_remaining_funds_succeeds() {
+fn test_apply_for_scholarship_pool_not_found() {
     let env = Env::default();
-    let (client, _, token_address) = setup(&env);
-
-    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
+    let (client, _, _) = setup(&env);
     let applicant = Address::generate(&env);
-    let credentials = Bytes::from_array(&env, &[1, 2, 3, 4]);
 
-    // Pool target is 100_000, so requesting more should fail
-    let requested_amount = 150_000i128;
-
-    let result =
-        client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
-    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidAmount)));
+    let result = client.try_apply_for_scholarship(&999u64, &applicant);
+    assert_eq!(
+        result,
+        Err(Ok(ValidationError::PoolNotFound)),
+        "non-existent pool must fail"
+    );
 }
 
 #[test]
-fn test_apply_for_scholarship_zero_amount_succeeds() {
+fn test_approve_application_not_found() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
-
     let (pool_id, _validator) = create_pool(&env, &client, &token_address);
-    let applicant = Address::generate(&env);
+    let student = Address::generate(&env);
 
-    let result =
-        client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
-    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidAmount)));
+    let result = client.try_approve_application(&(pool_id as u32), &student);
+    assert_eq!(result, Err(Ok(ValidationError::ApplicationNotFound)));
 }
 
 #[test]
-fn test_apply_for_scholarship_negative_amount_succeeds() {
+fn test_approve_application_pool_not_found() {
     let env = Env::default();
-    let (client, _, token_address) = setup(&env);
+    let (client, _, _) = setup(&env);
+    let student = Address::generate(&env);
 
-    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
-    let applicant = Address::generate(&env);
-
-    let result =
-        client.try_apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
-    assert_eq!(result, Err(Ok(CrowdfundingError::InvalidAmount)));
+    let result = client.try_approve_application(&999u32, &student);
+    assert_eq!(result, Err(Ok(ValidationError::PoolNotFound)));
 }
 
 #[test]
-fn test_apply_for_scholarship_exactly_remaining_funds_succeeds() {
+fn test_reject_application_unauthorized() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
-
     let (pool_id, _validator) = create_pool(&env, &client, &token_address);
     let applicant = Address::generate(&env);
-    let credentials = Bytes::from_array(&env, &[1, 2, 3, 4]);
+    let impostor = Address::generate(&env);
 
-    // Pool target is 100_000, requesting exactly that should succeed
-    let requested_amount = 100_000i128;
+    client.apply_for_scholarship(&pool_id, &applicant);
 
-    client.apply_for_scholarship(&pool_id, &applicant, &credentials, &requested_amount);
-
-    let application = client.get_application(&pool_id, &applicant);
-    assert_eq!(application.status, ApplicationStatus::Pending);
+    let result = client.try_reject_application(&pool_id, &applicant, &impostor);
+    assert_eq!(result, Err(Ok(ValidationError::Unauthorized)));
 }
 
 #[test]
-fn test_apply_for_scholarship_multiple_applicants_different_amounts() {
+fn test_approve_already_processed_fails() {
     let env = Env::default();
     let (client, _, token_address) = setup(&env);
+    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
+    let applicant = Address::generate(&env);
 
-    let pool_id = create_pool(&env, &client, &token_address);
+    client.apply_for_scholarship(&pool_id, &applicant);
+    client.approve_application(&(pool_id as u32), &applicant);
+
+    let result = client.try_approve_application(&(pool_id as u32), &applicant);
+    assert_eq!(
+        result,
+        Err(Ok(ValidationError::ApplicationAlreadyProcessed))
+    );
+}
+
+#[test]
+fn test_get_application_not_found() {
+    let env = Env::default();
+    let (client, _, token_address) = setup(&env);
+    let (pool_id, _) = create_pool(&env, &client, &token_address);
+    let student = Address::generate(&env);
+
+    let result = client.try_get_application(&pool_id, &student);
+    assert_eq!(result, Err(Ok(ValidationError::ApplicationNotFound)));
+}
+
+#[test]
+fn test_multiple_applicants_independent() {
+    let env = Env::default();
+    let (client, _, token_address) = setup(&env);
+    let (pool_id, _validator) = create_pool(&env, &client, &token_address);
 
     let applicant1 = Address::generate(&env);
     let applicant2 = Address::generate(&env);
-    let credentials1 = Bytes::from_array(&env, &[1, 2, 3, 4]);
-    let credentials2 = Bytes::from_array(&env, &[5, 6, 7, 8]);
 
-    let amount1 = 30_000i128;
-    let amount2 = 40_000i128;
-
-    // Both applications should succeed
     client.apply_for_scholarship(&pool_id, &applicant1);
     client.apply_for_scholarship(&pool_id, &applicant2);
 
     let app1 = client.get_application(&pool_id, &applicant1);
     let app2 = client.get_application(&pool_id, &applicant2);
 
-    assert_eq!(app1.requested_amount, amount1);
-    assert_eq!(app2.requested_amount, amount2);
+    assert_eq!(app1.status, ApplicationStatus::Pending);
+    assert_eq!(app2.status, ApplicationStatus::Pending);
+    assert_eq!(app1.applicant, applicant1);
+    assert_eq!(app2.applicant, applicant2);
 }

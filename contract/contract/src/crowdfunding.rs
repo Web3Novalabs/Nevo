@@ -2,19 +2,18 @@
 use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, String, Vec};
 
 use crate::base::errors::SecondCrowdfundingError;
-#[cfg(test)]
-use crate::base::types::{EventDetails, EventMetrics};
 use crate::base::{
-    errors::{CrowdfundingError, SecondCrowdfundingError, ValidationError},
+    errors::{CrowdfundingError, ValidationError},
     events,
     reentrancy::{
         acquire_emergency_lock, reentrancy_lock_logic, release_emergency_lock, release_pool_lock,
     },
     types::{
-        ApplicationStatus, CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
-        EmergencyWithdrawal, EventDetails, EventMetrics, MultiSigConfig, PoolConfig,
-        PoolContribution, PoolMetadata, PoolMetrics, PoolState, ScholarshipApplication, StorageKey,
-        MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH, MAX_SINGLE_OP_ITEMS, MAX_STRING_LENGTH, MAX_URL_LENGTH,
+        ApplicationDetails, ApplicationStatus, CampaignDetails, CampaignLifecycleStatus,
+        CampaignMetrics, Contribution, EmergencyWithdrawal, EventDetails, EventMetrics,
+        Milestone, MultiSigConfig, PoolConfig, PoolContribution, PoolMetadata, PoolMetrics,
+        PoolState, ScholarshipApplication, StorageKey, MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH,
+        MAX_SINGLE_OP_ITEMS, MAX_STRING_LENGTH, MAX_URL_LENGTH,
     },
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;
@@ -182,7 +181,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .get(&StorageKey::AllCampaigns)
             .unwrap_or(Vec::new(&env));
         if all_campaigns.len() >= MAX_SINGLE_OP_ITEMS {
-            return Err(CrowdfundingError::VectorLimitExceeded);
+            return Err(CrowdfundingError::InvalidAmount);
         }
         all_campaigns.push_back(id.clone());
         env.storage()
@@ -954,6 +953,8 @@ impl CrowdfundingTrait for CrowdfundingContract {
                 .set(&platform_fees_key, &(current_fees + creation_fee));
 
             events::creation_fee_paid(&env, creator.clone(), creation_fee);
+        }
+
         // Validate that the provided token matches the platform's accepted token
         let token_key = StorageKey::CrowdfundingToken;
         if !env.storage().instance().has(&token_key) {
@@ -1001,7 +1002,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         let token_client = token::Client::new(&env, &config.token_address);
         let sponsor_balance = token_client.balance(&creator);
         if sponsor_balance < config.target_amount {
-            return Err(CrowdfundingError::InsufficientSponsorBalance);
+            return Err(CrowdfundingError::InsufficientBalance);
         }
         token_client.transfer(
             &creator,
@@ -1094,7 +1095,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         let multi_sig_config = match (required_signatures, signers) {
             (Some(req_sigs), Some(signer_list)) => {
                 if signer_list.len() > MAX_SINGLE_OP_ITEMS {
-                    return Err(CrowdfundingError::VectorLimitExceeded);
+                    return Err(CrowdfundingError::InvalidAmount);
                 }
                 let signer_count = signer_list.len();
                 if req_sigs == 0 || req_sigs > signer_count {
@@ -1339,7 +1340,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         creation_fee: i128,
     ) -> Result<(), CrowdfundingError> {
         if env.storage().instance().has(&StorageKey::Admin) {
-            return Err(CrowdfundingError::ContractAlreadyInitialized);
+            return Err(CrowdfundingError::ContractAlreadyInit);
         }
 
         if creation_fee < 0 {
@@ -1562,7 +1563,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
                 .get(&contributors_key)
                 .unwrap_or(Vec::new(&env));
             if contributors.len() >= MAX_SINGLE_OP_ITEMS {
-                return Err(CrowdfundingError::VectorLimitExceeded);
+                return Err(CrowdfundingError::InvalidAmount);
             }
             contributors.push_back(contributor.clone());
             env.storage()
@@ -1647,7 +1648,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         if now < refund_available_after {
             release_pool_lock(&env, pool_id);
-            return Err(CrowdfundingError::RefundGracePeriodNotPassed);
+            return Err(CrowdfundingError::RefundGracePeriod);
         }
 
         // Get contributor's contribution
@@ -1729,7 +1730,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .has(&StorageKey::EmergencyWithdrawal)
         {
-            return Err(CrowdfundingError::EmergencyWithdrawalAlreadyRequested);
+            return Err(CrowdfundingError::EmergencyWithdrawReq);
         }
 
         let now = env.ledger().timestamp();
@@ -1775,20 +1776,20 @@ impl CrowdfundingTrait for CrowdfundingContract {
             Some(r) => r,
             None => {
                 release_emergency_lock(&env);
-                return Err(CrowdfundingError::EmergencyWithdrawalNotRequested);
+                return Err(CrowdfundingError::EmergencyWithdrawMiss);
             }
         };
 
         if request.executed {
             release_emergency_lock(&env);
-            return Err(CrowdfundingError::EmergencyWithdrawalAlreadyRequested);
+            return Err(CrowdfundingError::EmergencyWithdrawReq);
         }
 
         let now = env.ledger().timestamp();
         let grace_period = 86400; // 24 hours
         if now < request.requested_at + grace_period {
             release_emergency_lock(&env);
-            return Err(CrowdfundingError::EmergencyWithdrawalPeriodNotPassed);
+            return Err(CrowdfundingError::EmergencyWithdrawEarly);
         }
 
         // ── 2. Remove the request record BEFORE the token transfer (CEI) ──────
@@ -1944,7 +1945,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         } else {
             // Admin or non-private pools can only be closed after Disbursed or Cancelled
             if current_state != PoolState::Disbursed && current_state != PoolState::Cancelled {
-                return Err(CrowdfundingError::PoolNotDisbursedOrRefunded);
+                return Err(CrowdfundingError::PoolNotDisbursed);
             }
         }
 
@@ -2146,7 +2147,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         limit: u32,
     ) -> Result<Vec<PoolContribution>, CrowdfundingError> {
         if limit > MAX_SINGLE_OP_ITEMS {
-            return Err(CrowdfundingError::VectorLimitExceeded);
+            return Err(CrowdfundingError::InvalidAmount);
         }
         // Validate pool exist
         // Check if pool exists
@@ -2508,12 +2509,12 @@ impl CrowdfundingTrait for CrowdfundingContract {
         env: Env,
         pool_id: u64,
         applicant: Address,
-    ) -> Result<ApplicationDetails, CrowdfundingError> {
+    ) -> Result<ApplicationDetails, SecondCrowdfundingError> {
         let app_key = StorageKey::Application(pool_id, applicant);
         env.storage()
             .instance()
             .get(&app_key)
-            .ok_or(CrowdfundingError::ApplicationNotFound)
+            .ok_or(SecondCrowdfundingError::AppNotFound)
     }
 
     fn add_milestone(
@@ -2522,49 +2523,34 @@ impl CrowdfundingTrait for CrowdfundingContract {
         applicant: Address,
         unlock_date: u64,
         amount: i128,
-    ) -> Result<(), CrowdfundingError> {
-        // Get application
+    ) -> Result<(), SecondCrowdfundingError> {
+        // 1. Load application
         let app_key = StorageKey::Application(pool_id, applicant.clone());
         let mut application: ApplicationDetails = env
             .storage()
             .instance()
             .get(&app_key)
-            .ok_or(CrowdfundingError::ApplicationNotFound)?;
+            .ok_or(SecondCrowdfundingError::AppNotFound)?;
 
-        // Only approved applications can have milestones added
+        // 2. Only approved applications can have milestones added
         if application.status != ApplicationStatus::Approved {
-            return Err(CrowdfundingError::ApplicationNotFound);
+            return Err(SecondCrowdfundingError::ApplicationAlreadyReviewed);
         }
 
-        // Validate milestone amount
+        // 3. Validate milestone amount
         if amount <= 0 {
-            return Err(CrowdfundingError::InvalidAmount);
+            return Err(SecondCrowdfundingError::InvalidApplicationCredentials);
         }
 
-        // Get pool configuration to check remaining funds
-        let pool: PoolConfig = env
-            .storage()
-            .instance()
-            .get(&pool_key)
-            .ok_or(CrowdfundingError::PoolNotFound)?;
-
-        // Deadline enforcement: deny late applications deterministically
-        if env.ledger().timestamp() > pool.application_deadline {
-            return Err(CrowdfundingError::DeadlinePassed);
-        }
-
-        // Get pool metrics to calculate remaining funds
-        let metrics_key = StorageKey::PoolMetrics(pool_id);
-        let metrics: PoolMetrics = env
-            .storage()
-            .instance()
-            .get(&metrics_key)
-            .unwrap_or_default();
-
-        // Add milestone to application
+        // 4. Build and append the milestone
+        let milestone = Milestone {
+            unlock_date,
+            unlocked: false,
+            amount,
+        };
         application.milestones.push_back(milestone);
 
-        // Save updated application
+        // 5. Persist
         env.storage().instance().set(&app_key, &application);
 
         Ok(())
@@ -2575,63 +2561,122 @@ impl CrowdfundingTrait for CrowdfundingContract {
         pool_id: u64,
         applicant: Address,
         milestone_index: u32,
-    ) -> Result<(), CrowdfundingError> {
-        // Get application
+    ) -> Result<(), SecondCrowdfundingError> {
+        // 1. Load application
         let app_key = StorageKey::Application(pool_id, applicant.clone());
         let mut application: ApplicationDetails = env
             .storage()
             .instance()
             .get(&app_key)
-            .ok_or(CrowdfundingError::ApplicationNotFound)?;
+            .ok_or(SecondCrowdfundingError::AppNotFound)?;
 
-        // Check if milestone exists
+        // 2. Bounds check
         if milestone_index >= application.milestones.len() {
-            return Err(CrowdfundingError::ApplicationNotFound);
+            return Err(SecondCrowdfundingError::AppNotFound);
         }
 
-        // Get milestone
+        // 3. Load the milestone
         let mut milestone = application.milestones.get(milestone_index).unwrap();
 
-        env.storage().instance().set(&application_key, &application);
-
-        // Track allocated funds so withdraw_unallocated can never touch this amount
-        let alloc_key = StorageKey::PoolAllocated(pool_id);
-        let current_alloc: i128 = env.storage().instance().get(&alloc_key).unwrap_or(0);
-        env.storage()
-            .instance()
-            .set(&alloc_key, &(current_alloc + application.requested_amount));
-
-        Ok(())
-    }
-
-    fn reject_application(
-        env: Env,
-        pool_id: u64,
-        applicant: Address,
-        validator: Address,
-        rejection_reason: Option<String>,
-    ) -> Result<(), CrowdfundingError> {
-        validator.require_auth();
-
-        let application_key = StorageKey::Application(pool_id, applicant.clone());
-        let mut application: ApplicationDetails = env
-            .storage()
-            .instance()
-            .get(&application_key)
-            .ok_or(CrowdfundingError::ApplicationNotFound)?;
-
-        // Check if already unlocked
+        // 4. Guard: already unlocked
         if milestone.unlocked {
-            return Err(CrowdfundingError::ApplicationAlreadyReviewed); // Reusing error
+            return Err(SecondCrowdfundingError::ApplicationAlreadyReviewed);
         }
 
-        // Unlock milestone
+        // 5. Time guard: unlock_date must have passed
+        if env.ledger().timestamp() < milestone.unlock_date {
+            return Err(SecondCrowdfundingError::InvalidApplicationCredentials);
+        }
+
+        // 6. Mark unlocked and accumulate claimed amount
         milestone.unlocked = true;
         application.milestones.set(milestone_index, milestone.clone());
         application.amount_claimed += milestone.amount;
 
-        // Save updated application
+        // 7. Persist
         env.storage().instance().set(&app_key, &application);
+
+        Ok(())
+    }
+
+    fn setup_application_milestones(
+        env: Env,
+        pool_id: u64,
+        student: Address,
+        milestones: Vec<Milestone>,
+    ) -> Result<(), SecondCrowdfundingError> {
+        // ── 1. Load pool — establishes the validator identity ─────────────────
+        let pool_key = StorageKey::Pool(pool_id);
+        let pool: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(SecondCrowdfundingError::AppNotFound)?;
+
+        // ── 2. Auth: identical requirement to approve_application ─────────────
+        // Only the pool's designated validator (sponsor / trusted school) may
+        // configure milestone schedules.
+        pool.validator.require_auth();
+
+        // ── 3. Reject empty milestone vectors ─────────────────────────────────
+        if milestones.is_empty() {
+            return Err(SecondCrowdfundingError::EmptyMilestones);
+        }
+
+        // ── 4. Enforce vector size cap (DoS guard) ────────────────────────────
+        if milestones.len() > MAX_SINGLE_OP_ITEMS {
+            return Err(SecondCrowdfundingError::VectorLimitExceeded);
+        }
+
+        // ── 5. Load the student's application ────────────────────────────────
+        let app_key = StorageKey::Application(pool_id, student.clone());
+        let mut application: ApplicationDetails = env
+            .storage()
+            .instance()
+            .get(&app_key)
+            .ok_or(SecondCrowdfundingError::AppNotFound)?;
+
+        // ── 6. Only approved applications may receive a milestone schedule ────
+        if application.status != ApplicationStatus::Approved {
+            return Err(SecondCrowdfundingError::ApplicationAlreadyReviewed);
+        }
+
+        // ── 7. Idempotency guard: refuse to overwrite an existing schedule ────
+        // Prevents a validator from silently re-writing milestones after funds
+        // have already started unlocking.
+        if !application.milestones.is_empty() {
+            return Err(SecondCrowdfundingError::MilestonesAlreadySet);
+        }
+
+        // ── 8. Mathematical invariant: sum(milestone.amount) == requested_amount
+        let mut total: i128 = 0;
+        for m in milestones.iter() {
+            if m.amount <= 0 {
+                return Err(SecondCrowdfundingError::InvalidApplicationCredentials);
+            }
+            total = total
+                .checked_add(m.amount)
+                .ok_or(SecondCrowdfundingError::InvalidApplicationCredentials)?;
+        }
+        if total != application.requested_amount {
+            return Err(SecondCrowdfundingError::MilestoneAmountMismatch);
+        }
+
+        // ── 9. Safe state update — no active locked funds are touched ─────────
+        // We only write the milestone schedule onto the application record.
+        // The PoolAllocated counter was already incremented when the application
+        // was approved, so no additional allocation accounting is needed here.
+        application.milestones = milestones.clone();
+        env.storage().instance().set(&app_key, &application);
+
+        // ── 10. Emit event ────────────────────────────────────────────────────
+        events::milestones_set(
+            &env,
+            pool_id,
+            student,
+            milestones.len(),
+            total,
+        );
 
         Ok(())
     }
@@ -2763,3 +2808,5 @@ impl SecondCrowdfundingTrait for CrowdfundingContract {
         Ok(())
     }
 }
+
+

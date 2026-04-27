@@ -7,7 +7,7 @@ use soroban_sdk::{
 
 use crate::{
     base::{
-        errors::CrowdfundingError,
+        errors::{CrowdfundingError, SecondCrowdfundingError},
         types::{PoolMetadata, PoolState},
     },
     crowdfunding::{CrowdfundingContract, CrowdfundingContractClient},
@@ -2314,7 +2314,7 @@ fn test_refund_fails_before_grace_period() {
     let result = client.try_refund(&pool_id, &contributor);
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::RefundGracePeriodNotPassed))
+        Err(Ok(CrowdfundingError::RefundGracePeriod))
     );
 }
 
@@ -2618,7 +2618,7 @@ fn test_request_emergency_withdraw_duplicate() {
     let result = client.try_request_emergency_withdraw(&token_address, &amount);
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::EmergencyWithdrawalAlreadyRequested))
+        Err(Ok(CrowdfundingError::EmergencyWithdrawReq))
     );
 }
 
@@ -2681,7 +2681,7 @@ fn test_execute_emergency_withdraw_before_grace_period() {
     let result = client.try_execute_emergency_withdraw();
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::EmergencyWithdrawalPeriodNotPassed))
+        Err(Ok(CrowdfundingError::EmergencyWithdrawEarly))
     );
 }
 
@@ -2703,7 +2703,7 @@ fn test_execute_emergency_withdraw_not_requested() {
     let result = client.try_execute_emergency_withdraw();
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::EmergencyWithdrawalNotRequested))
+        Err(Ok(CrowdfundingError::EmergencyWithdrawMiss))
     );
 }
 
@@ -3782,6 +3782,7 @@ fn test_update_pool_state_validator_authorization() {
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_contract.address(),
         validator: admin.clone(),
         validator: validator.clone(),
@@ -3824,6 +3825,7 @@ fn test_update_pool_state_lock_mechanics() {
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_contract.address(),
         validator: admin.clone(),
         validator: creator.clone(),
@@ -3876,6 +3878,7 @@ fn test_validator_malicious_modification_prevention() {
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_contract.address(),
         validator: admin.clone(),
         validator: validator1.clone(),
@@ -3892,6 +3895,7 @@ fn test_validator_malicious_modification_prevention() {
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_contract.address(),
         validator: admin.clone(),
         validator: validator2.clone(),
@@ -3916,3 +3920,5 @@ fn test_validator_malicious_modification_prevention() {
     // And validator2 can modify pool_id2
     client.update_pool_state(&pool_id2, &validator2, &PoolState::Completed);
 }
+
+

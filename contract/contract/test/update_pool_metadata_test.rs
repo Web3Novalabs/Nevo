@@ -39,6 +39,7 @@ fn create_test_pool(env: &Env, client: &CrowdfundingContractClient<'_>, creator:
         is_private: false,
         duration: 86400, // 1 day
         created_at: 1_000,
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_id.clone(),
     };
 
@@ -185,3 +186,4 @@ fn test_update_pool_metadata_hash_event_emission() {
     let (_, _, image_hash) = client.get_pool_metadata(&pool_id);
     assert_eq!(image_hash, new_hash);
 }
+

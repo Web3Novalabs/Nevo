@@ -29,6 +29,7 @@ fn test_event_repro() {
         is_private: false,
         duration: 86_400,
         created_at: 0,
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token.clone(),
     };
     client.create_pool(&creator, &config);
@@ -36,3 +37,4 @@ fn test_event_repro() {
     let all_events = env.events().all();
     assert!(all_events.len() > 0, "No events after create_pool. Count: {}", all_events.len());
 }
+

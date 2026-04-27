@@ -36,6 +36,7 @@ fn pool_config(env: &Env, token: &Address) -> PoolConfig {
         is_private: false,
         duration: 86_400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token.clone(),
     }
 }
@@ -227,3 +228,4 @@ fn test_counter_and_list_stay_in_sync_after_many_events() {
     );
     assert_eq!(count, 8);
 }
+

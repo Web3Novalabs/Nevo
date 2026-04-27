@@ -41,6 +41,7 @@ fn create_pool(
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 86400,
         token_address: token_address.clone(),
         validator: creator.clone(),
     };

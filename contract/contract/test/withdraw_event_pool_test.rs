@@ -40,6 +40,7 @@ fn create_pool_with_funds(
         is_private: false,
         duration: 86_400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token.clone(),
     };
     let pool_id = client.create_pool(&creator, &config);
@@ -121,6 +122,7 @@ fn test_withdraw_event_pool_no_funds() {
         is_private: false,
         duration: 86_400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token.clone(),
     };
     let pool_id = client.create_pool(&creator, &config);
@@ -131,3 +133,4 @@ fn test_withdraw_event_pool_no_funds() {
         Err(Ok(CrowdfundingError::InsufficientFees))
     );
 }
+

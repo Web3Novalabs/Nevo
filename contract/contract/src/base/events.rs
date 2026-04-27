@@ -575,3 +575,29 @@ pub fn school_removed(env: &Env, admin: Address, school_addr: Address, pool_id: 
     let topics = (Symbol::new(env, "school_removed"), admin, school_addr);
     env.events().publish(topics, pool_id);
 }
+
+/// Emitted when a sponsor or trusted school sets up milestone-based disbursements
+/// for an approved scholarship application.
+///
+/// # Arguments
+/// * `env`             - The execution environment.
+/// * `pool_id`         - The pool the application belongs to.
+/// * `student`         - The approved applicant whose milestones were configured.
+/// * `milestone_count` - Number of milestones registered.
+/// * `total_amount`    - Sum of all milestone amounts (must equal requested_amount).
+pub fn milestones_set(
+    env: &Env,
+    pool_id: u64,
+    student: Address,
+    milestone_count: u32,
+    total_amount: i128,
+) {
+    let topics = (symbol_short!("MilSet"), pool_id, student);
+    env.events().publish(topics, (milestone_count, total_amount));
+}
+
+/// Emitted when the pool sponsor withdraws unallocated funds.
+pub fn pool_unallocated_withdrawn(env: &Env, pool_id: u64, sponsor: Address, amount: i128) {
+    let topics = (symbol_short!("PoolWit"), pool_id, sponsor);
+    env.events().publish(topics, amount);
+}

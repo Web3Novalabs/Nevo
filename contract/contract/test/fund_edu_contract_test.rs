@@ -42,6 +42,7 @@ fn test_fund_edu_create_pool_success() {
         is_private: false,
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_address.clone(),
         validator: admin.clone(),
     };
@@ -82,9 +83,11 @@ fn test_fund_edu_create_pool_paused_returns_error() {
         is_private: false,
         duration: 86_400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address,
     };
 
     let result = client.try_create_pool(&creator, &config);
     assert_eq!(result, Err(Ok(CrowdfundingError::ContractPaused)));
 }
+

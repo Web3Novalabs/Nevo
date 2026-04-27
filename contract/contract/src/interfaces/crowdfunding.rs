@@ -1,10 +1,10 @@
 use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 use crate::base::{
-    errors::{CrowdfundingError, ValidationError},
+    errors::{CrowdfundingError, SecondCrowdfundingError, ValidationError},
     types::{
-        ApplicationDetails, CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
-        PoolState, ScholarshipApplication,
+        ApplicationDetails, CampaignDetails, CampaignLifecycleStatus, Milestone, PoolConfig,
+        PoolContribution, PoolMetadata, PoolState, ScholarshipApplication,
     },
 };
 
@@ -287,7 +287,7 @@ pub trait CrowdfundingTrait {
         env: Env,
         pool_id: u64,
         applicant: Address,
-    ) -> Result<ApplicationDetails, CrowdfundingError>;
+    ) -> Result<ApplicationDetails, SecondCrowdfundingError>;
 
     /// Add a milestone to an approved scholarship application.
     /// Only approved applications can have milestones added.
@@ -297,7 +297,7 @@ pub trait CrowdfundingTrait {
         applicant: Address,
         unlock_date: u64,
         amount: i128,
-    ) -> Result<(), CrowdfundingError>;
+    ) -> Result<(), SecondCrowdfundingError>;
 
     /// Unlock a milestone for disbursement.
     /// The milestone's unlock date must have passed.
@@ -306,5 +306,24 @@ pub trait CrowdfundingTrait {
         pool_id: u64,
         applicant: Address,
         milestone_index: u32,
-    ) -> Result<(), CrowdfundingError>;
+    ) -> Result<(), SecondCrowdfundingError>;
+
+    /// Set up a time-based milestone schedule for an approved scholarship application.
+    ///
+    /// Only the pool's designated validator (sponsor / trusted school) may call this.
+    /// Auth is enforced via `pool.validator.require_auth()` — identical to
+    /// `approve_application`.
+    ///
+    /// The sum of all milestone amounts **must** equal the application's
+    /// `requested_amount` exactly; the call reverts otherwise.
+    ///
+    /// Milestones can only be set once per application; subsequent calls revert
+    /// with `MilestonesAlreadySet` to prevent silent overwrites after funds have
+    /// started unlocking.
+    fn setup_application_milestones(
+        env: Env,
+        pool_id: u64,
+        student: Address,
+        milestones: Vec<Milestone>,
+    ) -> Result<(), SecondCrowdfundingError>;
 }

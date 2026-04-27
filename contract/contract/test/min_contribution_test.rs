@@ -31,6 +31,7 @@ fn test_contribute_below_minimum_fails() {
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_address.clone(),
         validator: creator.clone(),
     };
@@ -43,3 +44,4 @@ fn test_contribute_below_minimum_fails() {
     let result = client.try_contribute(&pool_id, &contributor, &token_address, &1i128, &false);
     assert_eq!(result, Err(Ok(CrowdfundingError::InvalidAmount)));
 }
+

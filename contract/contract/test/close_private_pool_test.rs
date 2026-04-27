@@ -39,6 +39,7 @@ fn create_private_pool(
         is_private: true,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_address.clone(),
         validator: creator.clone(),
     };
@@ -59,6 +60,7 @@ fn create_public_pool(
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_address.clone(),
         validator: creator.clone(),
     };
@@ -105,7 +107,7 @@ fn test_owner_cannot_close_public_pool_when_active() {
     let result = client.try_close_pool(&pool_id, &owner);
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::PoolNotDisbursedOrRefunded))
+        Err(Ok(CrowdfundingError::PoolNotDisbursed))
     );
 }
 
@@ -133,7 +135,7 @@ fn test_admin_can_close_private_pool() {
     let result = client.try_close_pool(&pool_id, &admin);
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::PoolNotDisbursedOrRefunded))
+        Err(Ok(CrowdfundingError::PoolNotDisbursed))
     );
 }
 
@@ -256,3 +258,5 @@ fn test_owner_can_close_after_cancellation() {
 
     assert!(client.is_closed(&pool_id));
 }
+
+

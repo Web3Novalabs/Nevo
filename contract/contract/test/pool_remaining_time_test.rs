@@ -45,7 +45,7 @@ fn test_pool_remaining_time_future() {
         validator: admin.clone(),
         duration: 500,
         created_at: env.ledger().timestamp(),
-        validator: creator.clone(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
     };
 
     let pool_id = client.create_pool(&creator, &config);
@@ -69,10 +69,10 @@ fn test_pool_remaining_time_expired_returns_zero() {
         min_contribution: 0,
         is_private: false,
         token_address: token_address.clone(),
-        validator: admin.clone(),
+        validator: creator.clone(),
         duration: 100,
         created_at: env.ledger().timestamp(),
-        validator: creator.clone(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
     };
 
     let pool_id = client.create_pool(&creator, &config);
@@ -92,3 +92,4 @@ fn test_pool_remaining_time_not_found() {
     let result = client.try_get_pool_remaining_time(&999u64);
     assert_eq!(result, Err(Ok(CrowdfundingError::PoolNotFound)));
 }
+

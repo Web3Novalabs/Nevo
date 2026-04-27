@@ -1,10 +1,10 @@
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
 use crate::base::{
-    errors::{CrowdfundingError, ValidationError},
+    errors::{CrowdfundingError, SecondCrowdfundingError, ValidationError},
     types::{
-        ApplicationDetails, CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
-        PoolState, ScholarshipApplication,
+        ApplicationDetails, CampaignDetails, CampaignLifecycleStatus, Milestone, PoolConfig,
+        PoolContribution, PoolMetadata, PoolState, ScholarshipApplication,
     },
 };
 use crate::crowdfunding::CrowdfundingContract;
@@ -391,5 +391,78 @@ impl CrowdfundingTrait for FundEduContract {
         amount: i128,
     ) -> Result<(), CrowdfundingError> {
         CrowdfundingContract::withdraw_unallocated(env, pool_id, sponsor, amount)
+    }
+
+    fn apply_for_scholarship(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+    ) -> Result<(), ValidationError> {
+        CrowdfundingContract::apply_for_scholarship(env, pool_id, applicant)
+    }
+
+    fn approve_application(
+        env: Env,
+        pool_id: u32,
+        student: Address,
+    ) -> Result<(), ValidationError> {
+        CrowdfundingContract::approve_application(env, pool_id, student)
+    }
+
+    fn reject_application(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+        validator: Address,
+    ) -> Result<(), ValidationError> {
+        CrowdfundingContract::reject_application(env, pool_id, applicant, validator)
+    }
+
+    fn get_application(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+    ) -> Result<ScholarshipApplication, ValidationError> {
+        CrowdfundingContract::get_application(env, pool_id, applicant)
+    }
+
+    fn remove_school(env: Env, school_addr: Address) -> Result<(), CrowdfundingError> {
+        CrowdfundingContract::remove_school(env, school_addr)
+    }
+
+    fn get_application_details(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+    ) -> Result<ApplicationDetails, SecondCrowdfundingError> {
+        CrowdfundingContract::get_application_details(env, pool_id, applicant)
+    }
+
+    fn add_milestone(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+        unlock_date: u64,
+        amount: i128,
+    ) -> Result<(), SecondCrowdfundingError> {
+        CrowdfundingContract::add_milestone(env, pool_id, applicant, unlock_date, amount)
+    }
+
+    fn unlock_milestone(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+        milestone_index: u32,
+    ) -> Result<(), SecondCrowdfundingError> {
+        CrowdfundingContract::unlock_milestone(env, pool_id, applicant, milestone_index)
+    }
+
+    fn setup_application_milestones(
+        env: Env,
+        pool_id: u64,
+        student: Address,
+        milestones: Vec<Milestone>,
+    ) -> Result<(), SecondCrowdfundingError> {
+        CrowdfundingContract::setup_application_milestones(env, pool_id, student, milestones)
     }
 }

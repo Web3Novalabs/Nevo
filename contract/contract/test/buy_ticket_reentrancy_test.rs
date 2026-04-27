@@ -32,6 +32,7 @@ fn create_pool(client: &CrowdfundingContractClient<'_>, env: &Env, token: &Addre
         is_private: false,
         duration: 86_400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token.clone(),
     };
     client.create_pool(&creator, &config)
@@ -106,3 +107,4 @@ fn test_buy_ticket_lock_released_after_success() {
         Ok(Ok((1_000, 0)))
     );
 }
+

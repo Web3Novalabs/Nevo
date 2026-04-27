@@ -6,7 +6,7 @@ use soroban_sdk::{
 };
 
 use crate::{
-    base::{errors::CrowdfundingError, types::PoolConfig},
+    base::{errors::{CrowdfundingError, SecondCrowdfundingError}, types::PoolConfig},
     crowdfunding::{CrowdfundingContract, CrowdfundingContractClient},
 };
 
@@ -41,6 +41,7 @@ fn make_pool(env: &Env, client: &CrowdfundingContractClient<'_>, admin: &Address
         is_private: false,
         duration: 1, // deadline = created_at + duration = 1_001
         created_at: 1_000,
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_id.clone(),
         validator: admin.clone(),
     };
@@ -204,7 +205,7 @@ fn test_refund_rejected_inside_grace_period() {
 
     assert_eq!(
         client.try_refund(&pool_id, &Address::generate(&env)),
-        Err(Ok(CrowdfundingError::RefundGracePeriodNotPassed))
+        Err(Ok(CrowdfundingError::RefundGracePeriod))
     );
 }
 
@@ -261,7 +262,7 @@ fn test_emergency_withdraw_cannot_execute_twice() {
     let second = client.try_execute_emergency_withdraw();
     assert_eq!(
         second,
-        Err(Ok(CrowdfundingError::EmergencyWithdrawalNotRequested)),
+        Err(Ok(CrowdfundingError::EmergencyWithdrawMiss)),
         "second emergency withdrawal must be blocked"
     );
 }
@@ -278,7 +279,7 @@ fn test_emergency_withdraw_cannot_request_twice() {
     let second = client.try_request_emergency_withdraw(&token_id, &100_000);
     assert_eq!(
         second,
-        Err(Ok(CrowdfundingError::EmergencyWithdrawalAlreadyRequested))
+        Err(Ok(CrowdfundingError::EmergencyWithdrawReq))
     );
 }
 
@@ -297,6 +298,8 @@ fn test_emergency_withdraw_blocked_before_grace_period() {
 
     assert_eq!(
         client.try_execute_emergency_withdraw(),
-        Err(Ok(CrowdfundingError::EmergencyWithdrawalPeriodNotPassed))
+        Err(Ok(CrowdfundingError::EmergencyWithdrawEarly))
     );
 }
+
+

@@ -42,6 +42,7 @@ fn create_pool_with_validator(
         is_private: false,
         duration: 86_400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token.clone(),
         validator: validator.clone(),
     };
@@ -382,3 +383,4 @@ fn test_get_application_not_found() {
     let result = client.try_get_application(&pool_id, &student);
     assert_eq!(result, Err(Ok(ValidationError::ApplicationNotFound)));
 }
+

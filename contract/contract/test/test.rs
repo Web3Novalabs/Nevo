@@ -49,6 +49,7 @@ fn test_create_pool_with_deposit() {
         is_private: false,
         duration: 86400, // 1 day
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
     };
 
     // Call create_pool
@@ -65,3 +66,4 @@ fn test_create_pool_with_deposit() {
     assert_eq!(token.balance(&creator), initial_balance - creation_fee);
     assert_eq!(token.balance(&contract_id), creation_fee);
 }
+

@@ -42,6 +42,7 @@ fn create_funded_pool(
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_address.clone(),
         validator: sponsor.clone(),
     };
@@ -188,3 +189,4 @@ fn test_withdraw_unallocated_pool_not_found_fails() {
     let result = client.try_withdraw_unallocated(&999u64, &caller, &100i128);
     assert_eq!(result, Err(Ok(CrowdfundingError::PoolNotFound)));
 }
+

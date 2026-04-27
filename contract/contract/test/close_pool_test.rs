@@ -39,6 +39,7 @@ fn create_test_pool(
         is_private: false,
         duration: 86400, // 1 day
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_address.clone(),
         validator: creator.clone(), // For simplicity, creator is also validator
     };
@@ -115,7 +116,7 @@ fn test_close_pool_not_disbursed_or_cancelled() {
     let result = client.try_close_pool(&pool_id, &admin);
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::PoolNotDisbursedOrRefunded))
+        Err(Ok(CrowdfundingError::PoolNotDisbursed))
     );
 }
 
@@ -134,7 +135,7 @@ fn test_close_pool_paused_state() {
     let result = client.try_close_pool(&pool_id, &admin);
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::PoolNotDisbursedOrRefunded))
+        Err(Ok(CrowdfundingError::PoolNotDisbursed))
     );
 }
 
@@ -153,7 +154,7 @@ fn test_close_pool_completed_state() {
     let result = client.try_close_pool(&pool_id, &admin);
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::PoolNotDisbursedOrRefunded))
+        Err(Ok(CrowdfundingError::PoolNotDisbursed))
     );
 }
 
@@ -286,7 +287,7 @@ fn test_close_pool_state_transition_sequence() {
     let result = client.try_close_pool(&pool_id, &admin);
     assert_eq!(
         result,
-        Err(Ok(CrowdfundingError::PoolNotDisbursedOrRefunded))
+        Err(Ok(CrowdfundingError::PoolNotDisbursed))
     );
 
     // Transition to Disbursed
@@ -347,3 +348,5 @@ fn test_is_closed_for_different_states() {
     assert!(!client.is_closed(&pool_disbursed));
     assert!(client.is_closed(&pool_closed));
 }
+
+

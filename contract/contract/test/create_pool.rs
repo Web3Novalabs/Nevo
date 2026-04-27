@@ -48,6 +48,7 @@ fn test_create_pool_success() {
         is_private: false,
         duration: 30 * 24 * 60 * 60,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_address.clone(),
         validator: creator.clone(),
     };
@@ -83,6 +84,7 @@ fn test_create_pool_invalid_token_fails() {
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: wrong_token,
         validator: creator.clone(),
     };
@@ -108,6 +110,7 @@ fn test_create_pool_panic_description_length() {
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address,
         validator: creator.clone(),
     };
@@ -131,6 +134,7 @@ fn test_create_pool_invalid_description_length() {
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address,
         validator: creator.clone(),
     };
@@ -155,6 +159,7 @@ fn test_create_pool_validation_logic() {
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address,
         validator: creator.clone(),
     };
@@ -239,6 +244,7 @@ fn test_create_pool_zero_funds_fails() {
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_address.clone(),
         validator: creator.clone(),
     };
@@ -270,6 +276,7 @@ fn test_create_pool_wrong_token_fails() {
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: wrong_token,
         validator: creator.clone(),
     };
@@ -307,6 +314,7 @@ fn test_create_pool_unauthorized_fails() {
         is_private: false,
         duration: 86400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token_address.clone(),
         validator: creator.clone(),
     };
@@ -317,3 +325,4 @@ fn test_create_pool_unauthorized_fails() {
     // Pool must not exist after the failed call
     assert!(client.get_pool(&1).is_none());
 }
+

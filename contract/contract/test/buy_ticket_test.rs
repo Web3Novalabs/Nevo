@@ -38,6 +38,7 @@ fn create_pool(client: &CrowdfundingContractClient<'_>, env: &Env, token: &Addre
         is_private: false,
         duration: 86_400,
         created_at: env.ledger().timestamp(),
+        application_deadline: env.ledger().timestamp() + 30 * 24 * 60 * 60,
         token_address: token.clone(),
         validator: admin.clone(),
     };
@@ -373,3 +374,4 @@ fn test_buy_ticket_requires_buyer_auth() {
         "buyer auth must be recorded"
     );
 }
+

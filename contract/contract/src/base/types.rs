@@ -74,6 +74,20 @@ pub struct PoolConfig {
     pub token_address: Address,
     /// The address authorized to approve or reject scholarship applications for this pool.
     pub validator: Address,
+    /// Unix timestamp after which no new applications are accepted.
+    pub application_deadline: u64,
+}
+
+/// A single time-locked disbursement milestone for a scholarship application.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Milestone {
+    /// Unix timestamp at or after which this milestone may be unlocked.
+    pub unlock_date: u64,
+    /// Whether this milestone has already been unlocked and funds released.
+    pub unlocked: bool,
+    /// Token amount to disburse when this milestone is unlocked.
+    pub amount: i128,
 }
 
 /// Status of a scholarship application.
@@ -449,17 +463,6 @@ pub struct PoolContribution {
     pub asset: Address,
 }
 
-/// Documentation for this item.
-#[allow(missing_docs)]
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-/// Defines the possible states or errors for storagekey.
-pub enum ApplicationStatus {
-    Pending = 0,
-    Approved = 1,
-    Rejected = 2,
-}
-
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ApplicationDetails {
@@ -589,6 +592,7 @@ mod tests {
             is_private: false,
             duration: 30 * 24 * 60 * 60,
             created_at: 1,
+            application_deadline: 1 + 30 * 24 * 60 * 60,
             token_address: token,
             validator,
         };
@@ -610,6 +614,7 @@ mod tests {
             is_private: false,
             duration: 30 * 24 * 60 * 60,
             created_at: 1,
+            application_deadline: 1 + 30 * 24 * 60 * 60,
             token_address: token,
             validator,
         };
@@ -777,6 +782,7 @@ mod tests {
             is_private: false,
             duration: 86400,
             created_at: 1234567890,
+            application_deadline: 1234567890 + 86400,
             token_address: token.clone(),
             validator: creator.clone(),
         };
