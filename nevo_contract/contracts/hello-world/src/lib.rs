@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String, Symbol};
 
 // Storage key constants
 const POOL_COUNT: &str = "pool_count";
@@ -23,11 +23,19 @@ const CLAIMED_AMOUNT_PREFIX: &str = "claimed_amount";
 const APPLICATION_STATUS_APPROVED: &str = "Approved";
 const APPLICATION_STATUS_REJECTED: &str = "Rejected";
 
+/// Tracks a student's approved funding and how much has been streamed so far.
+///
+/// `amount_claimed` starts at zero and increments with each partial withdrawal,
+/// allowing the contract to enforce the invariant:
+///   amount_claimed + new_claim <= approved_amount
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Milestone {
-    pub amount: u128,
-    pub unlock_time: u64,
+pub struct Application {
+    /// The total amount the student is approved to receive from this pool.
+    pub approved_amount: i128,
+    /// Running total of funds already disbursed to the student.
+    /// Starts at 0; incremented on every successful partial claim.
+    pub amount_claimed: i128,
 }
 
 #[contract]
@@ -351,7 +359,32 @@ impl Contract {
             .unwrap_or(0)
     }
 
-    /// Claim funds for an approved application.
+    /// Get the full Application record for a student in a pool.
+    /// Returns `None` if the student has not yet made any claim.
+    pub fn get_application(env: Env, pool_id: u32, student: Address) -> Option<Application> {
+        let app_key = (CLAIMED_AMOUNT_PREFIX, pool_id, student.clone());
+        env.storage().persistent().get::<_, Application>(&app_key)
+    }
+
+    /// Claim funds: allows an approved student to receive a partial or full
+    /// disbursement from a pool.
+    ///
+    /// Uses `Application` to persist `amount_claimed` across calls, enabling
+    /// streamed / milestone-based withdrawals where the student draws down
+    /// their approved allocation incrementally.
+    ///
+    /// # Arguments
+    /// * `env`           - The contract environment
+    /// * `student`       - The student address receiving funds (must authorize)
+    /// * `pool_id`       - The ID of the pool to claim from
+    /// * `claim_amount`  - The amount to claim this call (must be > 0)
+    /// * `token_address` - The token used for the transfer
+    ///
+    /// # Panics
+    /// - `"Claim amount must be positive"` if `claim_amount <= 0`
+    /// - `"Application status not found"` if no status has been set
+    /// - `"Application is not approved"` if status != "Approved"
+    /// - `"Overdraw attempt"` if `amount_claimed + claim_amount > collected`
     pub fn claim_funds(
         env: Env,
         student: Address,
@@ -365,37 +398,50 @@ impl Contract {
             panic!("Claim amount must be positive");
         }
 
+        // Verify application is approved
+        let status_key = (APPLICATION_STATUS_PREFIX, pool_id, student.clone());
+        let status: String = env
+            .storage()
+            .persistent()
+            .get::<_, String>(&status_key)
+            .unwrap_or_else(|| panic!("Application status not found"));
+
+        if status != String::from_str(&env, APPLICATION_STATUS_APPROVED) {
+            panic!("Application is not approved");
+        }
+
+        // Load pool to check available collected funds
         let pool_data: (Address, u128, u128, bool) = env
             .storage()
             .persistent()
             .get::<_, (Address, u128, u128, bool)>(&pool_id)
             .expect("Pool not found");
 
-        let status = Self::get_application_status(env.clone(), pool_id, student.clone());
-        if status == String::from_str(&env, "") {
-            panic!("Application status not found");
-        }
-        if status != String::from_str(&env, APPLICATION_STATUS_APPROVED) {
-            panic!("Application is not approved");
-        }
+        let collected = pool_data.2 as i128;
 
-        let claimed_key = (
-            Symbol::new(&env, CLAIMED_AMOUNT_PREFIX),
-            pool_id,
-            student.clone(),
-        );
-        let current_claimed: i128 = env
+        // Load or initialise the Application record for this student
+        let app_key = (CLAIMED_AMOUNT_PREFIX, pool_id, student.clone());
+        let mut application: Application = env
             .storage()
             .persistent()
-            .get::<_, i128>(&claimed_key)
-            .unwrap_or(0);
-        let new_claimed = current_claimed + claim_amount;
+            .get::<_, Application>(&app_key)
+            .unwrap_or(Application {
+                approved_amount: collected,
+                amount_claimed: 0,
+            });
 
-        if new_claimed > pool_data.2 as i128 {
+        // Enforce the partial-payment invariant
+        if application.amount_claimed + claim_amount > collected {
             panic!("Overdraw attempt");
         }
 
-        env.storage().persistent().set(&claimed_key, &new_claimed);
+        // Disburse tokens to the student
+        let token_client = token::Client::new(&env, &token_address);
+        token_client.transfer(&env.current_contract_address(), &student, &claim_amount);
+
+        // Persist the updated running total
+        application.amount_claimed += claim_amount;
+        env.storage().persistent().set(&app_key, &application);
     }
 }
 

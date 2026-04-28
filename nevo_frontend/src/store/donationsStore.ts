@@ -1,15 +1,15 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export interface Donation {
   id: string;
   poolId: string;
   poolName: string;
   amount: string;
-  asset: "XLM" | "USDC";
+  asset: 'XLM' | 'USDC';
   txHash: string;
   timestamp: string;
-  status: "pending" | "confirmed" | "failed";
+  status: 'pending' | 'confirmed' | 'failed';
 }
 
 interface DonationsState {
@@ -17,7 +17,7 @@ interface DonationsState {
   activeDonation: Donation | null;
   addDonation: (donation: Donation) => void;
   setActiveDonation: (donation: Donation | null) => void;
-  updateDonationStatus: (id: string, status: Donation["status"]) => void;
+  updateDonationStatus: (id: string, status: Donation['status']) => void;
   clearHistory: () => void;
 }
 
@@ -40,7 +40,7 @@ export const useDonationsStore = create<DonationsState>()(
       clearHistory: () => set({ history: [] }),
     }),
     {
-      name: "nevo-donations",
+      name: 'nevo-donations',
       partialize: (state) => ({ history: state.history }),
     }
   )

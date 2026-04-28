@@ -1,6 +1,6 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
-export type PoolStatus = "Active" | "Completed";
+export type PoolStatus = 'Active' | 'Completed';
 
 export interface Pool {
   id: string;
@@ -34,7 +34,11 @@ interface PoolsState {
   filteredPools: () => Pool[];
 }
 
-const DEFAULT_FILTERS: PoolFilters = { search: "", categories: [], statuses: [] };
+const DEFAULT_FILTERS: PoolFilters = {
+  search: '',
+  categories: [],
+  statuses: [],
+};
 
 export const usePoolsStore = create<PoolsState>()((set, get) => ({
   pools: [],
@@ -44,8 +48,7 @@ export const usePoolsStore = create<PoolsState>()((set, get) => ({
   setPools: (pools) => set({ pools }),
   setLoading: (loading) => set({ loading }),
 
-  setSearch: (search) =>
-    set((s) => ({ filters: { ...s.filters, search } })),
+  setSearch: (search) => set((s) => ({ filters: { ...s.filters, search } })),
 
   toggleCategory: (category) =>
     set((s) => ({
@@ -80,8 +83,7 @@ export const usePoolsStore = create<PoolsState>()((set, get) => ({
         filters.categories.length === 0 ||
         filters.categories.includes(pool.category);
       const matchStatus =
-        filters.statuses.length === 0 ||
-        filters.statuses.includes(pool.status);
+        filters.statuses.length === 0 || filters.statuses.includes(pool.status);
       return matchSearch && matchCategory && matchStatus;
     });
   },

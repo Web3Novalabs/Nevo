@@ -1,7 +1,7 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { getPublicKey, connect, disconnect } from "@/app/stellar-wallets-kit";
-import { getAccountBalances, AccountBalances } from "@/lib/stellar";
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { getPublicKey, connect, disconnect } from '@/app/stellar-wallets-kit';
+import { getAccountBalances, AccountBalances } from '@/lib/stellar';
 
 interface WalletState {
   publicKey: string | null;
@@ -54,7 +54,7 @@ export const useWalletStore = create<WalletState>()(
       },
     }),
     {
-      name: "nevo-wallet",
+      name: 'nevo-wallet',
       partialize: (state) => ({ publicKey: state.publicKey }),
     }
   )

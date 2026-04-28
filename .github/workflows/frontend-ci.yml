@@ -27,5 +27,11 @@ jobs:
       - name: Install dependencies
         run: npm install
       
+      - name: Lint Check
+        run: npm run lint
+        
+      - name: Prettier Check
+        run: npx prettier --check .
+      
       - name: Build Check
         run: npm run build

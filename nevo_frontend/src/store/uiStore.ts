@@ -1,6 +1,6 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
-type ModalType = "donation" | "createPool" | "confirmTx" | null;
+type ModalType = 'donation' | 'createPool' | 'confirmTx' | null;
 
 interface UIState {
   activeModal: ModalType;

@@ -1,43 +1,43 @@
-import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import Navbar from "@/components/Navbar";
+import type { Metadata, Viewport } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
+import './globals.css';
+import Navbar from '@/components/Navbar';
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "Nevo",
-    template: "%s | Nevo",
+    default: 'Nevo',
+    template: '%s | Nevo',
   },
   description:
-    "Nevo is an open-source donation platform built on Stellar. Create transparent, secure, and efficient fundraising pools on-chain.",
+    'Nevo is an open-source donation platform built on Stellar. Create transparent, secure, and efficient fundraising pools on-chain.',
   openGraph: {
-    title: "Nevo",
+    title: 'Nevo',
     description:
-      "Transparent, secure, and efficient fundraising pools on Stellar.",
-    url: "https://nevo.app",
-    siteName: "Nevo",
-    type: "website",
+      'Transparent, secure, and efficient fundraising pools on Stellar.',
+    url: 'https://nevo.app',
+    siteName: 'Nevo',
+    type: 'website',
   },
   twitter: {
-    card: "summary_large_image",
-    title: "Nevo",
+    card: 'summary_large_image',
+    title: 'Nevo',
     description:
-      "Transparent, secure, and efficient fundraising pools on Stellar.",
+      'Transparent, secure, and efficient fundraising pools on Stellar.',
   },
 };
 
 export const viewport: Viewport = {
-  width: "device-width",
+  width: 'device-width',
   initialScale: 1,
 };
 
