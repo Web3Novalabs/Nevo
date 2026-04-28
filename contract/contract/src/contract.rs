@@ -4,7 +4,7 @@ use crate::base::{
     errors::CrowdfundingError,
     types::{
         CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
-        PoolState,
+        PoolState, School,
     },
 };
 use crate::crowdfunding::CrowdfundingContract;
@@ -391,5 +391,21 @@ impl CrowdfundingTrait for FundEduContract {
         amount: i128,
     ) -> Result<(), CrowdfundingError> {
         CrowdfundingContract::withdraw_unallocated(env, pool_id, sponsor, amount)
+    }
+
+    fn register_school(
+        env: Env,
+        school_addr: Address,
+        metadata_hash: BytesN<32>,
+    ) -> Result<(), CrowdfundingError> {
+        CrowdfundingContract::register_school(env, school_addr, metadata_hash)
+    }
+
+    fn get_school(env: Env, school_addr: Address) -> Result<School, CrowdfundingError> {
+        CrowdfundingContract::get_school(env, school_addr)
+    }
+
+    fn get_all_schools(env: Env) -> Vec<Address> {
+        CrowdfundingContract::get_all_schools(env)
     }
 }

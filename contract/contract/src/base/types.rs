@@ -95,6 +95,23 @@ pub struct ScholarshipApplication {
     pub status: ApplicationStatus,
 }
 
+/// Represents a registered school with identity mapping to an accredited body.
+///
+/// Schools must be registered by the root Nevo Admin to establish their
+/// official representation status on the Nevo platform.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct School {
+    /// The school's official address (Soroban Address).
+    pub school_address: Address,
+    /// The metadata hash identifying the school details (32 bytes).
+    pub metadata_hash: BytesN<32>,
+    /// Timestamp when the school was registered.
+    pub registered_at: u64,
+    /// The admin who registered this school.
+    pub registered_by: Address,
+}
+
 /// Documentation for this item.
 #[allow(missing_docs)]
 #[contracttype]
@@ -565,6 +582,10 @@ pub enum StorageKey {
     PoolBalance(u64),
     // Sum of requested_amount for all Approved applications on a pool
     PoolAllocated(u64),
+    /// School mapping by address for identity verification.
+    School(Address),
+    /// All registered schools (list of addresses).
+    AllSchools,
 }
 
 #[cfg(test)]

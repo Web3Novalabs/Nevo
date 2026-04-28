@@ -109,6 +109,8 @@ pub enum CrowdfundingError {
     CampaignCancelled = 50,
     DeadlinePassed = 51,
     VectorLimitExceeded = 52,
+    /// SchoolNotFound = 53.
+    SchoolNotFound = 53,
 }
 
 /// Documentation for this item.

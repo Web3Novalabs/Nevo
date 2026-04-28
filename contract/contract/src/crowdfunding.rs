@@ -13,7 +13,7 @@ use crate::base::{
     types::{
         ApplicationStatus, CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
         EmergencyWithdrawal, EventDetails, EventMetrics, MultiSigConfig, PoolConfig,
-        PoolContribution, PoolMetadata, PoolMetrics, PoolState, ScholarshipApplication, StorageKey,
+        PoolContribution, PoolMetadata, PoolMetrics, PoolState, ScholarshipApplication, School, StorageKey,
         MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH, MAX_SINGLE_OP_ITEMS, MAX_STRING_LENGTH, MAX_URL_LENGTH,
     },
 };
@@ -2401,6 +2401,73 @@ impl CrowdfundingTrait for CrowdfundingContract {
             .instance()
             .get(&app_key)
             .ok_or(ValidationError::ApplicationNotFound)
+    }
+
+    fn register_school(
+        env: Env,
+        school_addr: Address,
+        metadata_hash: BytesN<32>,
+    ) -> Result<(), CrowdfundingError> {
+        // Retrieve the admin from storage
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .ok_or(CrowdfundingError::NotInitialized)?;
+
+        // Require admin authorization
+        admin.require_auth();
+
+        // Create the school entry with timestamp and admin
+        let now = env.ledger().timestamp();
+        let school = School {
+            school_address: school_addr.clone(),
+            metadata_hash,
+            registered_at: now,
+            registered_by: admin.clone(),
+        };
+
+        // Store the school mapping
+        let school_key = StorageKey::School(school_addr.clone());
+        env.storage().instance().set(&school_key, &school);
+
+        // Add to all schools list
+        let all_schools_key = StorageKey::AllSchools;
+        let mut schools: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&all_schools_key)
+            .unwrap_or_else(|| Vec::new(&env));
+
+        // Only add if not already registered
+        if !schools.contains(&school_addr) {
+            schools.push_back(school_addr.clone());
+            env.storage().instance().set(&all_schools_key, &schools);
+        }
+
+        // Emit event
+        events::school_registered(&env, school_addr);
+
+        Ok(())
+    }
+
+    fn get_school(
+        env: Env,
+        school_addr: Address,
+    ) -> Result<School, CrowdfundingError> {
+        let school_key = StorageKey::School(school_addr);
+        env.storage()
+            .instance()
+            .get(&school_key)
+            .ok_or(CrowdfundingError::SchoolNotFound)
+    }
+
+    fn get_all_schools(env: Env) -> Vec<Address> {
+        let all_schools_key = StorageKey::AllSchools;
+        env.storage()
+            .instance()
+            .get(&all_schools_key)
+            .unwrap_or_else(|| Vec::new(&env))
     }
 }
 

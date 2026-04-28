@@ -4,7 +4,7 @@ use crate::base::{
     errors::{CrowdfundingError, ValidationError},
     types::{
         CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
-        PoolState, ScholarshipApplication,
+        PoolState, School, ScholarshipApplication,
     },
 };
 
@@ -276,4 +276,44 @@ pub trait CrowdfundingTrait {
         pool_id: u64,
         applicant: Address,
     ) -> Result<ScholarshipApplication, ValidationError>;
+
+    /// Register a school with the Nevo platform via admin identity mapping.
+    ///
+    /// Only the root protocol Admin can call this function to establish official
+    /// representation of accredited bodies.
+    ///
+    /// # Arguments
+    /// * `env` - The Soroban environment
+    /// * `school_addr` - The Soroban Address of the school
+    /// * `metadata_hash` - A 32-byte hash containing school metadata
+    ///
+    /// # Returns
+    /// Success or a CrowdfundingError if admin verification fails
+    fn register_school(
+        env: Env,
+        school_addr: Address,
+        metadata_hash: BytesN<32>,
+    ) -> Result<(), CrowdfundingError>;
+
+    /// Retrieve a registered school by its address.
+    ///
+    /// # Arguments
+    /// * `env` - The Soroban environment
+    /// * `school_addr` - The school's Soroban Address
+    ///
+    /// # Returns
+    /// The School struct or a CrowdfundingError if not found
+    fn get_school(
+        env: Env,
+        school_addr: Address,
+    ) -> Result<School, CrowdfundingError>;
+
+    /// Get all registered school addresses.
+    ///
+    /// # Arguments
+    /// * `env` - The Soroban environment
+    ///
+    /// # Returns
+    /// A vector of all registered school addresses
+    fn get_all_schools(env: Env) -> Vec<Address>;
 }
