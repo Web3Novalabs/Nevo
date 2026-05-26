@@ -23,23 +23,8 @@ const CLAIMED_AMOUNT_PREFIX: &str = "claimed_amount";
 const APPLICATION_STATUS_APPROVED: &str = "Approved";
 const APPLICATION_STATUS_REJECTED: &str = "Rejected";
 
-/// A donation / sponsorship pool.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Pool {
-    pub sponsor: Address,
-    pub goal: u128,
-    pub collected: u128,
-    pub is_closed: bool,
-}
-
-/// A single milestone within a student's funding plan.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Milestone {
-    pub description: String,
-    pub amount: u128,
-}
+// Protocol fees accumulator - tracks unclaimed fees collected from operations
+const UNCLAIMED_FEES: &str = "unclaimed_fees";
 
 /// Tracks a student's approved funding and how much has been streamed so far.
 ///
@@ -54,6 +39,23 @@ pub struct Application {
     /// Running total of funds already disbursed to the student.
     /// Starts at 0; incremented on every successful partial claim.
     pub amount_claimed: i128,
+}
+
+/// Pool information
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Pool {
+    pub sponsor: Address,
+    pub goal: u128,
+    pub collected: u128,
+    pub is_closed: bool,
+}
+
+/// Milestone for streaming disbursements
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Milestone {
+    pub amount: u128,
 }
 
 #[contract]
@@ -134,6 +136,7 @@ impl Contract {
         };
 
         env.storage().persistent().set(&pool_id, &pool);
+
         env.storage().persistent().set(&pool_count_key, &pool_count);
 
         pool_id
@@ -181,9 +184,12 @@ impl Contract {
             panic!("Pool is closed");
         }
 
+        let new_collected = pool.collected + amount;
         let updated_pool = Pool {
-            collected: pool.collected + amount,
-            ..pool
+            sponsor: pool.sponsor,
+            goal: pool.goal,
+            collected: new_collected,
+            is_closed: pool.is_closed,
         };
         env.storage().persistent().set(&pool_id, &updated_pool);
 
@@ -223,10 +229,15 @@ impl Contract {
             .get::<_, Pool>(&pool_id)
             .expect("Pool not found");
 
+        pool.sponsor.require_auth();
+
         let updated_pool = Pool {
+            sponsor: pool.sponsor,
+            goal: pool.goal,
+            collected: pool.collected,
             is_closed: true,
-            ..pool
         };
+
         env.storage().persistent().set(&pool_id, &updated_pool);
     }
 
@@ -392,7 +403,11 @@ impl Contract {
     /// Get the full Application record for a student in a pool.
     /// Returns `None` if the student has not yet made any claim.
     pub fn get_application(env: Env, pool_id: u32, student: Address) -> Option<Application> {
-        let app_key = (CLAIMED_AMOUNT_PREFIX, pool_id, student.clone());
+        let app_key = (
+            Symbol::new(&env, CLAIMED_AMOUNT_PREFIX),
+            pool_id,
+            student.clone(),
+        );
         env.storage().persistent().get::<_, Application>(&app_key)
     }
 
@@ -539,7 +554,11 @@ impl Contract {
         let collected = pool.collected as i128;
 
         // Load or initialise the Application record for this student
-        let app_key = (CLAIMED_AMOUNT_PREFIX, pool_id, student.clone());
+        let app_key = (
+            Symbol::new(&env, CLAIMED_AMOUNT_PREFIX),
+            pool_id,
+            student.clone(),
+        );
         let mut application: Application = env
             .storage()
             .persistent()
@@ -554,13 +573,77 @@ impl Contract {
             panic!("Overdraw attempt");
         }
 
+        // Accumulate protocol fees (1% of claim amount)
+        // Fee tracking is isolated from student allocations
+        let fee = claim_amount / 100;
+        let net_transfer = claim_amount - fee;
+
         // Disburse tokens to the student
         let token_client = token::Client::new(&env, &token_address);
-        token_client.transfer(&env.current_contract_address(), &student, &claim_amount);
+        token_client.transfer(&env.current_contract_address(), &student, &net_transfer);
+        let unclaimed_fees_key = Symbol::new(&env, UNCLAIMED_FEES);
+        let mut current_fees: i128 = env
+            .storage()
+            .persistent()
+            .get::<_, i128>(&unclaimed_fees_key)
+            .unwrap_or(0);
+        current_fees += fee;
+        env.storage()
+            .persistent()
+            .set(&unclaimed_fees_key, &current_fees);
 
         // Persist the updated running total
         application.amount_claimed += claim_amount;
         env.storage().persistent().set(&app_key, &application);
+    }
+
+    /// Claim accumulated protocol fees on behalf of the protocol/treasury.
+    ///
+    /// Allows Protocol Admins to retrieve all accumulated fees from operations.
+    /// This function separates fee tracking cleanly from active token allocations.
+    ///
+    /// # Arguments
+    /// * `env`           - The contract environment
+    /// * `admin`         - The admin address claiming fees (must authorize)
+    /// * `token_address` - The token to transfer fees as
+    ///
+    /// # Panics
+    /// - `"Unauthorized admin"` if the caller is not the stored admin address
+    /// - `"No unclaimed fees"` if there are no accumulated fees to claim
+    pub fn claim_protocol_fees(env: Env, admin: Address, token_address: Address) -> i128 {
+        admin.require_auth();
+
+        // Verify caller is the protocol admin
+        let admin_key = Symbol::new(&env, ADMIN_KEY);
+        let stored_admin: Address = env
+            .storage()
+            .persistent()
+            .get::<_, Address>(&admin_key)
+            .expect("Admin not set");
+        if stored_admin != admin {
+            panic!("Unauthorized admin");
+        }
+
+        // Get accumulated unclaimed fees
+        let unclaimed_fees_key = Symbol::new(&env, UNCLAIMED_FEES);
+        let fees: i128 = env
+            .storage()
+            .persistent()
+            .get::<_, i128>(&unclaimed_fees_key)
+            .unwrap_or(0);
+
+        if fees == 0 {
+            panic!("No unclaimed fees");
+        }
+
+        // Transfer accumulated fees to admin
+        let token_client = token::Client::new(&env, &token_address);
+        token_client.transfer(&env.current_contract_address(), &admin, &fees);
+
+        // Reset unclaimed fees to 0
+        env.storage().persistent().set(&unclaimed_fees_key, &0i128);
+
+        fees
     }
 }
 

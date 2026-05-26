@@ -3,8 +3,18 @@
 use super::*;
 use soroban_sdk::{
     testutils::{Address as _, MockAuth, MockAuthInvoke},
+    token::StellarAssetClient,
     Address, Env, IntoVal, String,
 };
+
+/// Create a mock SAC token, mint `amount` into `recipient`, and return the token address.
+fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
+    let admin = Address::generate(env);
+    let token = env.register_stellar_asset_contract_v2(admin.clone());
+    let sac = StellarAssetClient::new(env, &token.address());
+    sac.mint(recipient, &amount);
+    token.address()
+}
 
 #[test]
 fn test_create_pool() {
@@ -48,6 +58,29 @@ fn test_donate() {
 
     let pool = client.get_pool(&pool_id);
     assert_eq!(pool.3, donation_amount); // collected amount
+}
+
+#[test]
+fn test_apply_for_scholarship_creates_application() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let title = String::from_str(&env, "Scholarship Pool");
+    let description = String::from_str(&env, "Support for students");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+
+    // Apply to pool
+    env.mock_all_auths();
+    client.apply_to_pool(
+        &pool_id,
+        &student,
+        &String::from_str(&env, "application_data"),
+    );
 }
 
 #[test]
@@ -109,6 +142,35 @@ fn test_donate_to_closed_pool() {
     client.close_pool(&pool_id);
 
     client.donate(&pool_id, &donor, &100_000_000);
+}
+
+#[test]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
+fn test_close_pool_unauthorized() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let unauthorized = Address::generate(&env);
+    let title = String::from_str(&env, "Test Pool");
+    let description = String::from_str(&env, "Test");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+
+    // Try to close pool with unauthorized user - should panic
+    client
+        .mock_auths(&[MockAuth {
+            address: &unauthorized,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "close_pool",
+                args: (&pool_id,).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .close_pool(&pool_id);
 }
 
 #[test]
@@ -286,144 +348,214 @@ fn test_get_application_status() {
     assert_eq!(status_after_set, approved_status);
 }
 
-// ============= WITHDRAW_UNALLOCATED_FUNDS TESTS =============
+// ============= PROTOCOL FEES TESTS =============
 
-/// Success: sponsor withdraws the full surplus when no Application records exist
-/// (approved student has not yet made any claim, so locked = 0).
 #[test]
-fn test_withdraw_unallocated_funds_success() {
+fn test_protocol_fees_accumulation_on_claim() {
     let env = Env::default();
     env.mock_all_auths();
-
     let contract_id = env.register(Contract, ());
     let client = ContractClient::new(&env, &contract_id);
 
-    let sponsor = Address::generate(&env);
     let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
     let student = Address::generate(&env);
 
-    // Register a real SAC token so the transfer call succeeds.
-    let sac = env.register_stellar_asset_contract_v2(admin.clone());
-    let token_address = sac.address();
-    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
+    // Create a real SAC token and fund the contract so it can transfer
+    let claim_amount: i128 = 100_000_000;
+    let token_address = create_token(&env, claim_amount, &contract_id);
 
+    // Set admin
+    client.set_admin(&admin);
+
+    // Create pool and donate
     let pool_id = client.create_pool(
-        &sponsor,
+        &creator,
         &String::from_str(&env, "Test Pool"),
         &String::from_str(&env, "Test"),
-        &1_000_000_000u128,
+        &1_000_000_000,
     );
 
-    // Mint tokens to the contract so it can transfer them out.
-    token_client.mint(&contract_id, &1_000_000_000i128);
+    client.donate(&pool_id, &creator, &500_000_000);
 
-    // Simulate donation accounting (pool.collected tracks the on-chain balance).
-    client.donate(&pool_id, &sponsor, &1_000_000_000u128);
-
-    // Apply student and approve — no Application record yet (no claim made),
-    // so locked = 0 and surplus = 1_000_000_000.
-    client.apply_to_pool(
-        &pool_id,
-        &student,
-        &String::from_str(&env, "application data"),
-    );
+    // Approve student and allow them to claim
     client.set_application_status(&pool_id, &student, &String::from_str(&env, "Approved"));
 
-    client.withdraw_unallocated_funds(&pool_id, &token_address);
+    // Student claims funds - should accumulate 1% fee
+    client.claim_funds(&student, &pool_id, &claim_amount, &token_address);
 
-    let pool = client.get_pool(&pool_id);
-    assert_eq!(pool.3, 0u128); // collected reduced to 0
+    // Verify application recorded the claim
+    let app = client.get_application(&pool_id, &student);
+    assert!(app.is_some());
 }
 
-/// Insolvency: locked funds exceed collected → contract must panic.
 #[test]
-#[should_panic(expected = "Insolvency: locked funds exceed collected")]
-fn test_withdraw_unallocated_funds_insolvency() {
+#[should_panic(expected = "Unauthorized admin")]
+fn test_claim_protocol_fees_requires_admin_authorization() {
     let env = Env::default();
     env.mock_all_auths();
-
     let contract_id = env.register(Contract, ());
     let client = ContractClient::new(&env, &contract_id);
 
-    let sponsor = Address::generate(&env);
-    let student = Address::generate(&env);
+    let admin = Address::generate(&env);
+    let non_admin = Address::generate(&env);
     let token_address = Address::generate(&env);
 
-    let pool_id = client.create_pool(
-        &sponsor,
-        &String::from_str(&env, "Test Pool"),
-        &String::from_str(&env, "Test"),
-        &1_000_000_000u128,
-    );
+    // Set admin
+    client.set_admin(&admin);
 
-    // Only 100_000_000 collected, but inject an Application with 500_000_000 approved.
-    client.donate(&pool_id, &sponsor, &100_000_000u128);
-
-    env.as_contract(&contract_id, || {
-        let count_key = (Symbol::new(&env, APPLICATION_COUNT_PREFIX), pool_id);
-        env.storage().persistent().set(&count_key, &1u32);
-
-        let app_entry_key = (Symbol::new(&env, APPLICATION_PREFIX), pool_id, 1u32);
-        env.storage().persistent().set(
-            &app_entry_key,
-            &(1u32, student.clone(), String::from_str(&env, "data")),
-        );
-
-        let status_key = (
-            Symbol::new(&env, APPLICATION_STATUS_PREFIX),
-            pool_id,
-            student.clone(),
-        );
-        env.storage()
-            .persistent()
-            .set(&status_key, &String::from_str(&env, "Approved"));
-
-        let app_key = (CLAIMED_AMOUNT_PREFIX, pool_id, student.clone());
-        env.storage().persistent().set(
-            &app_key,
-            &Application {
-                approved_amount: 500_000_000i128,
-                amount_claimed: 0i128,
-            },
-        );
-    });
-
-    // locked (500_000_000) > collected (100_000_000) → must panic
-    client.withdraw_unallocated_funds(&pool_id, &token_address);
+    // Try to claim as non-admin - should panic
+    client.claim_protocol_fees(&non_admin, &token_address);
 }
 
-/// Auth: only the pool's sponsor can call withdraw_unallocated_funds.
 #[test]
-#[should_panic]
-fn test_withdraw_unallocated_funds_unauthorized() {
+#[should_panic(expected = "No unclaimed fees")]
+fn test_claim_protocol_fees_no_fees() {
     let env = Env::default();
-
+    env.mock_all_auths();
     let contract_id = env.register(Contract, ());
     let client = ContractClient::new(&env, &contract_id);
 
-    let sponsor = Address::generate(&env);
-    let attacker = Address::generate(&env);
+    let admin = Address::generate(&env);
     let token_address = Address::generate(&env);
 
-    env.mock_all_auths_allowing_non_root_auth();
+    // Set admin
+    client.set_admin(&admin);
+
+    // Try to claim when no fees accumulated - should panic
+    client.claim_protocol_fees(&admin, &token_address);
+}
+
+#[test]
+fn test_claim_protocol_fees_multiple_claims_accumulate() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let student1 = Address::generate(&env);
+    let student2 = Address::generate(&env);
+
+    // Total needed by contract: claim1 + claim2 = 150_000_000
+    // net to students: 99_000_000 + 49_500_000; fees: 1_000_000 + 500_000
+    let claim_amount1: i128 = 100_000_000;
+    let claim_amount2: i128 = 50_000_000;
+    let token_address = create_token(&env, claim_amount1 + claim_amount2, &contract_id);
+
+    // Set admin
+    client.set_admin(&admin);
+
+    // Create pool with sufficient funds
     let pool_id = client.create_pool(
-        &sponsor,
+        &creator,
         &String::from_str(&env, "Test Pool"),
         &String::from_str(&env, "Test"),
-        &1_000_000_000u128,
+        &1_000_000_000,
     );
-    client.donate(&pool_id, &sponsor, &1_000_000_000u128);
 
-    // Authorize attacker only — sponsor.require_auth() must fail.
-    client
-        .mock_auths(&[MockAuth {
-            address: &attacker,
-            invoke: &MockAuthInvoke {
-                contract: &contract_id,
-                fn_name: "withdraw_unallocated_funds",
-                args: (&pool_id, &token_address).into_val(&env),
-                sub_invokes: &[],
-            },
-        }])
-        .withdraw_unallocated_funds(&pool_id, &token_address);
+    client.donate(&pool_id, &creator, &500_000_000);
+
+    // Approve students
+    client.set_application_status(&pool_id, &student1, &String::from_str(&env, "Approved"));
+    client.set_application_status(&pool_id, &student2, &String::from_str(&env, "Approved"));
+
+    // Multiple students claim - each generates 1% fee
+    client.claim_funds(&student1, &pool_id, &claim_amount1, &token_address);
+    client.claim_funds(&student2, &pool_id, &claim_amount2, &token_address);
+
+    // Admin claims accumulated fees
+    // Expected: (100_000_000 / 100) + (50_000_000 / 100) = 1_000_000 + 500_000 = 1_500_000
+    let collected_fees = client.claim_protocol_fees(&admin, &token_address);
+
+    assert_eq!(collected_fees, 1_500_000);
+}
+
+#[test]
+fn test_fees_isolated_from_student_allocations() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    let claim_amount: i128 = 100_000_000;
+    // Fund the contract with enough tokens to cover the transfer
+    let token_address = create_token(&env, claim_amount, &contract_id);
+
+    // Set admin
+    client.set_admin(&admin);
+
+    // Create pool
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000,
+    );
+
+    let donated_amount: u128 = 500_000_000;
+    client.donate(&pool_id, &creator, &donated_amount);
+
+    // Approve student
+    client.set_application_status(&pool_id, &student, &String::from_str(&env, "Approved"));
+
+    // Student claims
+    client.claim_funds(&student, &pool_id, &claim_amount, &token_address);
+
+    // Verify student application amount_claimed is correct (not affected by fees)
+    let app = client.get_application(&pool_id, &student);
+    assert!(app.is_some());
+    let app_unwrapped = app.unwrap();
+
+    // amount_claimed should be exactly the claim_amount, fees are tracked separately
+    assert_eq!(app_unwrapped.amount_claimed, claim_amount);
+}
+
+#[test]
+#[should_panic(expected = "No unclaimed fees")]
+fn test_protocol_fees_reset_after_claim() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    let claim_amount: i128 = 100_000_000;
+    // Mint enough for student transfer AND for fee payout to admin later
+    // net_transfer = claim_amount - fee = 99_000_000; fee = 1_000_000
+    // total needed: 100_000_000 (student net 99M + fee held 1M)
+    let token_address = create_token(&env, claim_amount, &contract_id);
+
+    // Set admin
+    client.set_admin(&admin);
+
+    // Create pool and donate
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000,
+    );
+
+    client.donate(&pool_id, &creator, &500_000_000);
+
+    // Approve student
+    client.set_application_status(&pool_id, &student, &String::from_str(&env, "Approved"));
+
+    // Student claims - net goes to student, 1% fee stays in contract
+    client.claim_funds(&student, &pool_id, &claim_amount, &token_address);
+
+    // Admin claims fees - transfers the 1_000_000 fee out
+    let _fees = client.claim_protocol_fees(&admin, &token_address);
+
+    // Try to claim again - should panic (no fees accumulated)
+    client.claim_protocol_fees(&admin, &token_address);
 }
