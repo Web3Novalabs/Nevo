@@ -9,3 +9,5 @@ export * from "./ui/tooltip";
 export { default as GlobalSearch } from "./GlobalSearch";
 export { DonationModal } from "./DonationModal";
 export { DonationReceipt } from "./DonationReceipt";
+export * from "./ui/EmptyState";
+

@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Search, Filter, X } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 type PoolStatus = "Active" | "Completed";
 
@@ -283,23 +284,21 @@ export const ExplorePools = () => {
               ))}
             </div>
           ) : (
-            <div className="bg-white dark:bg-slate-900 rounded-xl p-12 text-center border border-slate-200 dark:border-slate-800 shadow-sm">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 mb-6">
-                <Search className="h-8 w-8 text-slate-400" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
-                No pools found
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400 mb-6 max-w-md mx-auto">
-                We couldn&apos;t find any donation pools matching your search and filter criteria. Try adjusting your filters or search term.
-              </p>
-              <button
-                onClick={clearFilters}
-                className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white px-6 py-2 rounded-lg font-medium transition"
-              >
-                Clear all filters
-              </button>
-            </div>
+            <EmptyState
+              title="No pools found"
+              description="We couldn't find any donation pools matching your search and filter criteria. Try adjusting your filters or search term."
+              icon={Search}
+              suggestions={[
+                "Check for spelling errors in your search query",
+                "Uncheck some categories in the filters sidebar to widen the search",
+                "Toggle the pool status filter between Active and Completed"
+              ]}
+              action={{
+                label: "Clear all filters",
+                onClick: clearFilters,
+                icon: X,
+              }}
+            />
           )}
         </div>
       </div>
