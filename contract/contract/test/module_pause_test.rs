@@ -34,9 +34,9 @@ fn setup_test(env: &Env) -> (CrowdfundingContractClient<'_>, Address, Address) {
     (client, admin, token_address)
 }
 
-// ============================================================================
+
 // Module-Specific Pause Tests
-// ============================================================================
+
 
 #[test]
 fn test_pause_pools_only() {
