@@ -56,8 +56,7 @@ export default function ConnectWallet() {
             {error}
           </p>
         )}
-      </div>
-    );
+      </div>    );
   }
 
   return (
@@ -65,7 +64,7 @@ export default function ConnectWallet() {
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-        aria-haspopup="true"
+        aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={`Wallet connected: ${publicKey}`}
       >
