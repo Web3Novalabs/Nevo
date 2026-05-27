@@ -1,4 +1,4 @@
-type StepStatus = "complete" | "current" | "upcoming";
+type StepStatus = 'complete' | 'current' | 'upcoming';
 
 type Milestone = {
   label: string;
@@ -24,23 +24,23 @@ type ProgressTimelineProps = {
 
 function statusStyles(status: StepStatus) {
   switch (status) {
-    case "complete":
+    case 'complete':
       return {
-        dot: "bg-brand-500 border-brand-500 text-white",
-        label: "text-zinc-900 dark:text-zinc-50",
-        description: "text-zinc-600 dark:text-zinc-400",
+        dot: 'bg-brand-500 border-brand-500 text-white',
+        label: 'text-zinc-900 dark:text-zinc-50',
+        description: 'text-zinc-600 dark:text-zinc-400',
       };
-    case "current":
+    case 'current':
       return {
-        dot: "border-2 border-brand-500 bg-white text-brand-600",
-        label: "text-zinc-900 dark:text-zinc-50",
-        description: "text-zinc-600 dark:text-zinc-400",
+        dot: 'border-2 border-brand-500 bg-white text-brand-600',
+        label: 'text-zinc-900 dark:text-zinc-50',
+        description: 'text-zinc-600 dark:text-zinc-400',
       };
     default:
       return {
-        dot: "border border-zinc-300 bg-zinc-100 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400",
-        label: "text-zinc-600 dark:text-zinc-400",
-        description: "text-zinc-500 dark:text-zinc-500",
+        dot: 'border border-zinc-300 bg-zinc-100 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400',
+        label: 'text-zinc-600 dark:text-zinc-400',
+        description: 'text-zinc-500 dark:text-zinc-500',
       };
   }
 }
@@ -50,13 +50,13 @@ export default function ProgressTimeline({
   subtitle,
   currentAmount,
   targetAmount,
-  currencySymbol = "$",
+  currencySymbol = '$',
   milestones,
   steps,
 }: ProgressTimelineProps) {
   const progress = Math.min(
     100,
-    Math.max(0, Math.round((currentAmount / targetAmount) * 100)),
+    Math.max(0, Math.round((currentAmount / targetAmount) * 100))
   );
 
   return (
@@ -125,7 +125,7 @@ export default function ProgressTimeline({
                     <div
                       className={`flex h-9 w-9 items-center justify-center rounded-full transition ${styles.dot}`}
                     >
-                      {milestone.status === "complete" ? "✓" : index + 1}
+                      {milestone.status === 'complete' ? '✓' : index + 1}
                     </div>
                     <div className="min-w-0">
                       <p className={`text-sm font-semibold ${styles.label}`}>
@@ -157,11 +157,11 @@ export default function ProgressTimeline({
                   <div
                     className={`mt-1 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition ${styles.dot}`}
                   >
-                    {step.status === "complete"
-                      ? "✓"
-                      : step.status === "current"
-                        ? "●"
-                        : "○"}
+                    {step.status === 'complete'
+                      ? '✓'
+                      : step.status === 'current'
+                        ? '●'
+                        : '○'}
                   </div>
                   <div>
                     <p className={`text-sm font-semibold ${styles.label}`}>
