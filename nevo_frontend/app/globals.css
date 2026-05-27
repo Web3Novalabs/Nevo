@@ -1,14 +1,14 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* ─── Nevo Design Tokens ─────────────────────────────────────────────────── */
 @theme {
   /* Brand */
-  --color-brand-50:  #eef9f4;
+  --color-brand-50: #eef9f4;
   --color-brand-100: #d5f0e3;
   --color-brand-200: #aee1cb;
   --color-brand-300: #7bcaac;
   --color-brand-400: #47ae88;
-  --color-brand-500: #27926e;   /* primary */
+  --color-brand-500: #27926e; /* primary */
   --color-brand-600: #1c7459;
   --color-brand-700: #185d47;
   --color-brand-800: #154a3a;
@@ -16,55 +16,55 @@
 
   /* Semantic */
   --color-success-light: #d1fae5;
-  --color-success:       #10b981;
-  --color-success-dark:  #065f46;
+  --color-success: #10b981;
+  --color-success-dark: #065f46;
 
   --color-error-light: #fee2e2;
-  --color-error:       #ef4444;
-  --color-error-dark:  #7f1d1d;
+  --color-error: #ef4444;
+  --color-error-dark: #7f1d1d;
 
   --color-warning-light: #fef3c7;
-  --color-warning:       #f59e0b;
-  --color-warning-dark:  #78350f;
+  --color-warning: #f59e0b;
+  --color-warning-dark: #78350f;
 
   /* Neutral surface */
-  --color-surface:        #ffffff;
+  --color-surface: #ffffff;
   --color-surface-raised: #f9fafb;
-  --color-border:         #e5e7eb;
-  --color-text:           #111827;
-  --color-text-muted:     #6b7280;
+  --color-border: #e5e7eb;
+  --color-text: #111827;
+  --color-text-muted: #6b7280;
 
   /* Typography scale */
-  --font-size-xs:   0.75rem;    /* 12px */
-  --font-size-sm:   0.875rem;   /* 14px */
-  --font-size-base: 1rem;       /* 16px */
-  --font-size-lg:   1.125rem;   /* 18px */
-  --font-size-xl:   1.25rem;    /* 20px */
-  --font-size-2xl:  1.5rem;     /* 24px */
-  --font-size-3xl:  1.875rem;   /* 30px */
-  --font-size-4xl:  2.25rem;    /* 36px */
-  --font-size-5xl:  3rem;       /* 48px */
+  --font-size-xs: 0.75rem; /* 12px */
+  --font-size-sm: 0.875rem; /* 14px */
+  --font-size-base: 1rem; /* 16px */
+  --font-size-lg: 1.125rem; /* 18px */
+  --font-size-xl: 1.25rem; /* 20px */
+  --font-size-2xl: 1.5rem; /* 24px */
+  --font-size-3xl: 1.875rem; /* 30px */
+  --font-size-4xl: 2.25rem; /* 36px */
+  --font-size-5xl: 3rem; /* 48px */
 
   /* Font families (inherit from layout.tsx Geist vars) */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   /* Breakpoints (mobile-first) */
-  --breakpoint-sm:  640px;
-  --breakpoint-md:  768px;
-  --breakpoint-lg:  1024px;
-  --breakpoint-xl:  1280px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
   --breakpoint-2xl: 1536px;
 }
 
 /* ─── Dark mode overrides ────────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
   @theme {
-    --color-surface:        #0a0a0a;
+    --color-surface: #0a0a0a;
     --color-surface-raised: #111827;
-    --color-border:         #1f2937;
-    --color-text:           #f9fafb;
-    --color-text-muted:     #9ca3af;
+    --color-border: #1f2937;
+    --color-text: #f9fafb;
+    --color-text-muted: #9ca3af;
   }
 }
 
