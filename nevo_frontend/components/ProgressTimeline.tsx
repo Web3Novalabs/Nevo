@@ -54,7 +54,10 @@ export default function ProgressTimeline({
   milestones,
   steps,
 }: ProgressTimelineProps) {
-  const progress = Math.min(100, Math.max(0, Math.round((currentAmount / targetAmount) * 100)));
+  const progress = Math.min(
+    100,
+    Math.max(0, Math.round((currentAmount / targetAmount) * 100)),
+  );
 
   return (
     <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm shadow-zinc-200/50 dark:border-zinc-800 dark:bg-zinc-950 dark:shadow-black/10 sm:p-8">
@@ -64,7 +67,9 @@ export default function ProgressTimeline({
             {title}
           </h2>
           {subtitle ? (
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{subtitle}</p>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              {subtitle}
+            </p>
           ) : null}
         </div>
         <div className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-4 py-2 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
@@ -78,10 +83,14 @@ export default function ProgressTimeline({
           <div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">Raised</p>
             <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              {currencySymbol}{currentAmount.toLocaleString()} / {currencySymbol}{targetAmount.toLocaleString()}
+              {currencySymbol}
+              {currentAmount.toLocaleString()} / {currencySymbol}
+              {targetAmount.toLocaleString()}
             </p>
           </div>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{progress}% to target</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {progress}% to target
+          </p>
         </div>
 
         <div
@@ -108,14 +117,23 @@ export default function ProgressTimeline({
             {milestones.map((milestone, index) => {
               const styles = statusStyles(milestone.status);
               return (
-                <div key={milestone.label} className="flex-1 min-w-0 rounded-3xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+                <div
+                  key={milestone.label}
+                  className="flex-1 min-w-0 rounded-3xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
+                >
                   <div className="flex items-center gap-3">
-                    <div className={`flex h-9 w-9 items-center justify-center rounded-full transition ${styles.dot}`}>
+                    <div
+                      className={`flex h-9 w-9 items-center justify-center rounded-full transition ${styles.dot}`}
+                    >
                       {milestone.status === "complete" ? "✓" : index + 1}
                     </div>
                     <div className="min-w-0">
-                      <p className={`text-sm font-semibold ${styles.label}`}>{milestone.label}</p>
-                      <p className={`text-xs ${styles.description}`}>{milestone.value}</p>
+                      <p className={`text-sm font-semibold ${styles.label}`}>
+                        {milestone.label}
+                      </p>
+                      <p className={`text-xs ${styles.description}`}>
+                        {milestone.value}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -132,13 +150,26 @@ export default function ProgressTimeline({
             {steps.map((step) => {
               const styles = statusStyles(step.status);
               return (
-                <li key={step.title} className="flex items-start gap-4 rounded-3xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                  <div className={`mt-1 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition ${styles.dot}`}>
-                    {step.status === "complete" ? "✓" : step.status === "current" ? "●" : "○"}
+                <li
+                  key={step.title}
+                  className="flex items-start gap-4 rounded-3xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  <div
+                    className={`mt-1 flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition ${styles.dot}`}
+                  >
+                    {step.status === "complete"
+                      ? "✓"
+                      : step.status === "current"
+                        ? "●"
+                        : "○"}
                   </div>
                   <div>
-                    <p className={`text-sm font-semibold ${styles.label}`}>{step.title}</p>
-                    <p className={`mt-1 text-sm ${styles.description}`}>{step.description}</p>
+                    <p className={`text-sm font-semibold ${styles.label}`}>
+                      {step.title}
+                    </p>
+                    <p className={`mt-1 text-sm ${styles.description}`}>
+                      {step.description}
+                    </p>
                   </div>
                 </li>
               );
