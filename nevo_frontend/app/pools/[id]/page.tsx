@@ -66,7 +66,9 @@ export default function PoolDetailPage() {
   if (!pool) {
     return (
       <main className="mx-auto max-w-4xl px-6 py-12">
-        <p className="text-sm text-[var(--color-text-muted)]">Pool not found.</p>
+        <p className="text-sm text-[var(--color-text-muted)]">
+          Pool not found.
+        </p>
         <Link
           href="/dashboard"
           className="mt-4 inline-flex rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-[var(--color-surface-raised)] transition-colors"
@@ -145,8 +147,14 @@ export default function PoolDetailPage() {
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          <Metric label="Raised" value={`${pool.raised.toLocaleString()} XLM`} />
-          <Metric label="Target" value={`${pool.target.toLocaleString()} XLM`} />
+          <Metric
+            label="Raised"
+            value={`${pool.raised.toLocaleString()} XLM`}
+          />
+          <Metric
+            label="Target"
+            value={`${pool.target.toLocaleString()} XLM`}
+          />
           <Metric
             label="Available to Withdraw"
             value={`${availableBalance.toLocaleString()} XLM`}
@@ -165,10 +173,13 @@ export default function PoolDetailPage() {
               disabled={!canWithdraw || status === 'submitting'}
               className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {status === 'submitting' ? 'Processing withdrawal...' : 'Withdraw'}
+              {status === 'submitting'
+                ? 'Processing withdrawal...'
+                : 'Withdraw'}
             </button>
             <p className="text-xs text-[var(--color-text-muted)]">
-              Connected wallet: {publicKey ? `${publicKey.slice(0, 8)}...` : 'None'}
+              Connected wallet:{' '}
+              {publicKey ? `${publicKey.slice(0, 8)}...` : 'None'}
             </p>
           </div>
         </div>
@@ -186,7 +197,9 @@ export default function PoolDetailPage() {
 
         {status === 'error' && errorMessage && (
           <div className="mt-4 rounded-xl border border-error/30 bg-error-light p-4">
-            <p className="text-sm font-medium text-error-dark">{errorMessage}</p>
+            <p className="text-sm font-medium text-error-dark">
+              {errorMessage}
+            </p>
           </div>
         )}
       </section>
@@ -223,7 +236,9 @@ export default function PoolDetailPage() {
                 disabled={status === 'submitting'}
                 className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
               >
-                {status === 'submitting' ? 'Submitting...' : 'Confirm withdrawal'}
+                {status === 'submitting'
+                  ? 'Submitting...'
+                  : 'Confirm withdrawal'}
               </button>
             </div>
           </div>
