@@ -221,6 +221,33 @@ impl Contract {
         )
     }
 
+    /// Safely retrieve pool information.
+    pub fn try_get_pool(env: Env, pool_id: u32) -> Option<(u32, Address, u128, u128, bool)> {
+        env.storage()
+            .persistent()
+            .get::<_, Pool>(&pool_id)
+            .map(|pool| {
+                (
+                    pool_id,
+                    pool.sponsor,
+                    pool.goal,
+                    pool.collected,
+                    pool.is_closed,
+                )
+            })
+    }
+
+    /// Get the total amount raised for a pool.
+    pub fn get_total_raised(env: Env, pool_id: u32) -> u128 {
+        let pool: Pool = env
+            .storage()
+            .persistent()
+            .get::<_, Pool>(&pool_id)
+            .expect("Pool not found");
+
+        pool.collected
+    }
+
     /// Close a donation pool.
     pub fn close_pool(env: Env, pool_id: u32) {
         let pool: Pool = env

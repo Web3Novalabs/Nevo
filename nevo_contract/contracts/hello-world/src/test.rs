@@ -219,6 +219,164 @@ fn test_multiple_pools() {
     assert_eq!(client.get_pool_count(), 2);
 }
 
+#[test]
+fn test_get_pool_returns_existing_pool_config() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let goal: u128 = 2_500_000_000;
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Existing Pool"),
+        &String::from_str(&env, "Validation"),
+        &goal,
+    );
+
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool, (pool_id, creator, goal, 0, false));
+}
+
+#[test]
+fn test_try_get_pool_returns_none_for_missing_pool() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let missing_pool = client.try_get_pool(&999);
+    assert_eq!(missing_pool, None);
+}
+
+#[test]
+fn test_try_get_pool_preserves_creation_parameters() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let goal: u128 = 9_000_000_000;
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Creation Parameters"),
+        &String::from_str(&env, "Must round-trip"),
+        &goal,
+    );
+
+    let pool = client.try_get_pool(&pool_id);
+    assert_eq!(pool, Some((pool_id, creator, goal, 0, false)));
+}
+
+#[test]
+fn test_try_get_pool_retrieves_multiple_pools_independently() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator1 = Address::generate(&env);
+    let creator2 = Address::generate(&env);
+
+    let pool_id_1 = client.create_pool(
+        &creator1,
+        &String::from_str(&env, "Independent Pool 1"),
+        &String::from_str(&env, "First"),
+        &1_000_000_000,
+    );
+    let pool_id_2 = client.create_pool(
+        &creator2,
+        &String::from_str(&env, "Independent Pool 2"),
+        &String::from_str(&env, "Second"),
+        &3_000_000_000,
+    );
+
+    client.donate(&pool_id_1, &Address::generate(&env), &125_000_000);
+    client.donate(&pool_id_2, &Address::generate(&env), &275_000_000);
+
+    assert_eq!(
+        client.try_get_pool(&pool_id_1),
+        Some((pool_id_1, creator1, 1_000_000_000, 125_000_000, false))
+    );
+    assert_eq!(
+        client.try_get_pool(&pool_id_2),
+        Some((pool_id_2, creator2, 3_000_000_000, 275_000_000, false))
+    );
+}
+
+#[test]
+fn test_get_total_raised_starts_at_zero() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Fresh Pool"),
+        &String::from_str(&env, "No donations yet"),
+        &1_000_000_000,
+    );
+
+    assert_eq!(client.get_total_raised(&pool_id), 0);
+}
+
+#[test]
+fn test_get_total_raised_tracks_single_and_multiple_donations() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor1 = Address::generate(&env);
+    let donor2 = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Raised Total"),
+        &String::from_str(&env, "Donation tracking"),
+        &2_000_000_000,
+    );
+
+    client.donate(&pool_id, &donor1, &100_000_000);
+    assert_eq!(client.get_total_raised(&pool_id), 100_000_000);
+
+    client.donate(&pool_id, &donor2, &250_000_000);
+    assert_eq!(client.get_total_raised(&pool_id), 350_000_000);
+}
+
+#[test]
+fn test_get_total_raised_matches_pool_balance() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Balance Match"),
+        &String::from_str(&env, "Compare accessors"),
+        &5_000_000_000,
+    );
+
+    client.donate(&pool_id, &donor, &400_000_000);
+
+    let total_raised = client.get_total_raised(&pool_id);
+    let pool = client.get_pool(&pool_id);
+
+    assert_eq!(total_raised, pool.3);
+}
+
+#[test]
+#[should_panic(expected = "Pool not found")]
+fn test_get_total_raised_rejects_missing_pool() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let _ = client.get_total_raised(&999);
+}
+
 // ============= CLAIM_FUNDS TESTS =============
 
 #[test]
