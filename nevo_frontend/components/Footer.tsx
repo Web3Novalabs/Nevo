@@ -10,7 +10,7 @@ export const Footer = () => {
         <div className="flex flex-col items-center md:items-start">
           <Link
             href="/"
-            className="text-xl font-bold text-blue-600 dark:text-blue-400"
+            className="text-xl font-bold text-blue-600 dark:text-blue-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
           >
             Nevo
           </Link>
@@ -19,28 +19,28 @@ export const Footer = () => {
           </p>
         </div>
 
-        <nav className="flex gap-6" aria-label="Footer">
+        <nav className="flex gap-6" aria-label="Footer navigation">
           <Link
             href="/about"
-            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
           >
             About
           </Link>
           <Link
             href="/docs"
-            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
           >
             Docs
           </Link>
           <Link
             href="/contact"
-            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
           >
             Contact
           </Link>
           <Link
             href="/legal"
-            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
           >
             Legal
           </Link>
@@ -51,7 +51,7 @@ export const Footer = () => {
             href="https://twitter.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-gray-400 hover:text-gray-500"
+            className="text-gray-400 hover:text-gray-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
             aria-label="Twitter"
           >
             <svg
@@ -67,7 +67,7 @@ export const Footer = () => {
             href="https://github.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-gray-400 hover:text-gray-500"
+            className="text-gray-400 hover:text-gray-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
             aria-label="GitHub"
           >
             <svg
