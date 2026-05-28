@@ -2733,3 +2733,41 @@ fn test_upgrade_backward_compatibility_existing_operations() {
     let pool = client.get_pool(&pool_id);
     assert_eq!(pool.3, 300_000_000);
 }
+
+// Tests for Issue #485: Pool metadata retrieval
+#[test]
+fn test_pool_metadata_retrieval() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title1 = String::from_str(&env, "First Pool");
+    let description1 = String::from_str(&env, "First pool description");
+    let goal: u128 = 1_000_000_000;
+
+    // 1. Nonexistent pool returns empty strings
+    let (empty_title, empty_desc) = client.get_pool_metadata(&999u32);
+    assert_eq!(empty_title, String::from_str(&env, ""));
+    assert_eq!(empty_desc, String::from_str(&env, ""));
+
+    // 2. Existing pool returns correct metadata matching saved values
+    let pool_id1 = client.create_pool(&creator, &title1, &description1, &goal);
+    let (retrieved_title1, retrieved_desc1) = client.get_pool_metadata(&pool_id1);
+    assert_eq!(retrieved_title1, title1);
+    assert_eq!(retrieved_desc1, description1);
+
+    // 3. Multiple pools have independent metadata
+    let title2 = String::from_str(&env, "Second Pool");
+    let description2 = String::from_str(&env, "Second pool description");
+    let pool_id2 = client.create_pool(&creator, &title2, &description2, &goal);
+
+    let (retrieved_title2, retrieved_desc2) = client.get_pool_metadata(&pool_id2);
+    assert_eq!(retrieved_title2, title2);
+    assert_eq!(retrieved_desc2, description2);
+
+    // Re-verify first pool still has correct independent metadata
+    let (retrieved_title1_again, retrieved_desc1_again) = client.get_pool_metadata(&pool_id1);
+    assert_eq!(retrieved_title1_again, title1);
+    assert_eq!(retrieved_desc1_again, description1);
+}
