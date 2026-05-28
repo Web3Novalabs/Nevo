@@ -40,8 +40,72 @@ const DEFAULT_FILTERS: PoolFilters = {
   statuses: [],
 };
 
+const MOCK_POOLS: Pool[] = [
+  {
+    id: '1',
+    title: 'Clean Water Initiative',
+    description: 'Providing clean drinking water to rural communities in need.',
+    category: 'Humanitarian',
+    status: 'Active',
+    target: 10000,
+    raised: 6800,
+    imageColor: '#27926e',
+    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
+    createdAt: '2025-03-01',
+  },
+  {
+    id: '2',
+    title: 'Open Source Dev Fund',
+    description: 'Supporting open source contributors building on Stellar.',
+    category: 'Technology',
+    status: 'Active',
+    target: 5000,
+    raised: 5000,
+    imageColor: '#1c7459',
+    creator: 'GB222222222222222222222222222222222222222222222222222222222',
+    createdAt: '2025-01-15',
+  },
+  {
+    id: '3',
+    title: 'Community Garden Project',
+    description: 'Building urban gardens to improve food security locally.',
+    category: 'Environment',
+    status: 'Completed',
+    target: 3000,
+    raised: 3200,
+    imageColor: '#47ae88',
+    creator: 'GC333333333333333333333333333333333333333333333333333333333',
+    createdAt: '2024-11-10',
+  },
+  {
+    id: '4',
+    title: 'Local Animal Shelter Relief',
+    description: 'Funding medical supplies and food for rescued animals.',
+    category: 'Animal Welfare',
+    status: 'Active',
+    target: 8000,
+    raised: 1200,
+    imageColor: '#ae4747',
+    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
+    createdAt: '2025-04-12',
+  },
+  {
+    id: '5',
+    title: 'Blockchain Education for Youth',
+    description:
+      'Providing free workshops on Web3 and blockchain development to high school students.',
+    category: 'Education',
+    status: 'Active',
+    target: 15000,
+    raised: 500,
+    imageColor: '#476bae',
+    creator: 'GD444444444444444444444444444444444444444444444444444444444',
+    createdAt: '2025-05-20',
+  },
+];
+
 export const usePoolsStore = create<PoolsState>()((set, get) => ({
-  pools: [],
+  pools: MOCK_POOLS,
   filters: DEFAULT_FILTERS,
   loading: false,
 
@@ -75,10 +139,13 @@ export const usePoolsStore = create<PoolsState>()((set, get) => ({
   filteredPools: () => {
     const { pools, filters } = get();
     return pools.filter((pool) => {
+      const searchLower = filters.search.toLowerCase();
       const matchSearch =
         !filters.search ||
-        pool.title.toLowerCase().includes(filters.search.toLowerCase()) ||
-        pool.description.toLowerCase().includes(filters.search.toLowerCase());
+        pool.title.toLowerCase().includes(searchLower) ||
+        pool.description.toLowerCase().includes(searchLower) ||
+        pool.category.toLowerCase().includes(searchLower) ||
+        (pool.creator && pool.creator.toLowerCase().includes(searchLower));
       const matchCategory =
         filters.categories.length === 0 ||
         filters.categories.includes(pool.category);
