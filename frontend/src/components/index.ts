@@ -1,4 +1,5 @@
 export * from "./ui/button";
+export * from "./ui/card";
 export * from "./ui/checkbox";
 export * from "./ui/status-badge";
 export * from "./ui/checkbox-group";
@@ -9,3 +10,5 @@ export * from "./ui/tooltip";
 export { default as GlobalSearch } from "./GlobalSearch";
 export { DonationModal } from "./DonationModal";
 export { DonationReceipt } from "./DonationReceipt";
+export { PoolCard } from "./PoolCard";
+export type { PoolCardProps, PoolStatus } from "./PoolCard";
