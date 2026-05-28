@@ -18,7 +18,7 @@ export const Header = () => {
     <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white shadow-sm dark:bg-gray-900 dark:border-gray-800">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 rounded">
             <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               Nevo
             </span>
@@ -31,7 +31,7 @@ export const Header = () => {
             <Link
               key={link.name}
               href={link.href}
-              className="text-sm font-semibold leading-6 text-gray-900 hover:text-blue-600 dark:text-gray-100 dark:hover:text-blue-400 transition-colors"
+              className="text-sm font-semibold leading-6 text-gray-900 hover:text-blue-600 dark:text-gray-100 dark:hover:text-blue-400 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 rounded"
             >
               {link.name}
             </Link>
@@ -48,11 +48,14 @@ export const Header = () => {
         <div className="flex md:hidden">
           <button
             type="button"
-            className="-m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-gray-700 dark:text-gray-200"
+            id="mobile-menu-button"
+            className="-m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-gray-700 dark:text-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             aria-expanded={isMobileMenuOpen}
+            aria-controls="mobile-menu"
+            aria-label={isMobileMenuOpen ? 'Close main menu' : 'Open main menu'}
           >
-            <span className="sr-only">Open main menu</span>
+            <span className="sr-only">{isMobileMenuOpen ? 'Close main menu' : 'Open main menu'}</span>
             <svg
               className="h-6 w-6"
               fill="none"
@@ -73,7 +76,7 @@ export const Header = () => {
 
       {/* Mobile menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden" role="dialog" aria-modal="true">
+        <div id="mobile-menu" className="md:hidden" role="dialog" aria-modal="true" aria-labelledby="mobile-menu-button">
           <div className="space-y-1 px-4 pb-3 pt-2 sm:px-6">
             {navLinks.map((link) => (
               <Link

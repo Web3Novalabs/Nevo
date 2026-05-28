@@ -357,10 +357,10 @@ impl Contract {
     ) {
         student.require_auth();
 
-        let pool_data: (Address, u128, u128, bool) = env
+        let pool: Pool = env
             .storage()
             .persistent()
-            .get::<_, (Address, u128, u128, bool)>(&pool_id)
+            .get::<_, Pool>(&pool_id)
             .expect("Pool not found");
 
         if milestones.is_empty() {
@@ -374,7 +374,7 @@ impl Contract {
                 .expect("Milestone amount overflow");
         }
 
-        if sum != pool_data.1 {
+        if sum != pool.goal {
             panic!("Milestone total must equal pool goal");
         }
 
@@ -436,6 +436,91 @@ impl Contract {
             student.clone(),
         );
         env.storage().persistent().get::<_, Application>(&app_key)
+    }
+
+    /// Withdraw surplus funds not locked by active applications.
+    ///
+    /// Locked funds = sum of (approved_amount - amount_claimed) for every
+    /// application whose status is "Approved" or "Pending".
+    /// Surplus = pool.collected - locked_funds.
+    ///
+    /// # Panics
+    /// - `"Pool not found"` if pool_id is invalid
+    /// - `"Insolvency: locked funds exceed collected"` if locked > collected
+    /// - `"No surplus to withdraw"` if surplus == 0
+    pub fn withdraw_unallocated_funds(env: Env, pool_id: u32, token_address: Address) {
+        let mut pool: Pool = env
+            .storage()
+            .persistent()
+            .get::<_, Pool>(&pool_id)
+            .expect("Pool not found");
+
+        pool.sponsor.require_auth();
+
+        let count_key = (Symbol::new(&env, APPLICATION_COUNT_PREFIX), pool_id);
+        let app_count: u32 = env
+            .storage()
+            .persistent()
+            .get::<_, u32>(&count_key)
+            .unwrap_or(0);
+
+        let approved_str = String::from_str(&env, APPLICATION_STATUS_APPROVED);
+        let pending_str = String::from_str(&env, "Pending");
+
+        let mut locked: u128 = 0u128;
+        for idx in 1..=app_count {
+            let app_key = (Symbol::new(&env, APPLICATION_PREFIX), pool_id, idx);
+            let entry: Option<(u32, Address, soroban_sdk::String)> =
+                env.storage().persistent().get(&app_key);
+            if let Some((_, student, _)) = entry {
+                let status_key = (
+                    Symbol::new(&env, APPLICATION_STATUS_PREFIX),
+                    pool_id,
+                    student.clone(),
+                );
+                let status: String = env
+                    .storage()
+                    .persistent()
+                    .get::<_, String>(&status_key)
+                    .unwrap_or(String::from_str(&env, ""));
+
+                if status == approved_str || status == pending_str {
+                    let claim_key = (CLAIMED_AMOUNT_PREFIX, pool_id, student.clone());
+                    let application: Application = env
+                        .storage()
+                        .persistent()
+                        .get::<_, Application>(&claim_key)
+                        .unwrap_or(Application {
+                            approved_amount: 0,
+                            amount_claimed: 0,
+                        });
+                    let remaining =
+                        (application.approved_amount - application.amount_claimed).max(0) as u128;
+                    locked = locked
+                        .checked_add(remaining)
+                        .expect("Locked funds overflow");
+                }
+            }
+        }
+
+        let surplus: u128 = pool
+            .collected
+            .checked_sub(locked)
+            .expect("Insolvency: locked funds exceed collected");
+
+        if surplus == 0 {
+            panic!("No surplus to withdraw");
+        }
+
+        let token_client = token::Client::new(&env, &token_address);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &pool.sponsor,
+            &(surplus as i128),
+        );
+
+        pool.collected -= surplus;
+        env.storage().persistent().set(&pool_id, &pool);
     }
 
     /// Claim funds: allows an approved student to receive a partial or full
