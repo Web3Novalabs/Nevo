@@ -57,15 +57,15 @@
   --breakpoint-2xl: 1536px;
 }
 
-/* ─── Dark mode overrides ────────────────────────────────────────────────── */
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-surface: #0a0a0a;
-    --color-surface-raised: #111827;
-    --color-border: #1f2937;
-    --color-text: #f9fafb;
-    --color-text-muted: #9ca3af;
-  }
+/* ─── Dark mode overrides (class-based, toggled via .dark on <html>) ────── */
+@variant dark (&:where(.dark, .dark *));
+
+.dark {
+  --color-surface: #0a0a0a;
+  --color-surface-raised: #111827;
+  --color-border: #1f2937;
+  --color-text: #f9fafb;
+  --color-text-muted: #9ca3af;
 }
 
 /* ─── Base styles ────────────────────────────────────────────────────────── */
