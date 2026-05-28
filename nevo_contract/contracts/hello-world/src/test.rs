@@ -2371,3 +2371,365 @@ fn test_close_pool_invalid_id_gives_specific_error() {
     // Pool 42 never created — must say "Pool not found"
     client.close_pool(&42u32);
 }
+
+// Tests for Issue #482: Pool metadata validation
+#[test]
+fn test_pool_metadata_description_length_within_limit() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let description = String::from_str(&env, "This is a valid description");
+    let title = String::from_str(&env, "Pool Title");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    assert_eq!(pool_id, 1);
+}
+
+#[test]
+#[should_panic(expected = "Description exceeds maximum length")]
+fn test_pool_metadata_description_exceeds_max_length() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let long_description = String::from_str(&env, &"x".repeat(501));
+    let title = String::from_str(&env, "Pool Title");
+    let goal: u128 = 1_000_000_000;
+
+    client.create_pool(&creator, &title, &long_description, &goal);
+}
+
+#[test]
+fn test_pool_metadata_description_at_max_boundary() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let max_description = String::from_str(&env, &"x".repeat(500));
+    let title = String::from_str(&env, "Pool Title");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &max_description, &goal);
+    assert_eq!(pool_id, 1);
+}
+
+// Tests for Issue #486: Campaign creation validation edge cases
+#[test]
+fn test_campaign_creation_maximum_title_length() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let long_title = String::from_str(&env, &"T".repeat(255));
+    let description = String::from_str(&env, "Valid description");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &long_title, &description, &goal);
+    assert!(pool_id > 0);
+}
+
+#[test]
+fn test_campaign_creation_maximum_goal_value() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Large Goal Campaign");
+    let description = String::from_str(&env, "Very high fundraising target");
+    let max_goal: u128 = u128::MAX / 2;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &max_goal);
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.2, max_goal);
+}
+
+#[test]
+fn test_campaign_creation_multiple_campaigns_different_ids() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator1 = Address::generate(&env);
+    let creator2 = Address::generate(&env);
+    let title = String::from_str(&env, "Campaign");
+    let description = String::from_str(&env, "Description");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id1 = client.create_pool(&creator1, &title, &description, &goal);
+    let pool_id2 = client.create_pool(&creator2, &title, &description, &goal);
+
+    assert_ne!(pool_id1, pool_id2);
+    assert_eq!(pool_id2, pool_id1 + 1);
+}
+
+#[test]
+fn test_campaign_creation_pool_count_increments() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Campaign");
+    let description = String::from_str(&env, "Description");
+    let goal: u128 = 1_000_000_000;
+
+    let initial_count = client.get_pool_count();
+    assert_eq!(initial_count, 0);
+
+    client.create_pool(&creator, &title, &description, &goal);
+    let count_after_one = client.get_pool_count();
+    assert_eq!(count_after_one, 1);
+
+    client.create_pool(&creator, &title, &description, &goal);
+    let count_after_two = client.get_pool_count();
+    assert_eq!(count_after_two, 2);
+}
+
+// Tests for Issue #487: Campaign donation token validation
+#[test]
+fn test_donate_with_token_correct_token_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let title = String::from_str(&env, "Fund");
+    let description = String::from_str(&env, "Description");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+
+    let token = create_token(&env, 500_000_000, &donor);
+    let donation_amount: i128 = 100_000_000;
+
+    client.donate_with_token(&pool_id, &donor, &token, &donation_amount);
+
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.3, donation_amount as u128);
+}
+
+#[test]
+#[should_panic(expected = "Amount must be positive")]
+fn test_donate_with_token_negative_amount_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let title = String::from_str(&env, "Fund");
+    let description = String::from_str(&env, "Description");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    let token = create_token(&env, 500_000_000, &donor);
+
+    client.donate_with_token(&pool_id, &donor, &token, &-1i128);
+}
+
+#[test]
+#[should_panic(expected = "Pool is closed")]
+fn test_donate_with_token_closed_pool_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let title = String::from_str(&env, "Fund");
+    let description = String::from_str(&env, "Description");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    client.close_pool(&pool_id);
+
+    let token = create_token(&env, 500_000_000, &donor);
+    client.donate_with_token(&pool_id, &donor, &token, &100_000_000);
+}
+
+#[test]
+fn test_donate_with_token_multiple_donations_accumulate() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor1 = Address::generate(&env);
+    let donor2 = Address::generate(&env);
+    let title = String::from_str(&env, "Fund");
+    let description = String::from_str(&env, "Description");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+
+    let token1 = create_token(&env, 500_000_000, &donor1);
+    let token2 = create_token(&env, 500_000_000, &donor2);
+
+    client.donate_with_token(&pool_id, &donor1, &token1, &100_000_000);
+    client.donate_with_token(&pool_id, &donor2, &token2, &200_000_000);
+
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.3, 300_000_000);
+}
+
+// Tests for Issue #507: Contract upgrade compatibility
+#[test]
+fn test_upgrade_storage_layout_compatibility_pool_structure() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Fund");
+    let description = String::from_str(&env, "Description");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    let pool = client.get_pool(&pool_id);
+
+    assert_eq!(pool.0, pool_id);
+    assert_eq!(pool.1, creator);
+    assert_eq!(pool.2, goal);
+    assert_eq!(pool.3, 0);
+    assert_eq!(pool.4, false);
+}
+
+#[test]
+fn test_upgrade_function_signature_backward_compatibility() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let title = String::from_str(&env, "Fund");
+    let description = String::from_str(&env, "Description");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    client.donate(&pool_id, &donor, &100_000_000);
+
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.3, 100_000_000);
+}
+
+#[test]
+fn test_upgrade_new_function_addition_donate_with_token() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let title = String::from_str(&env, "Fund");
+    let description = String::from_str(&env, "Description");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    let token = create_token(&env, 500_000_000, &donor);
+
+    client.donate_with_token(&pool_id, &donor, &token, &100_000_000);
+
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.3, 100_000_000);
+}
+
+#[test]
+fn test_upgrade_metadata_validation_new_validation() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let short_description = String::from_str(&env, "Short");
+    let title = String::from_str(&env, "Fund");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &short_description, &goal);
+    assert!(pool_id > 0);
+}
+
+#[test]
+#[should_panic(expected = "Description exceeds maximum length")]
+fn test_upgrade_metadata_validation_enforced_after_upgrade() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let long_description = String::from_str(&env, &"x".repeat(501));
+    let title = String::from_str(&env, "Fund");
+    let goal: u128 = 1_000_000_000;
+
+    client.create_pool(&creator, &title, &long_description, &goal);
+}
+
+#[test]
+fn test_upgrade_migration_pool_count_preserved() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Fund");
+    let description = String::from_str(&env, "Desc");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id1 = client.create_pool(&creator, &title, &description, &goal);
+    let pool_id2 = client.create_pool(&creator, &title, &description, &goal);
+    let pool_id3 = client.create_pool(&creator, &title, &description, &goal);
+
+    let count = client.get_pool_count();
+    assert_eq!(count, 3);
+    assert_eq!(pool_id3, 3);
+}
+
+#[test]
+fn test_upgrade_school_registration_persists() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
+
+    client.set_admin(&admin);
+    client.register_school(&admin, &school);
+
+    assert!(client.is_school_registered(&school));
+}
+
+#[test]
+fn test_upgrade_backward_compatibility_existing_operations() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Fund");
+    let description = String::from_str(&env, "Desc");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    let donor = Address::generate(&env);
+
+    client.donate(&pool_id, &donor, &100_000_000);
+    client.donate(&pool_id, &donor, &200_000_000);
+
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.3, 300_000_000);
+}

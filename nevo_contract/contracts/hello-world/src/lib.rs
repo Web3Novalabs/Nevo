@@ -26,6 +26,11 @@ const APPLICATION_STATUS_REJECTED: &str = "Rejected";
 // Protocol fees accumulator - tracks unclaimed fees collected from operations
 const UNCLAIMED_FEES: &str = "unclaimed_fees";
 
+// Pool metadata validation constraints
+const MAX_DESCRIPTION_LENGTH: usize = 500;
+const MAX_URL_LENGTH: usize = 256;
+const MAX_IMAGE_HASH_LENGTH: usize = 64;
+
 /// Tracks a student's approved funding and how much has been streamed so far.
 ///
 /// `amount_claimed` starts at zero and increments with each partial withdrawal,
@@ -107,7 +112,9 @@ impl Contract {
         description: String,
         goal: u128,
     ) -> u32 {
-        let _ = (title, description);
+        if description.len() > MAX_DESCRIPTION_LENGTH {
+            panic!("Description exceeds maximum length");
+        }
 
         let pool_count_key = Symbol::new(&env, POOL_COUNT);
         let mut pool_count: u32 = env
@@ -118,6 +125,8 @@ impl Contract {
 
         let pool_id = pool_count + 1;
         pool_count = pool_id;
+
+        let _ = title;
 
         // Legacy compatibility: keep old symbolic key constants reachable.
         let _ = (
@@ -675,6 +684,54 @@ impl Contract {
         env.storage().persistent().set(&unclaimed_fees_key, &0i128);
 
         fees
+    }
+
+    /// Donate to a pool using a specific token.
+    pub fn donate_with_token(
+        env: Env,
+        pool_id: u32,
+        donor: Address,
+        token_address: Address,
+        amount: i128,
+    ) {
+        donor.require_auth();
+
+        let pool: Pool = env
+            .storage()
+            .persistent()
+            .get::<_, Pool>(&pool_id)
+            .expect("Pool not found");
+
+        if pool.is_closed {
+            panic!("Pool is closed");
+        }
+
+        if amount <= 0 {
+            panic!("Amount must be positive");
+        }
+
+        let token_client = token::Client::new(&env, &token_address);
+        token_client.transfer(&donor, &env.current_contract_address(), &amount);
+
+        let new_collected = pool.collected.checked_add(amount as u128)
+            .expect("Collected amount overflow");
+
+        let updated_pool = Pool {
+            sponsor: pool.sponsor,
+            goal: pool.goal,
+            collected: new_collected,
+            is_closed: pool.is_closed,
+        };
+        env.storage().persistent().set(&pool_id, &updated_pool);
+
+        let donor_index: u32 = env
+            .storage()
+            .persistent()
+            .get::<_, u32>(&(pool_id, "d_count"))
+            .unwrap_or(0);
+        env.storage()
+            .persistent()
+            .set(&(pool_id, "d_count"), &(donor_index + 1));
     }
 }
 
