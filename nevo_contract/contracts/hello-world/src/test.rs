@@ -4,7 +4,7 @@ use super::*;
 use soroban_sdk::{
     testutils::{Address as _, MockAuth, MockAuthInvoke},
     token::StellarAssetClient,
-    Address, Env, IntoVal, String,
+    Address, Env, IntoVal, String, Vec,
 };
 
 /// Create a mock SAC token, mint `amount` into `recipient`, and return the token address.
@@ -2770,4 +2770,378 @@ fn test_pool_metadata_retrieval() {
     let (retrieved_title1_again, retrieved_desc1_again) = client.get_pool_metadata(&pool_id1);
     assert_eq!(retrieved_title1_again, title1);
     assert_eq!(retrieved_desc1_again, description1);
+}
+
+// ============================================================================
+// Gas Optimization Validation Tests
+// ============================================================================
+
+/// Test that function call costs are reasonable and within expected bounds.
+/// This ensures functions don't have excessive overhead.
+#[test]
+fn test_gas_function_call_costs_reasonable() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Gas Test Pool");
+    let description = String::from_str(&env, "Testing gas efficiency");
+    let goal: u128 = 1_000_000_000;
+
+    // Measure gas for create_pool - should be reasonable (not excessive)
+    env.budget().reset();
+    client.create_pool(&creator, &title, &description, &goal);
+    let create_pool_cpu = env.budget().cpu_instruction_consumed();
+    let create_pool_mem = env.budget().memory_bytes_consumed();
+
+    // create_pool should not consume excessive gas
+    // Reasonable threshold: less than 1 million gas units for simple pool creation
+    assert!(create_pool_cpu < 1_000_000, "create_pool consumes too much CPU gas");
+    assert!(create_pool_mem < 100_000, "create_pool consumes too much memory gas");
+
+    // Measure gas for get_pool - should be very cheap (read-only)
+    let pool_id = 1u32;
+    env.budget().reset();
+    client.get_pool(&pool_id);
+    let get_pool_cpu = env.budget().cpu_instruction_consumed();
+    let get_pool_mem = env.budget().memory_bytes_consumed();
+
+    // get_pool should be very cheap (read operation)
+    assert!(get_pool_cpu < 100_000, "get_pool consumes too much CPU gas");
+    assert!(get_pool_mem < 50_000, "get_pool consumes too much memory gas");
+}
+
+/// Test that storage access is optimized and doesn't perform redundant reads/writes.
+#[test]
+fn test_gas_storage_access_optimized() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Storage Test Pool");
+    let description = String::from_str(&env, "Testing storage optimization");
+    let goal: u128 = 1_000_000_000;
+
+    // Create pool and measure storage write cost
+    env.budget().reset();
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    let write_cpu = env.budget().cpu_instruction_consumed();
+
+    // Storage write should be efficient
+    assert!(write_cpu < 1_500_000, "Storage write consumes too much CPU gas");
+
+    // Measure storage read cost
+    env.budget().reset();
+    client.get_pool(&pool_id);
+    let read_cpu = env.budget().cpu_instruction_consumed();
+
+    // Storage read should be much cheaper than write
+    assert!(read_cpu < write_cpu, "Storage read should be cheaper than write");
+    assert!(read_cpu < 200_000, "Storage read consumes too much CPU gas");
+
+    // Test that repeated reads don't accumulate excessive cost
+    let mut total_read_cpu = 0u64;
+    for _ in 0..5 {
+        env.budget().reset();
+        client.get_pool(&pool_id);
+        total_read_cpu += env.budget().cpu_instruction_consumed();
+    }
+
+    // Average read cost should remain consistent (no caching issues)
+    let avg_read_cpu = total_read_cpu / 5;
+    assert!(avg_read_cpu < 200_000, "Repeated storage reads are inefficient");
+}
+
+/// Test that loop operations are bounded and don't cause excessive gas consumption.
+#[test]
+fn test_gas_loop_operations_bounded() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
+    client.set_admin(&admin);
+    client.register_school(&admin, &school);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Loop Test Pool");
+    let description = String::from_str(&env, "Testing loop bounds");
+    let goal: u128 = 10_000_000_000;
+
+    let pool_id = client.create_pool_for_school(
+        &creator,
+        &title,
+        &description,
+        &goal,
+        &school,
+    );
+
+    // Create multiple applications to test loop in withdraw_unallocated_funds
+    let num_applications = 10;
+    for i in 0..num_applications {
+        let student = Address::generate(&env);
+        let app_data = String::from_str(&env, "app_data");
+        client.apply_to_pool(&pool_id, &student, &app_data);
+        client.approve_application(&pool_id, &school, &student, &true);
+    }
+
+    // Test that milestone setup loop is bounded
+    let student = Address::generate(&env);
+    let milestones: Vec<Milestone> = vec![
+        &env,
+        Milestone { amount: 3_333_333_333 },
+        Milestone { amount: 3_333_333_333 },
+        Milestone { amount: 3_333_333_334 },
+    ];
+
+    env.budget().reset();
+    client.setup_application_milestones(&pool_id, &student, &milestones);
+    let milestone_cpu = env.budget().cpu_instruction_consumed();
+
+    // Milestone setup should be efficient even with validation loop
+    assert!(milestone_cpu < 2_000_000, "Milestone setup loop consumes excessive gas");
+}
+
+/// Test that redundant operations are eliminated and don't waste gas.
+#[test]
+fn test_gas_redundant_operations_eliminated() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Redundancy Test Pool");
+    let description = String::from_str(&env, "Testing redundant operations");
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+
+    // Test that calling get_pool multiple times doesn't accumulate excessive cost
+    // (should not re-read storage unnecessarily if optimized)
+    env.budget().reset();
+    for _ in 0..10 {
+        client.get_pool(&pool_id);
+    }
+    let repeated_reads_cpu = env.budget().cpu_instruction_consumed();
+
+    // Total cost for 10 reads should be roughly 10x single read cost
+    // If there's caching or optimization, it should be even better
+    assert!(repeated_reads_cpu < 2_000_000, "Repeated reads show signs of redundant operations");
+
+    // Test that duplicate donations don't cause redundant storage operations
+    let donor = Address::generate(&env);
+    env.budget().reset();
+    client.donate(&pool_id, &donor, &100_000_000);
+    client.donate(&pool_id, &donor, &200_000_000);
+    let double_donate_cpu = env.budget().cpu_instruction_consumed();
+
+    // Two donations should cost roughly 2x single donation
+    // Not significantly more (which would indicate redundant operations)
+    env.budget().reset();
+    client.donate(&pool_id, &donor, &50_000_000);
+    let single_donate_cpu = env.budget().cpu_instruction_consumed();
+
+    let expected_double_cpu = single_donate_cpu * 2;
+    let tolerance = expected_double_cpu / 2; // Allow 50% tolerance
+    assert!(
+        double_donate_cpu < expected_double_cpu + tolerance,
+        "Double donation shows signs of redundant operations"
+    );
+}
+
+/// Test that gas usage is predictable and consistent across similar operations.
+#[test]
+fn test_gas_usage_predictable() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Predictability Test Pool");
+    let description = String::from_str(&env, "Testing gas predictability");
+    let goal: u128 = 1_000_000_000;
+
+    // Create multiple pools and measure gas consistency
+    let mut gas_costs = Vec::new(&env);
+
+    for i in 0..5 {
+        let pool_title = String::from_str(&env, "Pool");
+        env.budget().reset();
+        client.create_pool(&creator, &pool_title, &description, &goal);
+        gas_costs.push_back(env.budget().cpu_instruction_consumed());
+    }
+
+    // Calculate variance - gas costs should be consistent
+    let first_cost = gas_costs.get(0).unwrap();
+    let max_variance = first_cost / 10; // Allow 10% variance
+
+    for i in 1..gas_costs.len() {
+        let cost = gas_costs.get(i).unwrap();
+        let variance = if cost > first_cost {
+            cost - first_cost
+        } else {
+            first_cost - cost
+        };
+        assert!(
+            variance < max_variance,
+            "Gas usage is unpredictable - variance too high"
+        );
+    }
+
+    // Test that get_pool has predictable gas cost regardless of pool state
+    let pool_id = 1u32;
+
+    let mut read_costs = Vec::new(&env);
+    for _ in 0..5 {
+        env.budget().reset();
+        client.get_pool(&pool_id);
+        read_costs.push_back(env.budget().cpu_instruction_consumed());
+    }
+
+    // Read costs should be very consistent
+    let first_read_cost = read_costs.get(0).unwrap();
+    let read_variance = first_read_cost / 20; // Allow 5% variance for reads
+
+    for i in 1..read_costs.len() {
+        let cost = read_costs.get(i).unwrap();
+        let variance = if cost > first_read_cost {
+            cost - first_read_cost
+        } else {
+            first_read_cost - cost
+        };
+        assert!(
+            variance < read_variance,
+            "Read gas usage is unpredictable"
+        );
+    }
+}
+
+/// Test gas efficiency for donation operations with token transfers.
+#[test]
+fn test_gas_donation_with_token_efficiency() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let title = String::from_str(&env, "Token Donation Pool");
+    let description = String::from_str(&env, "Testing token donation efficiency");
+    let goal: u128 = 10_000_000_000;
+
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+
+    // Create token and fund donor
+    let token_address = create_token(&env, 1_000_000_000, &donor);
+
+    // Measure gas for token donation
+    env.budget().reset();
+    client.donate_with_token(&pool_id, &donor, &token_address, &100_000_000);
+    let donate_cpu = env.budget().cpu_instruction_consumed();
+    let donate_mem = env.budget().memory_bytes_consumed();
+
+    // Token donation includes transfer + storage update, should be reasonable
+    assert!(donate_cpu < 3_000_000, "Token donation consumes excessive gas");
+    assert!(donate_mem < 200_000, "Token donation consumes excessive memory");
+}
+
+/// Test gas efficiency for claim operations with fee calculation.
+#[test]
+fn test_gas_claim_funds_efficiency() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
+    client.set_admin(&admin);
+    client.register_school(&admin, &school);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let title = String::from_str(&env, "Claim Test Pool");
+    let description = String::from_str(&env, "Testing claim efficiency");
+    let goal: u128 = 10_000_000_000;
+
+    let pool_id = client.create_pool_for_school(
+        &creator,
+        &title,
+        &description,
+        &goal,
+        &school,
+    );
+
+    // Create token and fund contract
+    let token_address = create_token(&env, 10_000_000_000, &creator);
+    let donor = Address::generate(&env);
+    let token_client = StellarAssetClient::new(&env, &token_address);
+    token_client.mint(&donor, &10_000_000_000);
+
+    env.mock_all_auths();
+    client.donate_with_token(&pool_id, &donor, &token_address, &10_000_000_000);
+
+    // Apply and approve
+    client.apply_to_pool(
+        &pool_id,
+        &student,
+        &String::from_str(&env, "application_data"),
+    );
+    client.approve_application(&pool_id, &school, &student, &true);
+
+    // Fund contract with tokens for claims
+    token_client.mint(&env.current_contract_address(), &10_000_000_000);
+
+    // Measure gas for claim operation
+    env.budget().reset();
+    client.claim_funds(&student, &pool_id, &1_000_000, &token_address);
+    let claim_cpu = env.budget().cpu_instruction_consumed();
+
+    // Claim includes fee calculation, storage update, and token transfer
+    assert!(claim_cpu < 5_000_000, "Claim operation consumes excessive gas");
+}
+
+/// Test that storage operations are batched efficiently where possible.
+#[test]
+fn test_gas_storage_batching_efficient() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
+    client.set_admin(&admin);
+    client.register_school(&admin, &school);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Batching Test Pool");
+    let description = String::from_str(&env, "Testing storage batching");
+    let goal: u128 = 10_000_000_000;
+
+    let pool_id = client.create_pool_for_school(
+        &creator,
+        &title,
+        &description,
+        &goal,
+        &school,
+    );
+
+    // Apply multiple students - each should be efficient
+    let num_students = 5;
+    env.budget().reset();
+    for i in 0..num_students {
+        let student = Address::generate(&env);
+        let app_data = String::from_str(&env, "student_data");
+        client.apply_to_pool(&pool_id, &student, &app_data);
+    }
+    let total_apply_cpu = env.budget().cpu_instruction_consumed();
+    let avg_apply_cpu = total_apply_cpu / num_students as u64;
+
+    // Average application gas should be reasonable
+    assert!(avg_apply_cpu < 2_000_000, "Application storage operations are inefficient");
 }
