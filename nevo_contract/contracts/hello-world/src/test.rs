@@ -803,6 +803,196 @@ fn test_doc_donate_behavior_matches_docs() {
 /// Verify that when one claim fails, other valid claims still succeed
 #[test]
 fn test_recovery_partial_failure_isolation() {
+// ============= DONOR COUNT TRACKING TESTS =============
+
+#[test]
+fn test_new_campaign_has_zero_donors() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Description"),
+        &1_000_000_000,
+    );
+
+    assert_eq!(client.get_donor_count(&pool_id), 0);
+}
+
+#[test]
+fn test_first_donation_increments_count_to_one() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Description"),
+        &1_000_000_000,
+    );
+
+    client.donate(&pool_id, &donor, &100_000_000);
+    assert_eq!(client.get_donor_count(&pool_id), 1);
+}
+
+#[test]
+fn test_same_donor_multiple_donations_keeps_count_at_one() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Description"),
+        &1_000_000_000,
+    );
+
+    client.donate(&pool_id, &donor, &100_000_000);
+    client.donate(&pool_id, &donor, &200_000_000);
+    assert_eq!(client.get_donor_count(&pool_id), 1);
+}
+
+#[test]
+fn test_different_donors_increment_count_correctly() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor1 = Address::generate(&env);
+    let donor2 = Address::generate(&env);
+    let donor3 = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Description"),
+        &1_000_000_000,
+    );
+
+    client.donate(&pool_id, &donor1, &100_000_000);
+    client.donate(&pool_id, &donor2, &200_000_000);
+    client.donate(&pool_id, &donor3, &300_000_000);
+    assert_eq!(client.get_donor_count(&pool_id), 3);
+}
+
+#[test]
+#[should_panic(expected = "Pool not found")]
+fn test_nonexistent_campaign_returns_error() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    // Attempt to get donor count for a pool that doesn't exist
+    client.get_donor_count(&999u32);
+}
+
+// ============= CONTRIBUTIONS GETTER VALIDATION TESTS =============
+
+#[test]
+fn test_contributor_with_no_donations_returns_zero() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Description"),
+        &1_000_000_000,
+    );
+
+    assert_eq!(client.get_contribution(&pool_id, &donor), 0);
+}
+
+#[test]
+fn test_contributor_with_multiple_donations_returns_sum() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Description"),
+        &1_000_000_000,
+    );
+
+    client.donate(&pool_id, &donor, &100_000_000);
+    client.donate(&pool_id, &donor, &200_000_000);
+    client.donate(&pool_id, &donor, &50_000_000);
+    assert_eq!(client.get_contribution(&pool_id, &donor), 350_000_000);
+}
+
+#[test]
+fn test_nonexistent_contributor_returns_zero() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let existing_donor = Address::generate(&env);
+    let nonexistent_donor = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Description"),
+        &1_000_000_000,
+    );
+
+    client.donate(&pool_id, &existing_donor, &100_000_000);
+    assert_eq!(client.get_contribution(&pool_id, &nonexistent_donor), 0);
+}
+
+#[test]
+#[should_panic(expected = "Pool not found")]
+fn test_nonexistent_campaign_returns_campaign_not_found() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let donor = Address::generate(&env);
+    client.get_contribution(&999u32, &donor);
+}
+
+#[test]
+fn test_multiple_contributors_tracked_separately() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor1 = Address::generate(&env);
+    let donor2 = Address::generate(&env);
+    let donor3 = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Description"),
+        &1_000_000_000,
+    );
+
+    client.donate(&pool_id, &donor1, &100_000_000);
+    client.donate(&pool_id, &donor2, &200_000_000);
+    client.donate(&pool_id, &donor3, &300_000_000);
+
+    assert_eq!(client.get_contribution(&pool_id, &donor1), 100_000_000);
+    assert_eq!(client.get_contribution(&pool_id, &donor2), 200_000_000);
+    assert_eq!(client.get_contribution(&pool_id, &donor3), 300_000_000);
+}
+
 // ============= ISSUE #515: FUNCTION PARAMETER VALIDATION TESTS =============
 
 // (1) Out-of-range / zero values caught
