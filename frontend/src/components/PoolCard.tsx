@@ -1,43 +1,43 @@
-"use client";
+import Link from "next/link"
+import Image from "next/image"
+import { Users } from "lucide-react"
 
-import React, { useState } from "react";
-import { TrendingUp, Users } from "lucide-react";
-import Image from "next/image";
-import { DonationModal } from "./DonationModal";
-import { Button } from "./ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { StatusBadge } from "@/components/ui/status-badge"
+
+type PoolStatus = "Open" | "Closed"
 
 export interface PoolCardProps {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  imageUrl: string;
-  goalAmount: number;
-  raisedAmount: number;
-  contributorsCount: number;
-  poolId: string;
-  contractId: string;
+  id: string
+  title: string
+  description: string
+  imageUrl: string
+  goalAmount: number
+  raisedAmount: number
+  donorCount: number
+  creatorName: string
+  creatorAvatarUrl: string
+  status: PoolStatus
 }
 
-export const PoolCard: React.FC<PoolCardProps> = ({
+export const PoolCard = ({
+  id,
   title,
   description,
-  category,
   imageUrl,
   goalAmount,
   raisedAmount,
-  contributorsCount,
-  poolId,
-  contractId,
-}) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const progressPercent = Math.min((raisedAmount / goalAmount) * 100, 100);
+  donorCount,
+  creatorName,
+  creatorAvatarUrl,
+  status,
+}: PoolCardProps) => {
+  const progress = goalAmount > 0 ? Math.min((raisedAmount / goalAmount) * 100, 100) : 0
 
   return (
-    <>
-      <div className="group bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col h-full">
-        {/* Image Container with Hover Scale Result */}
-        <div className="relative h-48 w-full overflow-hidden">
+    <Link href={`/pools/${id}`} className="block h-full">
+      <Card className="group flex h-full flex-col overflow-hidden border-slate-200/70 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-700/70">
+        <div className="relative h-44 w-full overflow-hidden">
           <Image
             src={imageUrl}
             alt={title}
@@ -45,82 +45,58 @@ export const PoolCard: React.FC<PoolCardProps> = ({
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
-          {/* Category Badge over image */}
-          <div className="absolute top-4 left-4">
-            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-[#0F172A]/80 text-white backdrop-blur-sm border border-slate-700">
-              {category}
-            </span>
+          <div className="absolute left-3 top-3">
+            <StatusBadge variant={status === "Open" ? "success" : "default"}>
+              {status}
+            </StatusBadge>
           </div>
         </div>
 
-        {/* Card Content */}
-        <div className="p-6 flex flex-col flex-grow">
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 line-clamp-1 group-hover:text-blue-500 dark:group-hover:text-cyan-400 transition-colors">
-            {title}
-          </h3>
-          <p className="text-slate-600 dark:text-slate-400 text-sm mb-6 line-clamp-2 flex-grow">
-            {description}
-          </p>
+        <CardHeader className="space-y-3 pb-4">
+          <div className="flex items-center gap-3">
+            <Image
+              src={creatorAvatarUrl}
+              alt={creatorName}
+              width={34}
+              height={34}
+              className="h-8 w-8 rounded-full object-cover ring-2 ring-white dark:ring-slate-800"
+            />
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              by <span className="font-semibold text-slate-800 dark:text-slate-200">{creatorName}</span>
+            </p>
+          </div>
+          <CardTitle className="line-clamp-1 text-xl">{title}</CardTitle>
+          <CardDescription className="line-clamp-2">{description}</CardDescription>
+        </CardHeader>
 
-          {/* Progress Section */}
-          <div className="mt-auto space-y-4">
-            <div className="flex justify-between items-end text-sm">
-              <div>
-                <p className="text-slate-500 dark:text-slate-400">Raised</p>
-                <p className="font-bold text-slate-900 dark:text-white text-lg">
-                  ${raisedAmount.toLocaleString()}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-slate-500 dark:text-slate-400">Goal</p>
-                <p className="font-semibold text-slate-700 dark:text-slate-300">
-                  ${goalAmount.toLocaleString()}
-                </p>
-              </div>
+        <CardContent className="mt-auto space-y-4">
+          <div className="flex items-end justify-between gap-2 text-sm">
+            <div>
+              <p className="text-slate-500 dark:text-slate-400">Donated</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${raisedAmount.toLocaleString()}</p>
             </div>
+            <p className="text-right font-medium text-slate-700 dark:text-slate-300">
+              Goal: ${goalAmount.toLocaleString()}
+            </p>
+          </div>
 
-            {/* Progress Bar Container */}
-            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
+          <div className="space-y-2">
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
               <div
-                className="bg-gradient-to-r from-blue-500 to-cyan-400 h-2.5 rounded-full transition-all duration-1000 ease-out"
-                style={{ width: `${progressPercent}%` }}
+                className="h-full rounded-full bg-linear-to-r from-blue-500 to-cyan-400 transition-all duration-700"
+                style={{ width: `${progress}%` }}
               />
             </div>
-
-            {/* Footer Stats & Action */}
-            <div className="pt-4 space-y-4">
-              <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-700">
-                <div className="flex items-center space-x-1">
-                  <Users size={14} />
-                  <span>{contributorsCount} Contributors</span>
-                </div>
-                <div className="flex items-center space-x-1 text-blue-600 dark:text-cyan-400">
-                  <TrendingUp size={14} />
-                  <span className="font-semibold">
-                    {Math.round(progressPercent)}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Donate Button */}
-              <Button
-                onClick={() => setIsModalOpen(true)}
-                className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-slate-900 transition-colors"
-              >
-                Donate Now
-              </Button>
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-blue-600 dark:text-cyan-400">{Math.round(progress)}% funded</span>
+              <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                <Users size={14} />
+                {donorCount} donors
+              </span>
             </div>
           </div>
-        </div>
-      </div>
-
-      <DonationModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        poolTitle={title}
-        poolId={poolId}
-        contractId={contractId}
-      />
-    </>
-  );
-};
+        </CardContent>
+      </Card>
+    </Link>
+  )
+}
