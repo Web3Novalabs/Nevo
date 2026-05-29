@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String, Symbol, Vec, symbol_short};
 
 // Storage key constants
 const POOL_COUNT: &str = "pool_count";
@@ -30,6 +30,14 @@ const UNCLAIMED_FEES: &str = "unclaimed_fees";
 const MAX_DESCRIPTION_LENGTH: usize = 500;
 const MAX_URL_LENGTH: usize = 256;
 const MAX_IMAGE_HASH_LENGTH: usize = 64;
+
+// ─── Event Topics ────────────────────────────────────────────────────────
+
+const POOL_CREATED: Symbol = symbol_short!("pool_crtd");
+const DONATION_MADE: Symbol = symbol_short!("donation");
+const CONTRIBUTION: Symbol = symbol_short!("contrib");
+const POOL_CLOSED: Symbol = symbol_short!("pool_cls");
+const APPLICATION_SUBMITTED: Symbol = symbol_short!("app_sub");
 
 /// Tracks a student's approved funding and how much has been streamed so far.
 ///
@@ -148,6 +156,12 @@ impl Contract {
 
         env.storage().persistent().set(&pool_count_key, &pool_count);
 
+        // Emit pool creation event
+        env.events().publish(
+            (POOL_CREATED, pool_id),
+            (creator.clone(), goal, title, description)
+        );
+
         pool_id
     }
 
@@ -211,6 +225,12 @@ impl Contract {
         env.storage()
             .persistent()
             .set(&(pool_id, "d_count"), &(donor_index + 1));
+
+        // Emit donation event
+        env.events().publish(
+            (DONATION_MADE, pool_id),
+            (donor.clone(), amount, new_collected)
+        );
     }
 
     /// Get pool information as a tuple (id, creator, goal, collected, is_closed).
@@ -277,6 +297,12 @@ impl Contract {
         };
 
         env.storage().persistent().set(&pool_id, &updated_pool);
+
+        // Emit pool closed event
+        env.events().publish(
+            (POOL_CLOSED, pool_id),
+            (pool.sponsor.clone(), pool.collected)
+        );
     }
 
     /// Get the total number of pools.
@@ -324,7 +350,13 @@ impl Contract {
         env.storage().persistent().set(&count_key, &app_count);
 
         let pending = String::from_str(&env, "Pending");
-        Self::set_application_status(env, pool_id, student, pending);
+        Self::set_application_status(env.clone(), pool_id, student.clone(), pending);
+
+        // Emit application/contribution event with privacy flag (default: false for public)
+        env.events().publish(
+            (APPLICATION_SUBMITTED, pool_id),
+            (student.clone(), app_count, false) // false = public application
+        );
     }
 
     /// School approves or rejects a student's application.
@@ -732,6 +764,12 @@ impl Contract {
         env.storage()
             .persistent()
             .set(&(pool_id, "d_count"), &(donor_index + 1));
+
+        // Emit contribution event with privacy flag (true = private donation)
+        env.events().publish(
+            (CONTRIBUTION, pool_id),
+            (donor.clone(), amount, new_collected, true) // true = private contribution
+        );
     }
 }
 
