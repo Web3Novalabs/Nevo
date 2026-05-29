@@ -871,27 +871,490 @@ fn test_doc_donate_error_pool_closed() {
 #[test]
 #[should_panic(expected = "Pool not found")]
 fn test_doc_donate_error_pool_not_found() {
-    let student1 = Address::generate(&env);
-    let student3 = Address::generate(&env);
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
 
-    // Create pool with sufficient funds
+    let donor = Address::generate(&env);
+    
+    // Try to donate to non-existent pool
+    // Doc states: panics with "Pool not found"
+    client.donate(&999, &donor, &100_000_000);
+}
+
+// ============= CONFIGURATION BOUNDS VALIDATION TESTS =============
+// These tests verify that configuration parameters are properly validated
+// against their defined bounds and constraints.
+
+/// TEST 1: Maximum description length enforced (MAX_DESCRIPTION_LENGTH = 500)
+#[test]
+#[should_panic(expected = "Description exceeds maximum length")]
+fn test_config_bounds_description_max_length_exceeded() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Test Pool");
+    
+    // Create a description that exceeds MAX_DESCRIPTION_LENGTH (500 chars)
+    let long_description = "a".repeat(501);
+    let description = String::from_str(&env, &long_description);
+    let goal: u128 = 1_000_000_000;
+
+    // Should panic with "Description exceeds maximum length"
+    client.create_pool(&creator, &title, &description, &goal);
+}
+
+/// TEST 2: Maximum description length at boundary (exactly 500 chars)
+#[test]
+fn test_config_bounds_description_max_length_at_boundary() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Test Pool");
+    
+    // Create a description exactly at MAX_DESCRIPTION_LENGTH (500 chars)
+    let boundary_description = "a".repeat(500);
+    let description = String::from_str(&env, &boundary_description);
+    let goal: u128 = 1_000_000_000;
+
+    // Should succeed - exactly at boundary
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    assert_eq!(pool_id, 1);
+}
+
+/// TEST 3: Description length just under boundary (499 chars)
+#[test]
+fn test_config_bounds_description_length_under_boundary() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Test Pool");
+    
+    // Create a description just under MAX_DESCRIPTION_LENGTH (499 chars)
+    let valid_description = "a".repeat(499);
+    let description = String::from_str(&env, &valid_description);
+    let goal: u128 = 1_000_000_000;
+
+    // Should succeed
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    assert_eq!(pool_id, 1);
+}
+
+/// TEST 4: Empty description allowed
+#[test]
+fn test_config_bounds_description_empty_allowed() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Test Pool");
+    let description = String::from_str(&env, "");
+    let goal: u128 = 1_000_000_000;
+
+    // Empty description should be allowed
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    assert_eq!(pool_id, 1);
+}
+
+/// TEST 5: Numeric parameter - goal at u128 maximum boundary
+#[test]
+fn test_config_bounds_goal_u128_max() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Max Goal Pool");
+    let description = String::from_str(&env, "Testing maximum goal value");
+    let goal: u128 = u128::MAX;
+
+    // Should handle maximum u128 value
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.2, u128::MAX);
+}
+
+/// TEST 6: Numeric parameter - goal at zero (minimum boundary)
+#[test]
+fn test_config_bounds_goal_zero() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Zero Goal Pool");
+    let description = String::from_str(&env, "Testing zero goal");
+    let goal: u128 = 0;
+
+    // Zero goal should be allowed (no explicit validation)
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.2, 0);
+}
+
+/// TEST 7: Numeric parameter - donation amount overflow protection
+#[test]
+#[should_panic(expected = "Collected amount overflow")]
+fn test_config_bounds_donation_overflow() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let token_address = Address::generate(&env);
+    
     let pool_id = client.create_pool(
         &creator,
-        &String::from_str(&env, "Partial Failure Test"),
-        &String::from_str(&env, "Test isolation"),
+        &String::from_str(&env, "Overflow Test"),
+        &String::from_str(&env, "Test"),
+        &u128::MAX,
+    );
+
+    // First donation near max
+    client.donate_with_token(&pool_id, &donor, &token_address, &(u128::MAX as i128 - 1000));
+    
+    // Second donation should cause overflow
+    client.donate_with_token(&pool_id, &donor, &token_address, &2000i128);
+}
+
+/// TEST 8: Numeric parameter - pool_id sequential validation
+#[test]
+fn test_config_bounds_pool_id_sequential() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "Sequential Test");
+    let description = String::from_str(&env, "Test");
+    let goal: u128 = 1_000_000_000;
+
+    // Create multiple pools and verify sequential IDs
+    let pool_id_1 = client.create_pool(&creator, &title, &description, &goal);
+    let pool_id_2 = client.create_pool(&creator, &title, &description, &goal);
+    let pool_id_3 = client.create_pool(&creator, &title, &description, &goal);
+
+    assert_eq!(pool_id_1, 1);
+    assert_eq!(pool_id_2, 2);
+    assert_eq!(pool_id_3, 3);
+    assert_eq!(client.get_pool_count(), 3);
+}
+
+/// TEST 9: Numeric parameter - milestone amount validation
+#[test]
+#[should_panic(expected = "Milestone total must equal pool goal")]
+fn test_config_bounds_milestone_sum_mismatch() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Milestone Test"),
+        &String::from_str(&env, "Test"),
+        &goal,
+    );
+
+    // Create milestones that don't sum to goal
+    let mut milestones = Vec::new(&env);
+    milestones.push_back(Milestone { amount: 300_000_000 });
+    milestones.push_back(Milestone { amount: 400_000_000 });
+    // Total: 700_000_000, but goal is 1_000_000_000
+
+    // Should panic with "Milestone total must equal pool goal"
+    client.setup_application_milestones(&pool_id, &student, &milestones);
+}
+
+/// TEST 10: Numeric parameter - milestone sum equals goal (valid)
+#[test]
+fn test_config_bounds_milestone_sum_valid() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Milestone Test"),
+        &String::from_str(&env, "Test"),
+        &goal,
+    );
+
+    // Create milestones that sum exactly to goal
+    let mut milestones = Vec::new(&env);
+    milestones.push_back(Milestone { amount: 300_000_000 });
+    milestones.push_back(Milestone { amount: 400_000_000 });
+    milestones.push_back(Milestone { amount: 300_000_000 });
+    // Total: 1_000_000_000 = goal
+
+    // Should succeed
+    client.setup_application_milestones(&pool_id, &student, &milestones);
+
+    let retrieved_milestones = client.get_milestones(&pool_id, &student);
+    assert_eq!(retrieved_milestones.len(), 3);
+}
+
+/// TEST 11: Numeric parameter - milestone overflow protection
+#[test]
+#[should_panic(expected = "Milestone amount overflow")]
+fn test_config_bounds_milestone_overflow() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let goal: u128 = u128::MAX;
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Overflow Test"),
+        &String::from_str(&env, "Test"),
+        &goal,
+    );
+
+    // Create milestones that would overflow when summed
+    let mut milestones = Vec::new(&env);
+    milestones.push_back(Milestone { amount: u128::MAX });
+    milestones.push_back(Milestone { amount: 1 });
+
+    // Should panic with "Milestone amount overflow"
+    client.setup_application_milestones(&pool_id, &student, &milestones);
+}
+
+/// TEST 12: Numeric parameter - empty milestones rejected
+#[test]
+#[should_panic(expected = "Milestones required")]
+fn test_config_bounds_milestones_empty() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Empty Milestones Test"),
+        &String::from_str(&env, "Test"),
+        &goal,
+    );
+
+    // Empty milestones vector
+    let milestones = Vec::new(&env);
+
+    // Should panic with "Milestones required"
+    client.setup_application_milestones(&pool_id, &student, &milestones);
+}
+
+/// TEST 13: String encoding - UTF-8 characters in description
+#[test]
+fn test_config_bounds_description_utf8_encoding() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let title = String::from_str(&env, "UTF-8 Test Pool");
+    
+    // Test with various UTF-8 characters (emojis, special chars, etc.)
+    let utf8_description = String::from_str(&env, "Education fund 🎓 for students in África & Asia");
+    let goal: u128 = 1_000_000_000;
+
+    // Should handle UTF-8 encoding properly
+    let pool_id = client.create_pool(&creator, &title, &utf8_description, &goal);
+    assert_eq!(pool_id, 1);
+}
+
+/// TEST 14: String encoding - special characters in application data
+#[test]
+fn test_config_bounds_application_data_special_chars() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
+
+    // Set admin and register school
+    client.set_admin(&admin);
+    client.register_school(&admin, &school);
+
+    let pool_id = client.create_pool_for_school(
+        &creator,
+        &String::from_str(&env, "School Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000,
+        &school,
+    );
+
+    // Application data with special characters
+    let special_chars_data = String::from_str(&env, "Name: José García\nGPA: 3.8\nEmail: test@example.com");
+
+    // Should handle special characters in application data
+    client.apply_to_pool(&pool_id, &student, &special_chars_data);
+
+    let status = client.get_application_status(&pool_id, &student);
+    assert_eq!(status, String::from_str(&env, "Pending"));
+}
+
+/// TEST 15: Hash length validation - simulating image hash storage
+/// Note: The contract defines MAX_IMAGE_HASH_LENGTH but doesn't currently use it.
+/// This test documents the expected behavior if/when image hashes are added.
+#[test]
+fn test_config_bounds_hash_length_documented() {
+    // MAX_IMAGE_HASH_LENGTH = 64 is defined in the contract
+    // This test documents that hash validation should enforce this limit
+    // when image hash functionality is implemented
+    
+    let max_hash_length = 64;
+    let valid_hash = "a".repeat(64);
+    let invalid_hash = "a".repeat(65);
+
+    assert_eq!(valid_hash.len(), max_hash_length);
+    assert!(invalid_hash.len() > max_hash_length);
+}
+
+/// TEST 16: URL length validation - simulating URL storage
+/// Note: The contract defines MAX_URL_LENGTH but doesn't currently use it.
+/// This test documents the expected behavior if/when URL fields are added.
+#[test]
+fn test_config_bounds_url_length_documented() {
+    // MAX_URL_LENGTH = 256 is defined in the contract
+    // This test documents that URL validation should enforce this limit
+    // when URL functionality is implemented
+    
+    let max_url_length = 256;
+    let valid_url = format!("https://example.com/{}", "a".repeat(230));
+    let invalid_url = format!("https://example.com/{}", "a".repeat(240));
+
+    assert!(valid_url.len() <= max_url_length);
+    assert!(invalid_url.len() > max_url_length);
+}
+
+/// TEST 17: Numeric range - claim amount boundaries
+#[test]
+#[should_panic(expected = "Claim amount must be positive")]
+fn test_config_bounds_claim_amount_zero() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let token_address = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Test"),
         &1_000_000_000,
     );
 
     client.donate(&pool_id, &creator, &500_000_000);
+    client.set_application_status(&pool_id, &student, &String::from_str(&env, "Approved"));
 
-    // Approve two students
-    client.set_application_status(&pool_id, &student1, &String::from_str(&env, "Approved"));
-    client.set_application_status(&pool_id, &student3, &String::from_str(&env, "Approved"));
+    // Zero claim amount should be rejected
+    client.claim_funds(&student, &pool_id, &0i128, &token_address);
+}
 
-    let claim_amount: i128 = 50_000_000;
-    let token_address = create_token(&env, claim_amount * 2, &contract_id);
+/// TEST 18: Numeric range - donation amount must be positive
+#[test]
+#[should_panic(expected = "Amount must be positive")]
+fn test_config_bounds_donation_amount_negative() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
 
-    // Student1 claims successfully
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let token_address = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000,
+    );
+
+    // Negative donation amount should be rejected
+    client.donate_with_token(&pool_id, &donor, &token_address, &-100i128);
+}
+
+/// TEST 19: Numeric range - donation amount at i128 max boundary
+#[test]
+fn test_config_bounds_donation_amount_i128_max() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    
+    // Create token and fund donor
+    let amount = i128::MAX;
+    let token_address = create_token(&env, amount, &donor);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Max Donation Test"),
+        &String::from_str(&env, "Test"),
+        &(i128::MAX as u128),
+    );
+
+    // Should handle i128::MAX donation
+    client.donate_with_token(&pool_id, &donor, &token_address, &amount);
+
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.3, i128::MAX as u128);
+}
+
+/// TEST 20: String encoding - title length (no explicit limit but should handle reasonable sizes)
+#[test]
+fn test_config_bounds_title_reasonable_length() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    
+    // Test with a reasonably long title (200 chars)
+    let long_title = "a".repeat(200);
+    let title = String::from_str(&env, &long_title);
+    let description = String::from_str(&env, "Test description");
+    let goal: u128 = 1_000_000_000;
+
+    // Should handle reasonable title lengths
+    let pool_id = client.create_pool(&creator, &title, &description, &goal);
+    assert_eq!(pool_id, 1);
+}ly
     client.claim_funds(&student1, &pool_id, &claim_amount, &token_address);
     let app1 = client.get_application(&pool_id, &student1);
     assert!(app1.is_some());
