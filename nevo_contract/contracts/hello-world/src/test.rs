@@ -2751,6 +2751,9 @@ fn test_upgrade_backward_compatibility_existing_operations() {
 /// Verifies: Pool creation event is emitted with all required fields
 #[test]
 fn test_event_pool_creation_emits_correct_event() {
+// Tests for Issue #485: Pool metadata retrieval
+#[test]
+fn test_pool_metadata_retrieval() {
     let env = Env::default();
     let contract_id = env.register(Contract, ());
     let client = ContractClient::new(&env, &contract_id);
@@ -3263,4 +3266,32 @@ fn test_event_no_emission_on_failed_operations() {
     
     // No new event should be emitted for failed operation
     assert_eq!(after_failed_donation, before_failed_donation, "Failed operation should not emit event");
+    let title1 = String::from_str(&env, "First Pool");
+    let description1 = String::from_str(&env, "First pool description");
+    let goal: u128 = 1_000_000_000;
+
+    // 1. Nonexistent pool returns empty strings
+    let (empty_title, empty_desc) = client.get_pool_metadata(&999u32);
+    assert_eq!(empty_title, String::from_str(&env, ""));
+    assert_eq!(empty_desc, String::from_str(&env, ""));
+
+    // 2. Existing pool returns correct metadata matching saved values
+    let pool_id1 = client.create_pool(&creator, &title1, &description1, &goal);
+    let (retrieved_title1, retrieved_desc1) = client.get_pool_metadata(&pool_id1);
+    assert_eq!(retrieved_title1, title1);
+    assert_eq!(retrieved_desc1, description1);
+
+    // 3. Multiple pools have independent metadata
+    let title2 = String::from_str(&env, "Second Pool");
+    let description2 = String::from_str(&env, "Second pool description");
+    let pool_id2 = client.create_pool(&creator, &title2, &description2, &goal);
+
+    let (retrieved_title2, retrieved_desc2) = client.get_pool_metadata(&pool_id2);
+    assert_eq!(retrieved_title2, title2);
+    assert_eq!(retrieved_desc2, description2);
+
+    // Re-verify first pool still has correct independent metadata
+    let (retrieved_title1_again, retrieved_desc1_again) = client.get_pool_metadata(&pool_id1);
+    assert_eq!(retrieved_title1_again, title1);
+    assert_eq!(retrieved_desc1_again, description1);
 }
