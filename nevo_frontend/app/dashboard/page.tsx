@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useWalletStore } from '@/src/store/walletStore';
+import { EmptyState } from '@/components/EmptyState';
+import ConnectWallet from '@/components/ConnectWallet';
 import { WalletAddress } from '@/components/WalletAddress';
 import type { Pool } from '@/src/store/poolsStore';
 
@@ -82,17 +84,20 @@ export default function DashboardPage() {
   // ── Wallet not connected ───────────────────────────────────────────────
   if (!loading && !publicKey) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-24 text-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="flex size-16 items-center justify-center rounded-full bg-brand-100 text-brand-600">
-            <LockIcon />
-          </div>
-          <h1 className="text-2xl font-bold">Connect your wallet</h1>
-          <p className="text-[var(--color-text-muted)] max-w-sm">
-            Your dashboard is only accessible to pool creators. Connect your
-            Stellar wallet to continue.
-          </p>
-        </div>
+      <main className="mx-auto max-w-5xl px-6 py-10">
+        <EmptyState
+          icon="wallet"
+          iconTone="brand"
+          title="Connect your wallet"
+          description="Your dashboard is only accessible to pool creators. Connect your Stellar wallet to view and manage your pools."
+          steps={[
+            { text: 'Install the Freighter browser extension' },
+            { text: 'Click Connect Wallet below' },
+            { text: 'Approve the connection in Freighter' },
+          ]}
+        >
+          <ConnectWallet />
+        </EmptyState>
       </main>
     );
   }
@@ -204,7 +209,17 @@ export default function DashboardPage() {
       {loading || loadingPools ? (
         <PoolListSkeleton />
       ) : pools.length === 0 ? (
-        <EmptyState />
+        <EmptyState
+          icon="pool"
+          title="No pools yet"
+          description="Create your first pool to start raising funds on-chain."
+          action={{ label: 'Create a Pool', href: '/pools/new' }}
+          steps={[
+            { text: 'Set a title, goal, and category for your cause' },
+            { text: 'Share your pool link with supporters' },
+            { text: 'Withdraw funds once your goal is reached' },
+          ]}
+        />
       ) : (
         <section aria-label="Your pools">
           {/* Table header — desktop only */}
@@ -462,28 +477,6 @@ function PoolListSkeleton() {
   );
 }
 
-/* ── Empty state ──────────────────────────────────────────────────────────── */
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center gap-4 py-20 text-center">
-      <div className="flex size-14 items-center justify-center rounded-full bg-brand-100 text-brand-600">
-        <PoolIcon />
-      </div>
-      <p className="font-semibold">No pools yet</p>
-      <p className="text-sm text-[var(--color-text-muted)]">
-        Create your first pool to start raising funds on-chain.
-      </p>
-      <Link
-        href="/pools/new"
-        className="rounded-full bg-brand-600 px-6 py-2 text-sm font-semibold text-white hover:bg-brand-700 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-      >
-        Create a Pool
-      </Link>
-    </div>
-  );
-}
-
 /* ── Icons ────────────────────────────────────────────────────────────────── */
 
 function PlusIcon() {
@@ -506,42 +499,3 @@ function PlusIcon() {
   );
 }
 
-function LockIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="size-7"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
-      />
-    </svg>
-  );
-}
-
-function PoolIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="size-7"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-      />
-    </svg>
-  );
-}
