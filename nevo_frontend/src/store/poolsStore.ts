@@ -1,6 +1,8 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export type PoolStatus = 'Active' | 'Completed';
+export type SortOption = 'newest' | 'most_raised' | 'goal_low';
 
 export interface Pool {
   id: string;
@@ -24,12 +26,14 @@ interface PoolFilters {
 interface PoolsState {
   pools: Pool[];
   filters: PoolFilters;
+  sortBy: SortOption;
   loading: boolean;
   setPools: (pools: Pool[]) => void;
   setLoading: (loading: boolean) => void;
   setSearch: (search: string) => void;
   toggleCategory: (category: string) => void;
   toggleStatus: (status: PoolStatus) => void;
+  setSortBy: (sortBy: SortOption) => void;
   clearFilters: () => void;
   filteredPools: () => Pool[];
 }
@@ -39,6 +43,8 @@ const DEFAULT_FILTERS: PoolFilters = {
   categories: [],
   statuses: [],
 };
+
+const DEFAULT_SORT: SortOption = 'newest';
 
 const MOCK_POOLS: Pool[] = [
   {
@@ -104,54 +110,79 @@ const MOCK_POOLS: Pool[] = [
   },
 ];
 
-export const usePoolsStore = create<PoolsState>()((set, get) => ({
-  pools: MOCK_POOLS,
-  filters: DEFAULT_FILTERS,
-  loading: false,
+export const usePoolsStore = create<PoolsState>()(
+  persist(
+    (set, get) => ({
+      pools: MOCK_POOLS,
+      filters: DEFAULT_FILTERS,
+      sortBy: DEFAULT_SORT,
+      loading: false,
 
-  setPools: (pools) => set({ pools }),
-  setLoading: (loading) => set({ loading }),
+      setPools: (pools) => set({ pools }),
+      setLoading: (loading) => set({ loading }),
 
-  setSearch: (search) => set((s) => ({ filters: { ...s.filters, search } })),
+      setSearch: (search) =>
+        set((s) => ({ filters: { ...s.filters, search } })),
 
-  toggleCategory: (category) =>
-    set((s) => ({
-      filters: {
-        ...s.filters,
-        categories: s.filters.categories.includes(category)
-          ? s.filters.categories.filter((c) => c !== category)
-          : [...s.filters.categories, category],
+      toggleCategory: (category) =>
+        set((s) => ({
+          filters: {
+            ...s.filters,
+            categories: s.filters.categories.includes(category)
+              ? s.filters.categories.filter((c) => c !== category)
+              : [...s.filters.categories, category],
+          },
+        })),
+
+      toggleStatus: (status) =>
+        set((s) => ({
+          filters: {
+            ...s.filters,
+            statuses: s.filters.statuses.includes(status)
+              ? s.filters.statuses.filter((st) => st !== status)
+              : [...s.filters.statuses, status],
+          },
+        })),
+
+      setSortBy: (sortBy) => set({ sortBy }),
+
+      clearFilters: () => set({ filters: DEFAULT_FILTERS }),
+
+      filteredPools: () => {
+        const { pools, filters, sortBy } = get();
+        const filtered = pools.filter((pool) => {
+          const searchLower = filters.search.toLowerCase();
+          const matchSearch =
+            !filters.search ||
+            pool.title.toLowerCase().includes(searchLower) ||
+            pool.description.toLowerCase().includes(searchLower) ||
+            pool.category.toLowerCase().includes(searchLower) ||
+            (pool.creator && pool.creator.toLowerCase().includes(searchLower));
+          const matchCategory =
+            filters.categories.length === 0 ||
+            filters.categories.includes(pool.category);
+          const matchStatus =
+            filters.statuses.length === 0 ||
+            filters.statuses.includes(pool.status);
+          return matchSearch && matchCategory && matchStatus;
+        });
+
+        return [...filtered].sort((a, b) => {
+          if (sortBy === 'most_raised') {
+            return b.raised - a.raised;
+          }
+          if (sortBy === 'goal_low') {
+            return a.target - b.target;
+          }
+          const dateA = new Date(a.createdAt ?? '1970-01-01').getTime();
+          const dateB = new Date(b.createdAt ?? '1970-01-01').getTime();
+          return dateB - dateA;
+        });
       },
-    })),
-
-  toggleStatus: (status) =>
-    set((s) => ({
-      filters: {
-        ...s.filters,
-        statuses: s.filters.statuses.includes(status)
-          ? s.filters.statuses.filter((st) => st !== status)
-          : [...s.filters.statuses, status],
-      },
-    })),
-
-  clearFilters: () => set({ filters: DEFAULT_FILTERS }),
-
-  filteredPools: () => {
-    const { pools, filters } = get();
-    return pools.filter((pool) => {
-      const searchLower = filters.search.toLowerCase();
-      const matchSearch =
-        !filters.search ||
-        pool.title.toLowerCase().includes(searchLower) ||
-        pool.description.toLowerCase().includes(searchLower) ||
-        pool.category.toLowerCase().includes(searchLower) ||
-        (pool.creator && pool.creator.toLowerCase().includes(searchLower));
-      const matchCategory =
-        filters.categories.length === 0 ||
-        filters.categories.includes(pool.category);
-      const matchStatus =
-        filters.statuses.length === 0 || filters.statuses.includes(pool.status);
-      return matchSearch && matchCategory && matchStatus;
-    });
-  },
-}));
+    }),
+    {
+      name: 'nevo-pools',
+      partialize: (state) => ({ filters: state.filters, sortBy: state.sortBy }),
+    }
+  )
+);

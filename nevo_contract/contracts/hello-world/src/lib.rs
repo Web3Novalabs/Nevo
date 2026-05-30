@@ -232,6 +232,24 @@ impl Contract {
             (DONATION_MADE, pool_id),
             (donor.clone(), amount, new_collected)
         );
+        // Track unique donors
+        let donor_key = (pool_id, "donor", &donor);
+        if !env.storage().persistent().has(&donor_key) {
+            env.storage().persistent().set(&donor_key, &true);
+            let donor_count: u32 = env
+                .storage()
+                .persistent()
+                .get::<_, u32>(&(pool_id, "d_count"))
+                .unwrap_or(0);
+            env.storage()
+                .persistent()
+                .set(&(pool_id, "d_count"), &(donor_count + 1));
+        }
+
+        // Track individual donor's total contribution
+        let contrib_key = (pool_id, "contribution", &donor);
+        let current_contrib: u128 = env.storage().persistent().get(&contrib_key).unwrap_or(0);
+        env.storage().persistent().set(&contrib_key, &(current_contrib + amount));
     }
 
     /// Get pool information as a tuple (id, creator, goal, collected, is_closed).
@@ -327,6 +345,36 @@ impl Contract {
         env.storage()
             .persistent()
             .get::<_, u32>(&pool_count_key)
+            .unwrap_or(0)
+    }
+
+    /// Get the number of unique donors for a pool.
+    pub fn get_donor_count(env: Env, pool_id: u32) -> u32 {
+        // Verify the pool exists first
+        let _pool: Pool = env
+            .storage()
+            .persistent()
+            .get::<_, Pool>(&pool_id)
+            .expect("Pool not found");
+        
+        env.storage()
+            .persistent()
+            .get::<_, u32>(&(pool_id, "d_count"))
+            .unwrap_or(0)
+    }
+
+    /// Get the total contribution of a specific donor to a specific pool.
+    pub fn get_contribution(env: Env, pool_id: u32, donor: Address) -> u128 {
+        // Verify the pool exists first
+        let _pool: Pool = env
+            .storage()
+            .persistent()
+            .get::<_, Pool>(&pool_id)
+            .expect("Pool not found");
+        
+        env.storage()
+            .persistent()
+            .get::<_, u128>(&(pool_id, "contribution", &donor))
             .unwrap_or(0)
     }
 
@@ -786,6 +834,24 @@ impl Contract {
             (CONTRIBUTION, pool_id),
             (donor.clone(), amount, new_collected, true) // true = private contribution
         );
+        // Track unique donors
+        let donor_key = (pool_id, "donor", &donor);
+        if !env.storage().persistent().has(&donor_key) {
+            env.storage().persistent().set(&donor_key, &true);
+            let donor_count: u32 = env
+                .storage()
+                .persistent()
+                .get::<_, u32>(&(pool_id, "d_count"))
+                .unwrap_or(0);
+            env.storage()
+                .persistent()
+                .set(&(pool_id, "d_count"), &(donor_count + 1));
+        }
+
+        // Track individual donor's total contribution
+        let contrib_key = (pool_id, "contribution", &donor);
+        let current_contrib: u128 = env.storage().persistent().get(&contrib_key).unwrap_or(0);
+        env.storage().persistent().set(&contrib_key, &(current_contrib + (amount as u128)));
     }
 }
 

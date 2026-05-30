@@ -2,7 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePoolsStore, type Pool } from '@/src/store/poolsStore';
+import {
+  usePoolsStore,
+  type Pool,
+  type PoolStatus,
+  type SortOption,
+} from '@/src/store/poolsStore';
 
 // We extract categories from MOCK_POOLS dynamically or define them statically
 const CATEGORIES = [
@@ -14,9 +19,50 @@ const CATEGORIES = [
   'Art & Culture',
 ];
 
+const POOL_STATUSES: PoolStatus[] = ['Active', 'Completed'];
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: 'newest', label: 'Newest' },
+  { value: 'most_raised', label: 'Most raised' },
+  { value: 'goal_low', label: 'Goal: low to high' },
+];
+
 export default function BrowsePoolsPage() {
-  const { filteredPools, filters, setSearch, toggleCategory } = usePoolsStore();
+  const {
+    filteredPools,
+    filters,
+    setSearch,
+    toggleCategory,
+    toggleStatus,
+    clearFilters,
+    sortBy,
+    setSortBy,
+  } = usePoolsStore();
   const [searchInput, setSearchInput] = useState(filters.search);
+
+  const activeFilterCount =
+    (filters.search ? 1 : 0) +
+    filters.categories.length +
+    filters.statuses.length;
+
+  const selectedFilters = [
+    ...(filters.search
+      ? [{ key: 'search', label: `Search: ${filters.search}` }]
+      : []),
+    ...filters.statuses.map((status) => ({
+      key: `status-${status}`,
+      label: status,
+    })),
+    ...filters.categories.map((category) => ({
+      key: `category-${category}`,
+      label: category,
+    })),
+  ];
+
+  const handleClearFilters = () => {
+    setSearchInput('');
+    clearFilters();
+  };
 
   // Debounce search input
   useEffect(() => {
@@ -65,6 +111,28 @@ export default function BrowsePoolsPage() {
             </div>
 
             <div>
+              <h3 className="text-sm font-semibold mb-3">Statuses</h3>
+              <div className="flex flex-wrap gap-2 lg:flex-col">
+                {POOL_STATUSES.map((status) => {
+                  const isActive = filters.statuses.includes(status);
+                  return (
+                    <button
+                      key={`status-${status}`}
+                      onClick={() => toggleStatus(status)}
+                      className={`rounded-full lg:rounded-lg border px-3 py-1.5 text-left text-sm transition-colors ${
+                        isActive
+                          ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
+                          : 'border-[var(--color-border)] bg-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)]'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
               <h3 className="text-sm font-semibold mb-3">Categories</h3>
               <div className="flex flex-wrap gap-2 lg:flex-col">
                 {CATEGORIES.map((cat) => {
@@ -90,10 +158,51 @@ export default function BrowsePoolsPage() {
 
         {/* Results */}
         <section className="flex-1">
-          <div className="mb-4 text-sm text-[var(--color-text-muted)]">
-            Showing {displayedPools.length} pool
-            {displayedPools.length !== 1 ? 's' : ''}
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-[var(--color-text-muted)]">
+              Showing {displayedPools.length} pool
+              {displayedPools.length !== 1 ? 's' : ''}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="sr-only" htmlFor="sort-pools">
+                Sort pools
+              </label>
+              <select
+                id="sort-pools"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleClearFilters}
+                className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:border-brand-500 hover:text-brand-600"
+              >
+                Clear filters
+              </button>
+            </div>
           </div>
+
+          {activeFilterCount > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-3 text-sm">
+              <span className="text-[var(--color-text-muted)]">
+                Applied filters:
+              </span>
+              {selectedFilters.map((filter) => (
+                <span
+                  key={filter.key}
+                  className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-medium text-[var(--color-text)]"
+                >
+                  {filter.label}
+                </span>
+              ))}
+            </div>
+          )}
 
           {displayedPools.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-raised)] py-24 text-center">
@@ -106,14 +215,10 @@ export default function BrowsePoolsPage() {
                 Try adjusting your filters or search term.
               </p>
               <button
-                onClick={() => {
-                  setSearchInput('');
-                  setSearch('');
-                  // Clear categories logic can be called here if added to store
-                }}
+                onClick={handleClearFilters}
                 className="mt-6 text-sm font-medium text-brand-600 hover:text-brand-700"
               >
-                Clear search
+                Clear filters
               </button>
             </div>
           ) : (

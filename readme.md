@@ -92,6 +92,10 @@ Nevo aims to redefine how donations are managed by making them:
 * Transparent
 * Accessible to anyone
 
+## Documentation
+
+- [Pools page details](./docs/pools-page.md) — browse pools, search, filter categories, and review campaign progress.
+
 ---
 
 If you have ideas or want to collaborate, feel free to open an issue or submit a pull request.
