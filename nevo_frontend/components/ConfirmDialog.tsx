@@ -98,7 +98,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
       ref={ref}
       onClick={handleClick}
       onCancel={handleCancel}
-      className="m-auto w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-0 shadow-xl backdrop:bg-black/50 backdrop:backdrop-blur-sm open:flex open:flex-col"
+      className="fixed bottom-0 left-0 right-0 m-0 w-full max-w-md max-h-[100dvh] rounded-t-2xl sm:m-auto sm:bottom-auto sm:left-auto sm:right-auto sm:top-1/2 sm:-translate-y-1/2 sm:rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-0 shadow-xl backdrop:bg-black/50 backdrop:backdrop-blur-sm open:flex open:flex-col"
       aria-labelledby="confirm-dialog-title"
       aria-describedby="confirm-dialog-message"
     >

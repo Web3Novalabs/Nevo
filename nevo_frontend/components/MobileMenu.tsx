@@ -103,12 +103,12 @@ export function MobileMenu({ open, onClose }: MobileMenuProps) {
             Menu
           </span>
           <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            className="flex size-9 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-            aria-label="Close menu"
-          >
+              ref={closeButtonRef}
+              type="button"
+              onClick={onClose}
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              aria-label="Close menu"
+            >
             <CloseIcon />
           </button>
         </div>
@@ -188,7 +188,7 @@ export function MobileMenuButton({
   return (
     <button
       type="button"
-      className="flex size-9 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 lg:hidden"
+      className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 lg:hidden"
       onClick={onOpen}
       aria-expanded={open}
       aria-controls="mobile-menu-drawer"
