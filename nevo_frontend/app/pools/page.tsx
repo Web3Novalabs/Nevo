@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { EmptyState } from '@/components/EmptyState';
+import { usePoolsStore, type Pool } from '@/src/store/poolsStore';
 import {
   usePoolsStore,
   type Pool,
@@ -205,6 +207,26 @@ export default function BrowsePoolsPage() {
           )}
 
           {displayedPools.length === 0 ? (
+            <EmptyState
+              variant="bordered"
+              icon="search"
+              iconTone="muted"
+              title="No results found"
+              description="We couldn't find any pools matching your search criteria. Try adjusting your filters or search term."
+              action={{
+                label: 'Clear search',
+                onClick: () => {
+                  setSearchInput('');
+                  setSearch('');
+                },
+                variant: 'link',
+              }}
+              secondaryAction={{
+                label: 'Create a Pool',
+                href: '/pools/new',
+                variant: 'primary',
+              }}
+            />
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-raised)] py-24 text-center">
               <div className="flex size-12 items-center justify-center rounded-full bg-[var(--color-border)] text-[var(--color-text-muted)] mb-4">
                 <SearchIcon />
