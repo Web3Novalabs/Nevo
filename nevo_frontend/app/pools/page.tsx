@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { EmptyState } from '@/components/EmptyState';
-import { usePoolsStore, type Pool } from '@/src/store/poolsStore';
 import {
   usePoolsStore,
   type Pool,
@@ -207,42 +206,44 @@ export default function BrowsePoolsPage() {
           )}
 
           {displayedPools.length === 0 ? (
-            <EmptyState
-              variant="bordered"
-              icon="search"
-              iconTone="muted"
-              title="No results found"
-              description="We couldn't find any pools matching your search criteria. Try adjusting your filters or search term."
-              action={{
-                label: 'Clear search',
-                onClick: () => {
-                  setSearchInput('');
-                  setSearch('');
-                },
-                variant: 'link',
-              }}
-              secondaryAction={{
-                label: 'Create a Pool',
-                href: '/pools/new',
-                variant: 'primary',
-              }}
-            />
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-raised)] py-24 text-center">
-              <div className="flex size-12 items-center justify-center rounded-full bg-[var(--color-border)] text-[var(--color-text-muted)] mb-4">
-                <SearchIcon />
+            <>
+              <EmptyState
+                variant="bordered"
+                icon="search"
+                iconTone="muted"
+                title="No results found"
+                description="We couldn't find any pools matching your search criteria. Try adjusting your filters or search term."
+                action={{
+                  label: 'Clear search',
+                  onClick: () => {
+                    setSearchInput('');
+                    setSearch('');
+                  },
+                  variant: 'link',
+                }}
+                secondaryAction={{
+                  label: 'Create a Pool',
+                  href: '/pools/new',
+                  variant: 'primary',
+                }}
+              />
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-raised)] py-24 text-center">
+                <div className="flex size-12 items-center justify-center rounded-full bg-[var(--color-border)] text-[var(--color-text-muted)] mb-4">
+                  <SearchIcon />
+                </div>
+                <h3 className="text-base font-semibold">No results found</h3>
+                <p className="mt-1 text-sm text-[var(--color-text-muted)] max-w-sm">
+                  We couldn&apos;t find any pools matching your search criteria.
+                  Try adjusting your filters or search term.
+                </p>
+                <button
+                  onClick={handleClearFilters}
+                  className="mt-6 text-sm font-medium text-brand-600 hover:text-brand-700"
+                >
+                  Clear filters
+                </button>
               </div>
-              <h3 className="text-base font-semibold">No results found</h3>
-              <p className="mt-1 text-sm text-[var(--color-text-muted)] max-w-sm">
-                We couldn&apos;t find any pools matching your search criteria.
-                Try adjusting your filters or search term.
-              </p>
-              <button
-                onClick={handleClearFilters}
-                className="mt-6 text-sm font-medium text-brand-600 hover:text-brand-700"
-              >
-                Clear filters
-              </button>
-            </div>
+            </>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {displayedPools.map((pool) => (

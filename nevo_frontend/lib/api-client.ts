@@ -1,3 +1,14 @@
+import {
+  ClientRateLimiter,
+  DEFAULT_RATE_LIMIT_OPTIONS,
+  RateLimitError,
+  type RateLimitOptions,
+  isRateLimitError,
+  notifyRateLimit,
+  parseRetryAfterHeader,
+  resolveRateLimitOptions,
+} from './rate-limit';
+
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 export interface RequestConfig extends Omit<RequestInit, 'method' | 'body'> {
@@ -7,6 +18,11 @@ export interface RequestConfig extends Omit<RequestInit, 'method' | 'body'> {
   retryDelay?: number;
   body?: unknown;
   requireAuth?: boolean;
+  rateLimit?: false | Partial<RateLimitOptions>;
+  rateLimitKey?: string;
+  skipRateLimitNotification?: boolean;
+  cacheResponse?: boolean;
+  cacheTtlMs?: number;
 }
 
 export class ApiError extends Error {
@@ -22,23 +38,45 @@ export class ApiError extends Error {
 
 type Interceptor<T> = (data: T) => T | Promise<T>;
 
-class ApiClient {
+type PreparedRequestConfig = RequestConfig & {
+  url: string;
+  method: string;
+  headers: Headers;
+  body?: BodyInit;
+};
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+const DEFAULT_CACHE_TTL_MS = 15_000;
+const DEFAULT_RATE_LIMIT_KEY = 'api';
+
+export class ApiClient {
   private baseURL: string;
   private defaultTimeout: number;
+  private defaultRateLimit: RateLimitOptions;
+  private rateLimiter: ClientRateLimiter;
+  private responseCache = new Map<string, CacheEntry<unknown>>();
   private activeRequests = 0;
   private loadingListeners: Set<(loading: boolean) => void> = new Set();
 
-  public requestInterceptors: Interceptor<
-    RequestConfig & { url: string; method: string }
-  >[] = [];
+  public requestInterceptors: Interceptor<PreparedRequestConfig>[] = [];
   public responseInterceptors: Interceptor<Response>[] = [];
 
-  constructor(baseURL: string = '', defaultTimeout: number = 10000) {
+  constructor(
+    baseURL: string = '',
+    defaultTimeout: number = 10000,
+    rateLimit: Partial<RateLimitOptions> = DEFAULT_RATE_LIMIT_OPTIONS
+  ) {
     this.baseURL =
       baseURL ||
       process.env.NEXT_PUBLIC_API_BASE_URL ||
       'http://localhost:3000';
     this.defaultTimeout = defaultTimeout;
+    this.defaultRateLimit = resolveRateLimitOptions(rateLimit);
+    this.rateLimiter = new ClientRateLimiter();
   }
 
   private startRequest() {
@@ -81,9 +119,7 @@ class ApiClient {
   }
 
   // Interceptors
-  addRequestInterceptor(
-    interceptor: Interceptor<RequestConfig & { url: string; method: string }>
-  ) {
+  addRequestInterceptor(interceptor: Interceptor<PreparedRequestConfig>) {
     this.requestInterceptors.push(interceptor);
   }
 
@@ -91,9 +127,7 @@ class ApiClient {
     this.responseInterceptors.push(interceptor);
   }
 
-  private async applyRequestInterceptors(
-    config: RequestConfig & { url: string; method: string }
-  ) {
+  private async applyRequestInterceptors(config: PreparedRequestConfig) {
     let currentConfig = { ...config };
     for (const interceptor of this.requestInterceptors) {
       currentConfig = await interceptor(currentConfig);
@@ -109,6 +143,155 @@ class ApiClient {
     return currentResponse;
   }
 
+  public getRateLimitStatus(
+    key: string = DEFAULT_RATE_LIMIT_KEY,
+    options: Partial<RateLimitOptions> = {}
+  ) {
+    return this.rateLimiter.getStatus(
+      key,
+      resolveRateLimitOptions({ ...this.defaultRateLimit, ...options })
+    );
+  }
+
+  public clearResponseCache() {
+    this.responseCache.clear();
+  }
+
+  public resetRateLimits(key?: string) {
+    this.rateLimiter.reset(key);
+  }
+
+  private buildUrl(
+    endpoint: string,
+    params?: Record<string, string | number | boolean | undefined>
+  ) {
+    let url = `${this.baseURL}${endpoint}`;
+
+    if (!params) return url;
+
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        searchParams.append(key, String(value));
+      }
+    });
+
+    const queryString = searchParams.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+
+    return url;
+  }
+
+  private buildRequestConfig(
+    endpoint: string,
+    method: HttpMethod,
+    config: RequestConfig
+  ): PreparedRequestConfig {
+    const { params, body, ...customInit } = config;
+    const headers = new Headers(customInit.headers || {});
+
+    if (
+      !headers.has('Content-Type') &&
+      body !== undefined &&
+      !(body instanceof FormData)
+    ) {
+      headers.set('Content-Type', 'application/json');
+    }
+    if (!headers.has('Accept')) {
+      headers.set('Accept', 'application/json');
+    }
+
+    return {
+      ...customInit,
+      url: this.buildUrl(endpoint, params),
+      method,
+      headers,
+      body:
+        body !== undefined
+          ? body instanceof FormData
+            ? body
+            : JSON.stringify(body)
+          : undefined,
+    } as PreparedRequestConfig;
+  }
+
+  private getCacheKey(config: PreparedRequestConfig) {
+    const walletKey = config.headers.get('X-Wallet-Pubkey') ?? 'anonymous';
+    return `${config.method}:${config.url}:wallet=${walletKey}`;
+  }
+
+  private getCachedResponse<T>(key: string): T | undefined {
+    const cached = this.responseCache.get(key);
+    if (!cached) return undefined;
+
+    if (Date.now() >= cached.expiresAt) {
+      this.responseCache.delete(key);
+      return undefined;
+    }
+
+    return cached.data as T;
+  }
+
+  private setCachedResponse<T>(key: string, data: T, cacheTtlMs: number) {
+    if (cacheTtlMs <= 0) return;
+
+    this.responseCache.set(key, {
+      data,
+      expiresAt: Date.now() + cacheTtlMs,
+    });
+  }
+
+  private enforceRateLimit(
+    config: PreparedRequestConfig,
+    endpoint: string,
+    notify: boolean
+  ) {
+    if (config.rateLimit === false) return;
+
+    const options = resolveRateLimitOptions({
+      ...this.defaultRateLimit,
+      ...config.rateLimit,
+    });
+    const result = this.rateLimiter.consume(
+      config.rateLimitKey ?? DEFAULT_RATE_LIMIT_KEY,
+      options
+    );
+
+    if (!result.allowed) {
+      const error = new RateLimitError(result, endpoint);
+      if (notify) {
+        notifyRateLimit(error);
+      }
+      throw error;
+    }
+  }
+
+  private createServerRateLimitError(
+    response: Response,
+    endpoint: string
+  ): RateLimitError {
+    const retryAfterMs =
+      parseRetryAfterHeader(response.headers.get('Retry-After')) ??
+      this.defaultRateLimit.windowMs;
+
+    return new RateLimitError(
+      {
+        ...this.defaultRateLimit,
+        allowed: false,
+        remaining: 0,
+        resetAt: Date.now() + retryAfterMs,
+        retryAfterMs,
+      },
+      endpoint
+    );
+  }
+
+  private getBackoffMs(retryDelay: number, attempt: number) {
+    return retryDelay * 2 ** Math.max(0, attempt - 1);
+  }
+
   // Core request method
   async request<T>(
     endpoint: string,
@@ -118,53 +301,31 @@ class ApiClient {
     this.startRequest();
     try {
       const {
-        params,
         timeout = this.defaultTimeout,
         retries = 3,
         retryDelay = 1000,
-        body,
-        ...customInit
+        cacheResponse = true,
+        cacheTtlMs = DEFAULT_CACHE_TTL_MS,
+        skipRateLimitNotification = false,
       } = config;
 
-      let url = `${this.baseURL}${endpoint}`;
-
-      // Add query params
-      if (params) {
-        const searchParams = new URLSearchParams();
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) {
-            searchParams.append(key, String(value));
-          }
-        });
-        const queryString = searchParams.toString();
-        if (queryString) {
-          url += `?${queryString}`;
-        }
-      }
-
-      // Default headers
-      const headers = new Headers(customInit.headers || {});
-      if (!headers.has('Content-Type') && body && !(body instanceof FormData)) {
-        headers.set('Content-Type', 'application/json');
-      }
-      if (!headers.has('Accept')) {
-        headers.set('Accept', 'application/json');
-      }
-
-      let requestConfig: RequestConfig & { url: string; method: string } = {
-        ...customInit,
-        url,
-        method,
-        headers,
-        body: body
-          ? body instanceof FormData
-            ? body
-            : JSON.stringify(body)
-          : undefined,
-      } as RequestConfig & { url: string; method: string };
+      let requestConfig = this.buildRequestConfig(endpoint, method, config);
 
       // Apply request interceptors
       requestConfig = await this.applyRequestInterceptors(requestConfig);
+
+      const shouldCache = method === 'GET' && cacheResponse;
+      const cacheKey = shouldCache ? this.getCacheKey(requestConfig) : null;
+      if (cacheKey) {
+        const cached = this.getCachedResponse<T>(cacheKey);
+        if (cached !== undefined) return cached;
+      }
+
+      this.enforceRateLimit(
+        requestConfig,
+        endpoint,
+        !skipRateLimitNotification
+      );
 
       let attempt = 0;
       while (attempt <= retries) {
@@ -188,6 +349,17 @@ class ApiClient {
           // Apply response interceptors
           response = await this.applyResponseInterceptors(response);
 
+          if (response.status === 429) {
+            const rateLimitError = this.createServerRateLimitError(
+              response,
+              endpoint
+            );
+            if (!skipRateLimitNotification) {
+              notifyRateLimit(rateLimitError);
+            }
+            throw rateLimitError;
+          }
+
           if (!response.ok) {
             let errorData;
             try {
@@ -203,9 +375,18 @@ class ApiClient {
             return {} as T;
           }
 
-          return await response.json();
+          const data = (await response.json()) as T;
+          if (cacheKey) {
+            this.setCachedResponse(cacheKey, data, cacheTtlMs);
+          }
+
+          return data;
         } catch (error) {
           clearTimeout(timeoutId);
+
+          if (isRateLimitError(error)) {
+            throw error;
+          }
 
           let finalError = error as Error | ApiError;
           if (
@@ -221,8 +402,7 @@ class ApiClient {
           if (
             finalError instanceof ApiError &&
             finalError.status >= 400 &&
-            finalError.status < 500 &&
-            finalError.status !== 429
+            finalError.status < 500
           ) {
             throw finalError;
           }
@@ -234,7 +414,7 @@ class ApiClient {
 
           // Wait before retrying
           await new Promise((resolve) =>
-            setTimeout(resolve, retryDelay * attempt)
+            setTimeout(resolve, this.getBackoffMs(retryDelay, attempt))
           );
         }
       }
@@ -264,6 +444,11 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+export {
+  RateLimitError,
+  getRateLimitRemainingMs,
+  isRateLimitError,
+} from './rate-limit';
 
 // Add default auth interceptor for wallet signature
 apiClient.addRequestInterceptor((config) => {
