@@ -1,0 +1,312 @@
+'use client';
+
+import React, { useState } from 'react';
+import { useWalletStore } from '@/src/store/walletStore';
+import { Avatar } from '@/components/Avatar';
+import { Button } from '@/components/Button';
+import { WalletAddress } from '@/components/WalletAddress';
+import { MOCK_TRANSACTIONS } from '@/app/transactions/page';
+
+// Mock user preferences store
+interface UserPreferences {
+  email: string;
+  displayName: string;
+  notifications: {
+    donations: boolean;
+    withdrawals: boolean;
+    poolUpdates: boolean;
+  };
+  avatarSrc?: string;
+}
+
+const MOCK_PREFERENCES: UserPreferences = {
+  email: 'user@example.com',
+  displayName: 'Crypto Philanthropist',
+  notifications: {
+    donations: true,
+    withdrawals: true,
+    poolUpdates: false,
+  },
+};
+
+export default function ProfilePage() {
+  const { publicKey } = useWalletStore();
+  const [preferences, setPreferences] = useState<UserPreferences>(MOCK_PREFERENCES);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isEditingAvatar, setIsEditingAvatar] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+
+  // Handle avatar upload
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAvatarFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPreferences({ ...preferences, avatarSrc: e.target?.result as string });
+        setIsEditingAvatar(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveProfile = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    // TODO: Save to backend
+    setIsEditingProfile(false);
+  };
+
+  const toggleNotification = (key: keyof UserPreferences['notifications']) => {
+    setPreferences({
+      ...preferences,
+      notifications: {
+        ...preferences.notifications,
+        [key]: !preferences.notifications[key],
+      },
+    });
+  };
+
+  return (
+    <main className="mx-auto max-w-4xl px-6 py-10">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight">
+          Profile & Settings
+        </h1>
+        <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+          Manage your account information and preferences
+        </p>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Profile Card */}
+        <div className="lg:col-span-1">
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+            <div className="flex flex-col items-center text-center">
+              {/* Avatar */}
+              <div className="relative mb-4">
+                <Avatar
+                  name={preferences.displayName}
+                  src={preferences.avatarSrc}
+                  size="lg"
+                  className="h-24 w-24 text-2xl"
+                />
+                <label className="absolute bottom-0 right-0 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-brand-600 text-white hover:bg-brand-700 transition-colors">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="h-4 w-4"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z"
+                    />
+                  </svg>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={handleAvatarChange}
+                    aria-label="Upload profile picture"
+                  />
+                </label>
+              </div>
+
+              {/* Name */}
+              <h2 className="text-lg font-semibold">{preferences.displayName}</h2>
+              <div className="mt-2 w-full">
+                <WalletAddress address={publicKey || ''} />
+              </div>
+
+              <div className="mt-6 w-full">
+                {isEditingProfile ? (
+                  <form onSubmit={handleSaveProfile} className="space-y-4">
+                    <div>
+                      <label htmlFor="displayName" className="block text-sm font-medium mb-1">
+                        Display Name
+                      </label>
+                      <input
+                        id="displayName"
+                        type="text"
+                        value={preferences.displayName}
+                        onChange={(e) =>
+                          setPreferences({ ...preferences, displayName: e.target.value })
+                        }
+                        className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="email" className="block text-sm font-medium mb-1">
+                        Email
+                      </label>
+                      <input
+                        id="email"
+                        type="email"
+                        value={preferences.email}
+                        onChange={(e) =>
+                          setPreferences({ ...preferences, email: e.target.value })
+                        }
+                        className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="submit" size="small">
+                        Save
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="small"
+                        onClick={() => setIsEditingProfile(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    className="w-full"
+                    onClick={() => setIsEditingProfile(true)}
+                  >
+                    Edit Profile
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Settings & Activity */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Notifications */}
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+            <h3 className="text-lg font-semibold mb-4">Notification Preferences</h3>
+            <div className="space-y-3">
+              {[
+                { key: 'donations', label: 'Donation confirmations', desc: 'Get notified when your donation is confirmed' },
+                { key: 'withdrawals', label: 'Withdrawal alerts', desc: 'Get notified when a withdrawal is processed' },
+                { key: 'poolUpdates', label: 'Pool updates', desc: 'Get notified about updates to pools you follow' },
+              ].map((item) => (
+                <label key={item.key} className="flex items-start gap-3 cursor-pointer">
+                  <div className="mt-1">
+                    <input
+                      type="checkbox"
+                      checked={preferences.notifications[item.key as keyof typeof preferences.notifications]}
+                      onChange={() => toggleNotification(item.key as keyof typeof preferences.notifications)}
+                      className="h-4 w-4 text-brand-600 rounded border-[var(--color-border)] focus:ring-brand-500"
+                    />
+                  </div>
+                  <div>
+                    <span className="font-medium text-sm">{item.label}</span>
+                    <p className="text-xs text-[var(--color-text-muted)]">{item.desc}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Account Settings */}
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+            <h3 className="text-lg font-semibold mb-4">Account Settings</h3>
+            <div className="space-y-3">
+              <button className="w-full text-left px-4 py-3 rounded-xl hover:bg-[var(--color-surface-raised)] transition-colors flex items-center justify-between">
+                <span>Change Password</span>
+                <span className="text-[var(--color-text-muted)]">→</span>
+              </button>
+              <button className="w-full text-left px-4 py-3 rounded-xl hover:bg-[var(--color-surface-raised)] transition-colors flex items-center justify-between">
+                <span>Connected Wallets</span>
+                <span className="text-[var(--color-text-muted)]">→</span>
+              </button>
+              <button className="w-full text-left px-4 py-3 rounded-xl hover:bg-[var(--color-surface-raised)] transition-colors flex items-center justify-between text-red-500">
+                <span>Delete Account</span>
+                <span className="text-[var(--color-text-muted)]">→</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Activity History */}
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Recent Activity</h3>
+              <a
+                href="/transactions"
+                className="text-sm text-brand-600 hover:text-brand-700 transition-colors"
+              >
+                View all →
+              </a>
+            </div>
+            <div className="space-y-3">
+              {MOCK_TRANSACTIONS.slice(0, 3).map((tx) => (
+                <div key={tx.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-[var(--color-surface-raised)] transition-colors">
+                  <div
+                    className={`flex size-9 items-center justify-center rounded-full ${
+                      tx.type === 'donation'
+                        ? 'bg-brand-100 text-brand-600'
+                        : tx.type === 'pool_creation'
+                        ? 'bg-warning-light text-warning-dark'
+                        : 'bg-success-light text-success-dark'
+                    }`}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="size-4"
+                    >
+                      {tx.type === 'donation' ? (
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"
+                        />
+                      ) : tx.type === 'pool_creation' ? (
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                        />
+                      ) : (
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+                        />
+                      )}
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">
+                        {tx.type === 'donation' ? 'Donation' : tx.type === 'pool_creation' ? 'Pool Created' : 'Withdrawal'}
+                      </span>
+                      {tx.amount !== '0' && (
+                        <span className="text-sm font-semibold tabular-nums">
+                          {tx.amount} {tx.asset}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[var(--color-text-muted)] truncate">{tx.recipient}</p>
+                    <time className="text-xs text-[var(--color-text-muted)]" dateTime={tx.date}>
+                      {new Date(tx.date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </time>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}

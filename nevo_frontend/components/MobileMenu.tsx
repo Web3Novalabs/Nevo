@@ -10,6 +10,7 @@ export const NAV_LINKS = [
   { name: 'Pools', href: '/pools' },
   { name: 'Transactions', href: '/transactions' },
   { name: 'Dashboard', href: '/dashboard' },
+  { name: 'Profile', href: '/profile' },
   { name: 'Create Pool', href: '/pools/new' },
 ] as const;
 
