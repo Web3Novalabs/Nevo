@@ -1,34 +1,57 @@
+'use client';
+
 import Link from 'next/link';
+import { useState } from 'react';
 import ConnectWallet from '@/components/ConnectWallet';
+import { MobileMenu, MobileMenuButton, NAV_LINKS } from '@/components/MobileMenu';
 import ThemeToggle from '@/components/ThemeToggle';
 
 export default function Navbar() {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  function openMenu() {
+    setMenuOpen(true);
+  }
+
+  function closeMenu() {
+    setMenuOpen(false);
+  }
+
   return (
-    <nav aria-label="Main navigation" className="w-full border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black">
-      <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
-        <Link
-          href="/"
-          className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
-        >
-          Nevo
-        </Link>
-        <div className="flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400">
+    <>
+      <nav
+        aria-label="Main navigation"
+        className="w-full border-b border-[var(--color-border)] bg-[var(--color-surface)]"
+      >
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
           <Link
-            href="/pools"
-            className="hover:text-zinc-900 dark:hover:text-zinc-50 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
+            href="/"
+            className="text-lg font-semibold text-[var(--color-text)] transition-colors hover:text-brand-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 rounded"
           >
-            Pools
+            Nevo
           </Link>
-          <Link
-            href="/transactions"
-            className="hover:text-zinc-900 dark:hover:text-zinc-50 transition-colors"
-          >
-            Transactions
-          </Link>
-          <ThemeToggle />
-          <ConnectWallet />
+
+          <div className="hidden items-center gap-6 text-sm lg:flex">
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="font-medium text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 rounded"
+              >
+                {link.name}
+              </Link>
+            ))}
+            <ThemeToggle />
+            <ConnectWallet />
+          </div>
+
+          <MobileMenuButton open={menuOpen} onOpen={openMenu} />
         </div>
+      </nav>
+
+      <div id="mobile-menu-drawer">
+        <MobileMenu open={menuOpen} onClose={closeMenu} />
       </div>
-    </nav>
+    </>
   );
 }

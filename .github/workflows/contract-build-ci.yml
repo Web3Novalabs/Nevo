@@ -24,12 +24,12 @@ jobs:
           sudo mv stellar /usr/local/bin/stellar
 
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          profile: minimal
-          override: true
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown
+
+      - name: Install Stellar CLI
+        run: cargo install --locked stellar-cli --features opt
 
       - name: Build smart contract
         run: cargo build --release --target wasm32-unknown-unknown
