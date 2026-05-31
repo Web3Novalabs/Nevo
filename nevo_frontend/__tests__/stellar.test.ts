@@ -1,4 +1,5 @@
 import { getAccountBalances } from '@/lib/stellar';
+import { RATE_LIMIT_EVENT } from '@/lib/rate-limit';
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
@@ -33,5 +34,26 @@ describe('getAccountBalances', () => {
   it('returns zeros when balances array is missing', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
     expect(await getAccountBalances('GABC')).toEqual({ xlm: '0', usdc: '0' });
+  });
+
+  it('notifies users when Horizon returns a rate limit response', async () => {
+    const listener = jest.fn();
+    window.addEventListener(RATE_LIMIT_EVENT, listener);
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: { get: () => '5' },
+    });
+
+    expect(await getAccountBalances('GABC')).toEqual({ xlm: '0', usdc: '0' });
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: expect.objectContaining({
+          retryAfterMs: 5000,
+        }),
+      })
+    );
+
+    window.removeEventListener(RATE_LIMIT_EVENT, listener);
   });
 });

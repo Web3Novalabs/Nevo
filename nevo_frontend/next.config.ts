@@ -9,13 +9,12 @@ const nextConfig: NextConfig = {
   productionBrowserSourceMaps: false,
   poweredByHeader: false,
   reactStrictMode: true,
-  swcMinify: true,
   experimental: {
     optimizePackageImports: ['zustand', '@stellar/freighter-api'],
   },
 };
 
-export default withSentryConfig(nextConfig, {
+const sentryOptions = {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   silent: !process.env.CI,
@@ -25,4 +24,6 @@ export default withSentryConfig(nextConfig, {
   hideSourceMaps: true,
   disableServerWebpackPlugin: true,
   disableClientWebpackPlugin: true,
-});
+};
+
+export default withSentryConfig(nextConfig, sentryOptions);

@@ -104,7 +104,7 @@ export function WalletAddress({
         onClick={handleCopy}
         aria-label={copied ? 'Address copied' : 'Copy wallet address'}
         aria-live="polite"
-        className="flex-shrink-0 flex items-center justify-center size-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-border)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+        className="flex-shrink-0 flex items-center justify-center min-h-11 min-w-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-border)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
       >
         {copied ? <CheckIcon /> : <CopyIcon />}
       </button>

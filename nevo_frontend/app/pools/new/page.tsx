@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 // TODO: Replace with real pool creation API call once backend is implemented
 const CATEGORIES = [
@@ -53,7 +54,7 @@ const INITIAL_FORM: FormData = {
 
 type Step = 1 | 2 | 3;
 
-export default function CreatePoolPage() {
+function CreatePoolPageContent() {
   const router = useRouter();
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
@@ -663,5 +664,13 @@ function SpinnerIcon() {
         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
       />
     </svg>
+  );
+}
+
+export default function CreatePoolPage() {
+  return (
+    <ProtectedRoute>
+      <CreatePoolPageContent />
+    </ProtectedRoute>
   );
 }
