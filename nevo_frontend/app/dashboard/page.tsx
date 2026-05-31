@@ -6,6 +6,7 @@ import { useWalletStore } from '@/src/store/walletStore';
 import { EmptyState } from '@/components/EmptyState';
 import ConnectWallet from '@/components/ConnectWallet';
 import { WalletAddress } from '@/components/WalletAddress';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import type { Pool } from '@/src/store/poolsStore';
 
 // TODO: Replace with real API call once backend pool endpoints are implemented
@@ -60,7 +61,7 @@ type ActionModal =
   | { type: 'archive'; pool: Pool }
   | null;
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const { publicKey, loading, initialize } = useWalletStore();
   const [pools, setPools] = useState<Pool[]>([]);
   const [loadingPools, setLoadingPools] = useState(true);
@@ -80,27 +81,6 @@ export default function DashboardPage() {
     }, 400);
     return () => clearTimeout(timer);
   }, [publicKey]);
-
-  // ── Wallet not connected ───────────────────────────────────────────────
-  if (!loading && !publicKey) {
-    return (
-      <main className="mx-auto max-w-5xl px-6 py-10">
-        <EmptyState
-          icon="wallet"
-          iconTone="brand"
-          title="Connect your wallet"
-          description="Your dashboard is only accessible to pool creators. Connect your Stellar wallet to view and manage your pools."
-          steps={[
-            { text: 'Install the Freighter browser extension' },
-            { text: 'Click Connect Wallet below' },
-            { text: 'Approve the connection in Freighter' },
-          ]}
-        >
-          <ConnectWallet />
-        </EmptyState>
-      </main>
-    );
-  }
 
   // ── Summary metrics ────────────────────────────────────────────────────
   const totalRaised = pools.reduce((s, p) => s + p.raised, 0);
@@ -496,6 +476,14 @@ function PlusIcon() {
         d="M12 4.5v15m7.5-7.5h-15"
       />
     </svg>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <ProtectedRoute>
+      <DashboardPageContent />
+    </ProtectedRoute>
   );
 }
 

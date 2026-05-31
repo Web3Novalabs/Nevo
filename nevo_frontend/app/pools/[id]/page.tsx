@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -158,18 +158,6 @@ export default function PoolDetailPage() {
   if (notFound || !pool) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
-        <div className="flex flex-col items-center gap-4 py-12 text-center">
-          <h1 className="text-2xl font-bold">Pool not found</h1>
-          <p className="text-sm text-[var(--color-text-muted)]">
-            This pool does not exist or has been removed.
-          </p>
-          <Link
-            href="/pools"
-            className="rounded-full bg-brand-600 px-6 py-2 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
-          >
-            Browse Pools
-          </Link>
-        </div>
         <EmptyState
           icon="not-found"
           iconTone="muted"
@@ -321,6 +309,26 @@ export default function PoolDetailPage() {
                   ]}
                 />
               </>
+              <EmptyState
+                variant="compact"
+                icon="contributors"
+                iconTone="muted"
+                title="No contributions yet"
+                description="Be the first to support this pool."
+                action={
+                  isActive
+                    ? {
+                        label: 'Donate Now',
+                        onClick: () => setDonateOpen(true),
+                      }
+                    : undefined
+                }
+                steps={[
+                  { text: 'Connect your Stellar wallet' },
+                  { text: 'Choose an amount to donate' },
+                  { text: 'Confirm the transaction in Freighter' },
+                ]}
+              />
             ) : (
               <ul className="flex flex-col gap-2" role="list">
                 {contributors.map((c, i) => (
@@ -366,6 +374,13 @@ export default function PoolDetailPage() {
                   description="Pool milestones and donations will appear here as they happen."
                 />
               </>
+              <EmptyState
+                variant="compact"
+                icon="history"
+                iconTone="muted"
+                title="No activity yet"
+                description="Pool milestones and donations will appear here as they happen."
+              />
             ) : (
               <ol
                 className="relative border-l border-[var(--color-border)] pl-6"

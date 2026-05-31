@@ -17,6 +17,11 @@ const ADMIN_KEY: &str = "admin";
 const SCHOOL_REG_PREFIX: &str = "school_reg";
 const POOL_SCHOOL_PREFIX: &str = "pool_school";
 
+// TODO: Replace with real implementation from issue #XYZ
+// Emergency withdrawal storage keys
+const EMERGENCY_WITHDRAWAL_PREFIX: &str = "emergency_withdraw";
+const GRACE_PERIOD_SECS: u64 = 86400; // 24 hours
+
 // Application and claim tracking constants
 const APPLICATION_STATUS_PREFIX: &str = "app_status";
 const CLAIMED_AMOUNT_PREFIX: &str = "claimed_amount";
@@ -54,6 +59,19 @@ pub struct Application {
     pub amount_claimed: i128,
 }
 
+// TODO: Replace with real implementation from issue #XYZ
+// Pool state enum for contribution validation
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PoolState {
+    Active,
+    Paused,
+    Completed,
+    Cancelled,
+    Disbursed,
+    Closed,
+}
+
 /// Pool information
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -62,6 +80,7 @@ pub struct Pool {
     pub goal: u128,
     pub collected: u128,
     pub is_closed: bool,
+    pub state: PoolState,
 }
 
 /// Milestone for streaming disbursements
@@ -69,6 +88,18 @@ pub struct Pool {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Milestone {
     pub amount: u128,
+}
+
+// TODO: Replace with real implementation from issue #XYZ
+// Emergency withdrawal request structure
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyWithdrawalRequest {
+    pub pool_id: u32,
+    pub token_address: Address,
+    pub amount: i128,
+    pub request_timestamp: u64,
+    pub requested_by: Address,
 }
 
 #[contract]
@@ -120,7 +151,7 @@ impl Contract {
         description: String,
         goal: u128,
     ) -> u32 {
-        if description.len() > MAX_DESCRIPTION_LENGTH {
+        if description.len() as u32 > MAX_DESCRIPTION_LENGTH as u32 {
             panic!("Description exceeds maximum length");
         }
 
@@ -144,13 +175,14 @@ impl Contract {
         );
 
         let metadata_key = (Symbol::new(&env, "metadata"), pool_id);
-        env.storage().persistent().set(&metadata_key, &(title, description));
+        env.storage().persistent().set(&metadata_key, &(title.clone(), description.clone()));
 
         let pool = Pool {
             sponsor: creator.clone(),
             goal,
             collected: 0u128,
             is_closed: false,
+            state: PoolState::Active,
         };
 
         env.storage().persistent().set(&pool_id, &pool);
@@ -160,7 +192,7 @@ impl Contract {
         // Emit pool creation event
         env.events().publish(
             (POOL_CREATED, pool_id),
-            (creator.clone(), goal, title, description)
+            (pool.sponsor.clone(), goal, title.clone(), description.clone())
         );
 
         pool_id
@@ -208,12 +240,19 @@ impl Contract {
             panic!("Pool is closed");
         }
 
+        // TODO: Replace with real implementation from issue #XYZ
+        // Pool state validation
+        if pool.state != PoolState::Active {
+            panic!("InvalidPoolState");
+        }
+
         let new_collected = pool.collected + amount;
         let updated_pool = Pool {
             sponsor: pool.sponsor,
             goal: pool.goal,
             collected: new_collected,
             is_closed: pool.is_closed,
+            state: pool.state,
         };
         env.storage().persistent().set(&pool_id, &updated_pool);
 
@@ -328,6 +367,7 @@ impl Contract {
             goal: pool.goal,
             collected: pool.collected,
             is_closed: true,
+            state: pool.state,
         };
 
         env.storage().persistent().set(&pool_id, &updated_pool);
@@ -335,7 +375,7 @@ impl Contract {
         // Emit pool closed event
         env.events().publish(
             (POOL_CLOSED, pool_id),
-            (pool.sponsor.clone(), pool.collected)
+            (updated_pool.sponsor.clone(), updated_pool.collected)
         );
     }
 
@@ -802,8 +842,14 @@ impl Contract {
             panic!("Pool is closed");
         }
 
+        // TODO: Replace with real implementation from issue #XYZ
+        // Pool state validation
+        if pool.state != PoolState::Active {
+            panic!("InvalidPoolState");
+        }
+
         if amount <= 0 {
-            panic!("Amount must be positive");
+            panic!("InvalidAmount");
         }
 
         let token_client = token::Client::new(&env, &token_address);
@@ -817,6 +863,7 @@ impl Contract {
             goal: pool.goal,
             collected: new_collected,
             is_closed: pool.is_closed,
+            state: pool.state,
         };
         env.storage().persistent().set(&pool_id, &updated_pool);
 
@@ -853,6 +900,86 @@ impl Contract {
         let current_contrib: u128 = env.storage().persistent().get(&contrib_key).unwrap_or(0);
         env.storage().persistent().set(&contrib_key, &(current_contrib + (amount as u128)));
     }
+
+    // TODO: Replace with real implementation from issue #XYZ
+    // Mock emergency withdrawal request function
+    pub fn request_emergency_withdraw(
+        env: Env,
+        admin: Address,
+        pool_id: u32,
+        token_address: Address,
+        amount: i128,
+    ) {
+        admin.require_auth();
+
+        let admin_key = Symbol::new(&env, ADMIN_KEY);
+        let stored_admin: Address = env
+            .storage()
+            .persistent()
+            .get::<_, Address>(&admin_key)
+            .expect("Admin not set");
+        if stored_admin != admin {
+            panic!("Error(Auth, InvalidAction)");
+        }
+
+        let withdrawal_key = (Symbol::new(&env, EMERGENCY_WITHDRAWAL_PREFIX), pool_id);
+        if env.storage().persistent().has(&withdrawal_key) {
+            panic!("EmergencyWithdrawalAlreadyRequested");
+        }
+
+        let request = EmergencyWithdrawalRequest {
+            pool_id,
+            token_address,
+            amount,
+            request_timestamp: env.ledger().timestamp(),
+            requested_by: admin,
+        };
+        env.storage().persistent().set(&withdrawal_key, &request);
+    }
+
+    // TODO: Replace with real implementation from issue #XYZ
+    // Mock emergency withdrawal execution function
+    pub fn execute_emergency_withdraw(
+        env: Env,
+        pool_id: u32,
+    ) {
+        let withdrawal_key = (Symbol::new(&env, EMERGENCY_WITHDRAWAL_PREFIX), pool_id);
+        let request: EmergencyWithdrawalRequest = env
+            .storage()
+            .persistent()
+            .get::<_, EmergencyWithdrawalRequest>(&withdrawal_key)
+            .expect("Emergency withdrawal not requested");
+
+        let current_timestamp = env.ledger().timestamp();
+        let time_elapsed = current_timestamp.saturating_sub(request.request_timestamp);
+
+        if time_elapsed < GRACE_PERIOD_SECS {
+            panic!("Grace period not elapsed");
+        }
+
+        let token_client = token::Client::new(&env, &request.token_address);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &request.requested_by,
+            &request.amount,
+        );
+
+        env.storage().persistent().remove(&withdrawal_key);
+    }
+
+    // TODO: Replace with real implementation from issue #XYZ
+    // Mock function to set pool state for testing
+    pub fn set_pool_state(env: Env, pool_id: u32, state: PoolState) {
+        let mut pool: Pool = env
+            .storage()
+            .persistent()
+            .get::<_, Pool>(&pool_id)
+            .expect("Pool not found");
+
+        pool.state = state;
+        env.storage().persistent().set(&pool_id, &pool);
+    }
 }
 
 mod test;
+mod test_issues;
