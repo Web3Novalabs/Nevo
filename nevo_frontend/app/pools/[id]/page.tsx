@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -158,18 +158,6 @@ export default function PoolDetailPage() {
   if (notFound || !pool) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
-        <div className="flex flex-col items-center gap-4 py-12 text-center">
-          <h1 className="text-2xl font-bold">Pool not found</h1>
-          <p className="text-sm text-[var(--color-text-muted)]">
-            This pool does not exist or has been removed.
-          </p>
-          <Link
-            href="/pools"
-            className="rounded-full bg-brand-600 px-6 py-2 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
-          >
-            Browse Pools
-          </Link>
-        </div>
         <EmptyState
           icon="not-found"
           iconTone="muted"
@@ -278,21 +266,6 @@ export default function PoolDetailPage() {
             </h2>
 
             {contributors.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-8 text-center">
-                <p className="font-semibold">No contributions yet</p>
-                <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-                  Be the first to support this pool.
-                </p>
-                {isActive && (
-                  <button
-                    type="button"
-                    onClick={() => setDonateOpen(true)}
-                    className="mt-4 rounded-full bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
-                  >
-                    Donate Now
-                  </button>
-                )}
-              </div>
               <EmptyState
                 variant="compact"
                 icon="contributors"
@@ -346,9 +319,6 @@ export default function PoolDetailPage() {
             </h2>
 
             {timeline.length === 0 ? (
-              <p className="text-sm text-[var(--color-text-muted)]">
-                Pool milestones and donations will appear here as they happen.
-              </p>
               <EmptyState
                 variant="compact"
                 icon="history"
