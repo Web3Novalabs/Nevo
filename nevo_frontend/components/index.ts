@@ -15,4 +15,5 @@ export * from './DonateModal';
 export * from './MobileMenu';
 export * from './Card';
 export * from './PoolCard';
+export * from './Pagination';
 export * from './EmptyState';
