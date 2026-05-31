@@ -1,16 +1,16 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useWalletStore } from '@/src/store/walletStore';
 import ConnectWallet from '@/components/ConnectWallet';
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { publicKey, loading, initialize } = useWalletStore();
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
 
   const from = searchParams.get('from') || '/dashboard';
 
@@ -57,11 +57,22 @@ export default function LoginPage() {
         </p>
 
         <p className="mt-4 text-center text-sm text-[var(--color-text-muted)]">
-          <Link href="/" className="font-medium hover:text-brand-600 transition-colors">
+          <Link
+            href="/"
+            className="font-medium hover:text-brand-600 transition-colors"
+          >
             ← Back to home
           </Link>
         </p>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

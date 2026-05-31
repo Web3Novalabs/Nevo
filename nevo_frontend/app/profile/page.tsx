@@ -5,7 +5,7 @@ import { useWalletStore } from '@/src/store/walletStore';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { WalletAddress } from '@/components/WalletAddress';
-import { MOCK_TRANSACTIONS } from '@/app/transactions/page';
+import { MOCK_TRANSACTIONS } from '@/app/transactions/data';
 
 // Mock user preferences store
 interface UserPreferences {
@@ -31,7 +31,8 @@ const MOCK_PREFERENCES: UserPreferences = {
 
 export default function ProfilePage() {
   const { publicKey } = useWalletStore();
-  const [preferences, setPreferences] = useState<UserPreferences>(MOCK_PREFERENCES);
+  const [preferences, setPreferences] =
+    useState<UserPreferences>(MOCK_PREFERENCES);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -43,7 +44,10 @@ export default function ProfilePage() {
       setAvatarFile(file);
       const reader = new FileReader();
       reader.onload = (e) => {
-        setPreferences({ ...preferences, avatarSrc: e.target?.result as string });
+        setPreferences({
+          ...preferences,
+          avatarSrc: e.target?.result as string,
+        });
         setIsEditingAvatar(false);
       };
       reader.readAsDataURL(file);
@@ -117,7 +121,9 @@ export default function ProfilePage() {
               </div>
 
               {/* Name */}
-              <h2 className="text-lg font-semibold">{preferences.displayName}</h2>
+              <h2 className="text-lg font-semibold">
+                {preferences.displayName}
+              </h2>
               <div className="mt-2 w-full">
                 <WalletAddress address={publicKey || ''} />
               </div>
@@ -126,7 +132,10 @@ export default function ProfilePage() {
                 {isEditingProfile ? (
                   <form onSubmit={handleSaveProfile} className="space-y-4">
                     <div>
-                      <label htmlFor="displayName" className="block text-sm font-medium mb-1">
+                      <label
+                        htmlFor="displayName"
+                        className="block text-sm font-medium mb-1"
+                      >
                         Display Name
                       </label>
                       <input
@@ -134,13 +143,19 @@ export default function ProfilePage() {
                         type="text"
                         value={preferences.displayName}
                         onChange={(e) =>
-                          setPreferences({ ...preferences, displayName: e.target.value })
+                          setPreferences({
+                            ...preferences,
+                            displayName: e.target.value,
+                          })
                         }
                         className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
                       />
                     </div>
                     <div>
-                      <label htmlFor="email" className="block text-sm font-medium mb-1">
+                      <label
+                        htmlFor="email"
+                        className="block text-sm font-medium mb-1"
+                      >
                         Email
                       </label>
                       <input
@@ -148,7 +163,10 @@ export default function ProfilePage() {
                         type="email"
                         value={preferences.email}
                         onChange={(e) =>
-                          setPreferences({ ...preferences, email: e.target.value })
+                          setPreferences({
+                            ...preferences,
+                            email: e.target.value,
+                          })
                         }
                         className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
                       />
@@ -186,25 +204,52 @@ export default function ProfilePage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Notifications */}
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-            <h3 className="text-lg font-semibold mb-4">Notification Preferences</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              Notification Preferences
+            </h3>
             <div className="space-y-3">
               {[
-                { key: 'donations', label: 'Donation confirmations', desc: 'Get notified when your donation is confirmed' },
-                { key: 'withdrawals', label: 'Withdrawal alerts', desc: 'Get notified when a withdrawal is processed' },
-                { key: 'poolUpdates', label: 'Pool updates', desc: 'Get notified about updates to pools you follow' },
+                {
+                  key: 'donations',
+                  label: 'Donation confirmations',
+                  desc: 'Get notified when your donation is confirmed',
+                },
+                {
+                  key: 'withdrawals',
+                  label: 'Withdrawal alerts',
+                  desc: 'Get notified when a withdrawal is processed',
+                },
+                {
+                  key: 'poolUpdates',
+                  label: 'Pool updates',
+                  desc: 'Get notified about updates to pools you follow',
+                },
               ].map((item) => (
-                <label key={item.key} className="flex items-start gap-3 cursor-pointer">
+                <label
+                  key={item.key}
+                  className="flex items-start gap-3 cursor-pointer"
+                >
                   <div className="mt-1">
                     <input
                       type="checkbox"
-                      checked={preferences.notifications[item.key as keyof typeof preferences.notifications]}
-                      onChange={() => toggleNotification(item.key as keyof typeof preferences.notifications)}
+                      checked={
+                        preferences.notifications[
+                          item.key as keyof typeof preferences.notifications
+                        ]
+                      }
+                      onChange={() =>
+                        toggleNotification(
+                          item.key as keyof typeof preferences.notifications
+                        )
+                      }
                       className="h-4 w-4 text-brand-600 rounded border-[var(--color-border)] focus:ring-brand-500"
                     />
                   </div>
                   <div>
                     <span className="font-medium text-sm">{item.label}</span>
-                    <p className="text-xs text-[var(--color-text-muted)]">{item.desc}</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      {item.desc}
+                    </p>
                   </div>
                 </label>
               ))}
@@ -243,14 +288,17 @@ export default function ProfilePage() {
             </div>
             <div className="space-y-3">
               {MOCK_TRANSACTIONS.slice(0, 3).map((tx) => (
-                <div key={tx.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-[var(--color-surface-raised)] transition-colors">
+                <div
+                  key={tx.id}
+                  className="flex items-center gap-4 p-3 rounded-xl hover:bg-[var(--color-surface-raised)] transition-colors"
+                >
                   <div
                     className={`flex size-9 items-center justify-center rounded-full ${
                       tx.type === 'donation'
                         ? 'bg-brand-100 text-brand-600'
                         : tx.type === 'pool_creation'
-                        ? 'bg-warning-light text-warning-dark'
-                        : 'bg-success-light text-success-dark'
+                          ? 'bg-warning-light text-warning-dark'
+                          : 'bg-success-light text-success-dark'
                     }`}
                   >
                     <svg
@@ -285,7 +333,11 @@ export default function ProfilePage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">
-                        {tx.type === 'donation' ? 'Donation' : tx.type === 'pool_creation' ? 'Pool Created' : 'Withdrawal'}
+                        {tx.type === 'donation'
+                          ? 'Donation'
+                          : tx.type === 'pool_creation'
+                            ? 'Pool Created'
+                            : 'Withdrawal'}
                       </span>
                       {tx.amount !== '0' && (
                         <span className="text-sm font-semibold tabular-nums">
@@ -293,8 +345,13 @@ export default function ProfilePage() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-[var(--color-text-muted)] truncate">{tx.recipient}</p>
-                    <time className="text-xs text-[var(--color-text-muted)]" dateTime={tx.date}>
+                    <p className="text-xs text-[var(--color-text-muted)] truncate">
+                      {tx.recipient}
+                    </p>
+                    <time
+                      className="text-xs text-[var(--color-text-muted)]"
+                      dateTime={tx.date}
+                    >
                       {new Date(tx.date).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',

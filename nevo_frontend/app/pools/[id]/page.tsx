@@ -309,26 +309,6 @@ export default function PoolDetailPage() {
                   ]}
                 />
               </>
-              <EmptyState
-                variant="compact"
-                icon="contributors"
-                iconTone="muted"
-                title="No contributions yet"
-                description="Be the first to support this pool."
-                action={
-                  isActive
-                    ? {
-                        label: 'Donate Now',
-                        onClick: () => setDonateOpen(true),
-                      }
-                    : undefined
-                }
-                steps={[
-                  { text: 'Connect your Stellar wallet' },
-                  { text: 'Choose an amount to donate' },
-                  { text: 'Confirm the transaction in Freighter' },
-                ]}
-              />
             ) : (
               <ul className="flex flex-col gap-2" role="list">
                 {contributors.map((c, i) => (
@@ -374,13 +354,6 @@ export default function PoolDetailPage() {
                   description="Pool milestones and donations will appear here as they happen."
                 />
               </>
-              <EmptyState
-                variant="compact"
-                icon="history"
-                iconTone="muted"
-                title="No activity yet"
-                description="Pool milestones and donations will appear here as they happen."
-              />
             ) : (
               <ol
                 className="relative border-l border-[var(--color-border)] pl-6"
