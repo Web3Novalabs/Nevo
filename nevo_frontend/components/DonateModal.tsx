@@ -89,7 +89,7 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="donate-modal-title"
@@ -102,7 +102,7 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
         aria-hidden="true"
       />
 
-      <div className="relative w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl">
+      <div className="relative w-full max-w-md max-h-[100dvh] rounded-t-2xl sm:rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl overflow-y-auto">
         {/* Header */}
         <div className="mb-5 flex items-start justify-between gap-3">
           <div>
@@ -120,7 +120,7 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
             type="button"
             onClick={onClose}
             aria-label="Close donation modal"
-            className="flex-shrink-0 flex size-8 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-raised)] transition-colors"
+            className="flex-shrink-0 flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-raised)] transition-colors"
           >
             <CloseIcon />
           </button>
