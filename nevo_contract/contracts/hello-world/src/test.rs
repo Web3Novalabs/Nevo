@@ -3335,3 +3335,79 @@ fn test_gas_storage_batching_efficient() {
     // Average application gas should be reasonable
     assert!(avg_apply_cpu < 2_000_000, "Application storage operations are inefficient");
 }
+
+// ============= CAMPAIGN BALANCE GETTER EDGE CASES (Issue #465) =============
+
+/// (1) New campaign returns 0 balance.
+#[test]
+fn test_campaign_balance_new_campaign_returns_zero() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "New Campaign"),
+        &String::from_str(&env, "No donations yet"),
+        &1_000_000_000,
+    );
+
+    assert_eq!(client.get_total_raised(&pool_id), 0);
+}
+
+/// (2) Campaign with donations returns correct total.
+#[test]
+fn test_campaign_balance_with_donations_returns_correct_total() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Funded Campaign"),
+        &String::from_str(&env, "With donations"),
+        &5_000_000_000,
+    );
+
+    client.donate(&pool_id, &donor, &300_000_000);
+
+    assert_eq!(client.get_total_raised(&pool_id), 300_000_000);
+}
+
+/// (3) Nonexistent campaign returns CampaignNotFound error.
+#[test]
+#[should_panic(expected = "Pool not found")]
+fn test_campaign_balance_nonexistent_campaign_returns_not_found() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    client.get_total_raised(&9999);
+}
+
+/// (4) Campaign balance matches sum of all donations.
+#[test]
+fn test_campaign_balance_matches_sum_of_all_donations() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Sum Check Campaign"),
+        &String::from_str(&env, "Multiple donors"),
+        &10_000_000_000,
+    );
+
+    let donations: [u128; 4] = [100_000_000, 250_000_000, 75_000_000, 500_000_000];
+    for amount in donations.iter() {
+        client.donate(&pool_id, &Address::generate(&env), amount);
+    }
+
+    let expected: u128 = donations.iter().sum();
+    assert_eq!(client.get_total_raised(&pool_id), expected);
+}
