@@ -1,6 +1,8 @@
 import { useUIStore } from '@/src/store/uiStore';
 
-beforeEach(() => useUIStore.setState({ activeModal: null, modalData: {}, sidebarOpen: false }));
+beforeEach(() =>
+  useUIStore.setState({ activeModal: null, modalData: {}, sidebarOpen: false })
+);
 
 describe('uiStore', () => {
   it('opens a modal with data', () => {

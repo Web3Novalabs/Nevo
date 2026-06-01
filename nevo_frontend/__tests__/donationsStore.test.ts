@@ -11,7 +11,9 @@ const mockDonation: Donation = {
   status: 'pending',
 };
 
-beforeEach(() => useDonationsStore.setState({ history: [], activeDonation: null }));
+beforeEach(() =>
+  useDonationsStore.setState({ history: [], activeDonation: null })
+);
 
 describe('donationsStore', () => {
   it('adds a donation to history', () => {

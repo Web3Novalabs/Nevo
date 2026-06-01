@@ -18,7 +18,10 @@ export const Header = () => {
     <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white shadow-sm dark:bg-gray-900 dark:border-gray-800">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center">
-          <Link href="/" className="flex items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 rounded">
+          <Link
+            href="/"
+            className="flex items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 rounded"
+          >
             <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               Nevo
             </span>
@@ -55,7 +58,9 @@ export const Header = () => {
             aria-controls="mobile-menu"
             aria-label={isMobileMenuOpen ? 'Close main menu' : 'Open main menu'}
           >
-            <span className="sr-only">{isMobileMenuOpen ? 'Close main menu' : 'Open main menu'}</span>
+            <span className="sr-only">
+              {isMobileMenuOpen ? 'Close main menu' : 'Open main menu'}
+            </span>
             <svg
               className="h-6 w-6"
               fill="none"
@@ -76,7 +81,13 @@ export const Header = () => {
 
       {/* Mobile menu */}
       {isMobileMenuOpen && (
-        <div id="mobile-menu" className="md:hidden" role="dialog" aria-modal="true" aria-labelledby="mobile-menu-button">
+        <div
+          id="mobile-menu"
+          className="md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mobile-menu-button"
+        >
           <div className="space-y-1 px-4 pb-3 pt-2 sm:px-6">
             {navLinks.map((link) => (
               <Link

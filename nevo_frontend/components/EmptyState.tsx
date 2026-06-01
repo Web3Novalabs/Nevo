@@ -39,12 +39,10 @@ export interface EmptyStateProps {
 }
 
 const variantStyles: Record<EmptyStateVariant, string> = {
-  default:
-    'flex flex-col items-center gap-4 px-4 py-12 sm:py-16 text-center',
+  default: 'flex flex-col items-center gap-4 px-4 py-12 sm:py-16 text-center',
   bordered:
     'flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-16 sm:py-20 text-center',
-  compact:
-    'flex flex-col items-center gap-3 px-2 py-8 text-center',
+  compact: 'flex flex-col items-center gap-3 px-2 py-8 text-center',
 };
 
 const iconToneStyles = {
@@ -204,7 +202,9 @@ export function EmptyState({
           {title}
         </h3>
         {description && (
-          <p className="text-sm text-[var(--color-text-muted)]">{description}</p>
+          <p className="text-sm text-[var(--color-text-muted)]">
+            {description}
+          </p>
         )}
       </div>
 

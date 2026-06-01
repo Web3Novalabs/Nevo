@@ -25,9 +25,10 @@ describe('EmptyState', () => {
         action={{ label: 'Create a Pool', href: '/pools/new' }}
       />
     );
-    expect(
-      screen.getByRole('link', { name: 'Create a Pool' })
-    ).toHaveAttribute('href', '/pools/new');
+    expect(screen.getByRole('link', { name: 'Create a Pool' })).toHaveAttribute(
+      'href',
+      '/pools/new'
+    );
   });
 
   it('calls onClick for secondary action', async () => {
@@ -35,10 +36,16 @@ describe('EmptyState', () => {
     render(
       <EmptyState
         title="No matching transactions"
-        action={{ label: 'Clear filters', onClick: onClear, variant: 'secondary' }}
+        action={{
+          label: 'Clear filters',
+          onClick: onClear,
+          variant: 'secondary',
+        }}
       />
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Clear filters' })
+    );
     expect(onClear).toHaveBeenCalledTimes(1);
   });
 

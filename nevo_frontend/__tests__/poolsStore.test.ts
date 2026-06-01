@@ -1,11 +1,35 @@
 import { usePoolsStore, Pool } from '@/src/store/poolsStore';
 
 const pools: Pool[] = [
-  { id: '1', title: 'Alpha Fund', description: 'desc a', category: 'DeFi', status: 'Active', target: 1000, raised: 500, imageColor: '#fff' },
-  { id: '2', title: 'Beta Pool', description: 'desc b', category: 'NFT', status: 'Completed', target: 2000, raised: 2000, imageColor: '#000' },
+  {
+    id: '1',
+    title: 'Alpha Fund',
+    description: 'desc a',
+    category: 'DeFi',
+    status: 'Active',
+    target: 1000,
+    raised: 500,
+    imageColor: '#fff',
+  },
+  {
+    id: '2',
+    title: 'Beta Pool',
+    description: 'desc b',
+    category: 'NFT',
+    status: 'Completed',
+    target: 2000,
+    raised: 2000,
+    imageColor: '#000',
+  },
 ];
 
-beforeEach(() => usePoolsStore.setState({ pools: [], filters: { search: '', categories: [], statuses: [] }, loading: false }));
+beforeEach(() =>
+  usePoolsStore.setState({
+    pools: [],
+    filters: { search: '', categories: [], statuses: [] },
+    loading: false,
+  })
+);
 
 describe('poolsStore', () => {
   it('sets pools', () => {

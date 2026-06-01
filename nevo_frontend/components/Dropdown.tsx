@@ -22,7 +22,10 @@ export interface DropdownItem {
   onClick?: () => void;
 }
 
-export interface DropdownProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
+export interface DropdownProps extends Omit<
+  HTMLAttributes<HTMLDivElement>,
+  'children'
+> {
   trigger: ReactNode;
   items: DropdownItem[];
   triggerType?: 'click' | 'hover';
@@ -62,7 +65,16 @@ const DropdownMenu: FC<{
   onSelect: (item: DropdownItem) => void;
   onKeyDown: (e: KeyboardEvent<HTMLButtonElement>, index: number) => void;
   depth?: number;
-}> = ({ items, menuId, activeIndex, itemRefs, itemClassName, onSelect, onKeyDown, depth = 0 }) => {
+}> = ({
+  items,
+  menuId,
+  activeIndex,
+  itemRefs,
+  itemClassName,
+  onSelect,
+  onKeyDown,
+  depth = 0,
+}) => {
   const [openSubmenuIndex, setOpenSubmenuIndex] = useState<number | null>(null);
 
   return (
@@ -76,7 +88,9 @@ const DropdownMenu: FC<{
               id={`${menuId}-item-${flatIndex}`}
               role="menuitem"
               aria-haspopup={hasChildren ? 'menu' : undefined}
-              aria-expanded={hasChildren ? openSubmenuIndex === index : undefined}
+              aria-expanded={
+                hasChildren ? openSubmenuIndex === index : undefined
+              }
               aria-disabled={item.disabled}
               tabIndex={activeIndex === flatIndex ? 0 : -1}
               ref={(el) => {
@@ -97,7 +111,9 @@ const DropdownMenu: FC<{
               disabled={item.disabled}
               onClick={() => {
                 if (hasChildren) {
-                  setOpenSubmenuIndex(openSubmenuIndex === index ? null : index);
+                  setOpenSubmenuIndex(
+                    openSubmenuIndex === index ? null : index
+                  );
                   return;
                 }
                 onSelect(item);
@@ -125,7 +141,11 @@ const DropdownMenu: FC<{
                     strokeWidth="2"
                     stroke="currentColor"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 5l7 7-7 7"
+                    />
                   </svg>
                 </span>
               )}
@@ -190,7 +210,10 @@ export const Dropdown: FC<DropdownProps> = ({
     if (!isOpen) return;
 
     function handlePointerDown(e: PointerEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         close();
       }
     }
@@ -222,7 +245,10 @@ export const Dropdown: FC<DropdownProps> = ({
     }
   }
 
-  function handleItemKeyDown(e: KeyboardEvent<HTMLButtonElement>, index: number) {
+  function handleItemKeyDown(
+    e: KeyboardEvent<HTMLButtonElement>,
+    index: number
+  ) {
     const enabledIndices = flatItems
       .map((_, i) => i)
       .filter((i) => !flatItems[i].disabled);
@@ -231,7 +257,8 @@ export const Dropdown: FC<DropdownProps> = ({
 
     if (e.key === ARROW_DOWN) {
       e.preventDefault();
-      const next = enabledIndices[Math.min(currentPos + 1, enabledIndices.length - 1)];
+      const next =
+        enabledIndices[Math.min(currentPos + 1, enabledIndices.length - 1)];
       setActiveIndex(next);
     } else if (e.key === ARROW_UP) {
       e.preventDefault();
