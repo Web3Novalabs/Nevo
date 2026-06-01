@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { DonateModal } from '@/components/DonateModal';
 import { EmptyState } from '@/components/EmptyState';
+import { ReferralPanel } from '@/components/ReferralPanel';
 import { SocialShareButtons } from '@/components/SocialShareButtons';
 import { WalletAddress } from '@/components/WalletAddress';
 import type { Pool } from '@/src/store/poolsStore';
@@ -455,6 +456,8 @@ export default function PoolDetailPage() {
             poolTitle={pool.title}
             customMessage={`Check out this amazing pool: "${pool.title}" - Support the cause and make a difference! 🌟`}
           />
+
+          <ReferralPanel poolId={pool.id} />
         </aside>
       </div>
 

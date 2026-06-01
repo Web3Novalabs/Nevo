@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import { NewsletterSignup } from './NewsletterSignup';
 
 export const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -51,6 +52,10 @@ export const Footer = () => {
             Privacy
           </Link>
         </nav>
+
+        <div className="w-full md:w-72">
+          <NewsletterSignup />
+        </div>
 
         <div className="flex gap-4">
           <a
