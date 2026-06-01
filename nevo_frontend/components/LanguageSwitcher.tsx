@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import '@/lib/i18n';
+import '@/src/lib/i18n';
 
 const LANGS = [
   { code: 'en', label: 'English', flag: '🇺🇸' },

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useWalletStore } from '@/src/store/walletStore';
 import { useTranslation } from 'react-i18next';
-import '@/lib/i18n';
+import '@/src/lib/i18n';
 
 function shortKey(key: string) {
   return `${key.slice(0, 4)}…${key.slice(-4)}`;

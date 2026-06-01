@@ -11,7 +11,7 @@ import {
 import ThemeToggle from '@/components/ThemeToggle';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useTranslation } from 'react-i18next';
-import '@/lib/i18n';
+import '@/src/lib/i18n';
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);

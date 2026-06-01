@@ -5,7 +5,7 @@ import { useCallback, useEffect, useId, useRef } from 'react';
 import ConnectWallet from '@/components/ConnectWallet';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useTranslation } from 'react-i18next';
-import '@/lib/i18n';
+import '@/src/lib/i18n';
 
 export const NAV_LINKS = [
   { key: 'nav.home', href: '/' },

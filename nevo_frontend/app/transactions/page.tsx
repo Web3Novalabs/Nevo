@@ -19,7 +19,7 @@ export interface Transaction {
   txHash: string;
 }
 
-export const MOCK_TRANSACTIONS: Transaction[] = [
+const MOCK_TRANSACTIONS: Transaction[] = [
   {
     id: '1',
     type: 'donation',

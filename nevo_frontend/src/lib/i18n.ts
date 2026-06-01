@@ -1,8 +1,8 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
-import en from '../locales/en/common.json';
-import es from '../locales/es/common.json';
+import en from '@/src/locales/en/common.json';
+import es from '@/src/locales/es/common.json';
 
 const resources = {
   en: { common: en },
@@ -11,9 +11,7 @@ const resources = {
 
 if (!i18n.isInitialized) {
   i18n
-    // detect user language
     .use(LanguageDetector)
-    // pass the i18n instance to react-i18next
     .use(initReactI18next)
     .init({
       resources,
@@ -22,7 +20,6 @@ if (!i18n.isInitialized) {
       defaultNS: 'common',
       interpolation: { escapeValue: false },
       detection: {
-        // look for language in localStorage first, then navigator
         order: ['localStorage', 'navigator'],
         caches: ['localStorage'],
         lookupLocalStorage: 'nevo-lang',
