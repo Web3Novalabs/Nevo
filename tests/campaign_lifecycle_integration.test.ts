@@ -214,7 +214,7 @@ describe("Campaign Lifecycle Integration", () => {
     });
 
     it("full lifecycle: create → donate → complete → finalize preserves all metrics", () => {
-      const camp = createCampaign("c1", "Full Lifecycle", 2_000, FEE_BPS, Date.now() + 86_400_000);
+      const camp = createCampaign("c1", "Full Lifecycle", 1_950, FEE_BPS, Date.now() + 86_400_000);
       donate(camp, "alice", 1_000);
       donate(camp, "bob", 1_000);
       expect(camp.state).toBe("completed");

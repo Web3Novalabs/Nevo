@@ -141,6 +141,12 @@ const MOCK_TRANSACTIONS: Transaction[] = [
     txHash: 'lmn234opq567',
   },
 ];
+import {
+  MOCK_TRANSACTIONS,
+  type Transaction,
+  type TxStatus,
+  type TxType,
+} from '@/src/lib/mockTransactions';
 
 const PAGE_SIZE = 8;
 

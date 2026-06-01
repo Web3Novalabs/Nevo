@@ -21,14 +21,19 @@ class PersistentStorage {
   private now: () => number;
   constructor(nowFn: () => number = Date.now) { this.now = nowFn; }
   set<T>(key: string, value: T, ttlMs?: number): void {
-    this.store.set(key, value);
+    const cloned = value && typeof value === "object" ? JSON.parse(JSON.stringify(value)) : value;
+    this.store.set(key, cloned);
     if (ttlMs != null) this.ttls.set(key, this.now() + ttlMs);
     else                this.ttls.delete(key);
   }
   get<T>(key: string): T | undefined {
     const expiry = this.ttls.get(key);
     if (expiry != null && this.now() > expiry) { this.store.delete(key); this.ttls.delete(key); return undefined; }
-    return this.store.get(key) as T;
+    const val = this.store.get(key);
+    if (val && typeof val === "object") {
+      return JSON.parse(JSON.stringify(val)) as T;
+    }
+    return val as T;
   }
   has(key: string): boolean    { return this.get(key) !== undefined; }
   delete(key: string): boolean { this.ttls.delete(key); return this.store.delete(key); }
