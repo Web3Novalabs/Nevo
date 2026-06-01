@@ -35,6 +35,8 @@ test.describe('Donation Flow', () => {
     await page.goto('/pools');
     // Page should not crash without wallet
     await expect(page.locator('body')).not.toContainText('500');
-    await expect(page.locator('body')).not.toContainText('Internal Server Error');
+    await expect(page.locator('body')).not.toContainText(
+      'Internal Server Error'
+    );
   });
 });

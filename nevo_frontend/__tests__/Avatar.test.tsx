@@ -5,7 +5,9 @@ import { Avatar } from '@/components/Avatar';
 describe('Avatar', () => {
   it('shows initials for a name', () => {
     render(<Avatar name="Alice Bob" />);
-    expect(screen.getByRole('img', { name: 'Avatar for Alice Bob' })).toHaveTextContent('AB');
+    expect(
+      screen.getByRole('img', { name: 'Avatar for Alice Bob' })
+    ).toHaveTextContent('AB');
   });
 
   it('shows single initial for single-word name', () => {

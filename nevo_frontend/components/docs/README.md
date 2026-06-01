@@ -4,15 +4,15 @@ This directory contains usage guides for every reusable component in `nevo_front
 
 ## Component Index
 
-| Component | File | Description |
-|-----------|------|-------------|
-| [Button](./Button.md) | `Button.tsx` | Multi-variant button with loading state |
-| [Avatar](./Avatar.md) | `Avatar.tsx` | Profile image with initials fallback |
-| [Navbar](./Navbar.md) | `Navbar.tsx` | Slim top nav bar (Server Component) |
-| [Header](./Header.md) | `Header.tsx` | Sticky header with mobile drawer |
-| [ConnectWallet](./ConnectWallet.md) | `ConnectWallet.tsx` | Freighter wallet connect/disconnect widget |
+| Component                           | File                | Description                                 |
+| ----------------------------------- | ------------------- | ------------------------------------------- |
+| [Button](./Button.md)               | `Button.tsx`        | Multi-variant button with loading state     |
+| [Avatar](./Avatar.md)               | `Avatar.tsx`        | Profile image with initials fallback        |
+| [Navbar](./Navbar.md)               | `Navbar.tsx`        | Slim top nav bar (Server Component)         |
+| [Header](./Header.md)               | `Header.tsx`        | Sticky header with mobile drawer            |
+| [ConnectWallet](./ConnectWallet.md) | `ConnectWallet.tsx` | Freighter wallet connect/disconnect widget  |
 | [WalletAddress](./WalletAddress.md) | `WalletAddress.tsx` | Responsive address display with copy button |
-| [Footer](./Footer.md) | `Footer.tsx` | Site footer with nav and social links |
+| [Footer](./Footer.md)               | `Footer.tsx`        | Site footer with nav and social links       |
 
 ## Importing Components
 
@@ -32,7 +32,11 @@ import ConnectWallet from '@/components/ConnectWallet';
 // app/layout.tsx
 import { Header, Footer } from '@/components';
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body className="flex flex-col min-h-screen">
@@ -49,14 +53,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 Components use Tailwind CSS v4 utility classes and the following CSS custom properties for theming:
 
-| Token | Usage |
-|-------|-------|
-| `--color-text` | Primary text colour |
-| `--color-text-muted` | Secondary / muted text |
-| `--color-surface` | Page background |
-| `--color-surface-raised` | Elevated surface (cards, pills) |
-| `--color-border` | Border colour |
-| `brand-600` / `brand-700` | Primary brand colour (blue) |
+| Token                     | Usage                           |
+| ------------------------- | ------------------------------- |
+| `--color-text`            | Primary text colour             |
+| `--color-text-muted`      | Secondary / muted text          |
+| `--color-surface`         | Page background                 |
+| `--color-surface-raised`  | Elevated surface (cards, pills) |
+| `--color-border`          | Border colour                   |
+| `brand-600` / `brand-700` | Primary brand colour (blue)     |
 
 ## Tooling
 

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useWalletStore } from '@/src/store/walletStore';
+import { useTranslation } from 'react-i18next';
+import '@/src/lib/i18n';
 
 function shortKey(key: string) {
   return `${key.slice(0, 4)}…${key.slice(-4)}`;
@@ -18,6 +20,7 @@ export default function ConnectWallet() {
   } = useWalletStore();
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const { t } = useTranslation();
 
   useEffect(() => {
     initialize();
@@ -47,16 +50,17 @@ export default function ConnectWallet() {
         <button
           onClick={handleConnect}
           className="rounded-full bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-          aria-label="Connect Freighter wallet"
+          aria-label={t('actions.connectWallet')}
         >
-          Connect Wallet
+          {t('actions.connectWallet')}
         </button>
         {error && (
           <p className="text-xs text-red-500" role="alert">
             {error}
           </p>
         )}
-      </div>    );
+      </div>
+    );
   }
 
   return (
@@ -101,7 +105,7 @@ export default function ConnectWallet() {
             className="w-full rounded-lg border border-[var(--color-border)] py-1.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
             aria-label="Disconnect wallet"
           >
-            Disconnect
+            {t('actions.disconnect', 'Disconnect')}
           </button>
         </div>
       )}

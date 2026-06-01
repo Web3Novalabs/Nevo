@@ -155,10 +155,7 @@ export const Modal: FC<ModalProps> = ({
         {/* ── Header ────────────────────────────────────────────────────── */}
         {title !== undefined && (
           <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-[var(--color-border)] shrink-0">
-            <h2
-              id={titleId}
-              className="text-base font-semibold leading-tight"
-            >
+            <h2 id={titleId} className="text-base font-semibold leading-tight">
               {title}
             </h2>
             <button
@@ -188,10 +185,7 @@ export const Modal: FC<ModalProps> = ({
 
         {/* ── Body ──────────────────────────────────────────────────────── */}
         {children !== undefined && (
-          <div
-            id={descId}
-            className="flex-1 overflow-y-auto px-6 py-5"
-          >
+          <div id={descId} className="flex-1 overflow-y-auto px-6 py-5">
             {children}
           </div>
         )}
@@ -222,7 +216,11 @@ function XIcon() {
       className="size-4"
       aria-hidden="true"
     >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 18 18 6M6 6l12 12"
+      />
     </svg>
   );
 }

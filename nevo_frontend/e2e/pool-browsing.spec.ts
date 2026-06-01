@@ -4,12 +4,17 @@ test.describe('Pool Browsing Flow', () => {
   test('homepage loads and shows hero section', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByRole('link', { name: /browse pools/i }).first()).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: /browse pools/i }).first()
+    ).toBeVisible();
   });
 
   test('navigates to pools page from hero CTA', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('link', { name: /browse pools/i }).first().click();
+    await page
+      .getByRole('link', { name: /browse pools/i })
+      .first()
+      .click();
     await expect(page).toHaveURL('/pools');
   });
 

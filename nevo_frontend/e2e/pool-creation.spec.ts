@@ -3,7 +3,10 @@ import { test, expect } from '@playwright/test';
 test.describe('Pool Creation Flow', () => {
   test('navigates to create pool page', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('link', { name: /create a pool/i }).first().click();
+    await page
+      .getByRole('link', { name: /create a pool/i })
+      .first()
+      .click();
     await expect(page).toHaveURL('/pools/new');
   });
 
@@ -12,7 +15,9 @@ test.describe('Pool Creation Flow', () => {
     await expect(page.locator('body')).toBeVisible();
   });
 
-  test('create pool page shows wallet connect when not connected', async ({ page }) => {
+  test('create pool page shows wallet connect when not connected', async ({
+    page,
+  }) => {
     await page.goto('/pools/new');
     // Without wallet connected, should show connect prompt or form
     const body = page.locator('body');
@@ -22,7 +27,9 @@ test.describe('Pool Creation Flow', () => {
   test('create pool form requires wallet connection', async ({ page }) => {
     await page.goto('/pools/new');
     // Form should not submit without wallet
-    const submitBtn = page.getByRole('button', { name: /create|submit|launch/i });
+    const submitBtn = page.getByRole('button', {
+      name: /create|submit|launch/i,
+    });
     if (await submitBtn.isVisible()) {
       await submitBtn.click();
       // Should show error or wallet connect prompt
@@ -30,7 +37,9 @@ test.describe('Pool Creation Flow', () => {
     }
   });
 
-  test('shows error state when pool creation fails without wallet', async ({ page }) => {
+  test('shows error state when pool creation fails without wallet', async ({
+    page,
+  }) => {
     await page.goto('/pools/new');
     // Page should handle unauthenticated state gracefully
     await expect(page).toHaveURL('/pools/new');

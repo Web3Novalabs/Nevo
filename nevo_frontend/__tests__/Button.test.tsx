@@ -6,7 +6,9 @@ import { Button } from '@/components/Button';
 describe('Button', () => {
   it('renders children', () => {
     render(<Button>Click me</Button>);
-    expect(screen.getByRole('button', { name: 'Click me' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Click me' })
+    ).toBeInTheDocument();
   });
 
   it('calls onClick when clicked', async () => {
@@ -30,7 +32,11 @@ describe('Button', () => {
 
   it('does not call onClick when disabled', async () => {
     const onClick = jest.fn();
-    render(<Button disabled onClick={onClick}>No</Button>);
+    render(
+      <Button disabled onClick={onClick}>
+        No
+      </Button>
+    );
     await userEvent.click(screen.getByRole('button'));
     expect(onClick).not.toHaveBeenCalled();
   });
