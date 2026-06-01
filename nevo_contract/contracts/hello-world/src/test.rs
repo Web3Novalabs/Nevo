@@ -3335,3 +3335,306 @@ fn test_gas_storage_batching_efficient() {
     // Average application gas should be reasonable
     assert!(avg_apply_cpu < 2_000_000, "Application storage operations are inefficient");
 }
+
+// ============================================================================
+// CREATION FEE CONFIGURATION VALIDATION TESTS
+// Issue: Add tests for creation fee configuration validation
+// ============================================================================
+
+// (1) Admin can set a positive creation fee.
+#[test]
+fn test_set_creation_fee_admin_can_set_positive_fee() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
+
+    // Admin sets a positive fee of 500_000 stroops
+    client.set_creation_fee(&admin, &500_000i128);
+
+    // Verify the fee was stored correctly
+    let stored_fee = client.get_creation_fee();
+    assert_eq!(stored_fee, 500_000i128);
+}
+
+// (2) Admin can set a zero creation fee (disables the fee).
+#[test]
+fn test_set_creation_fee_admin_can_set_zero_fee() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
+
+    // First set a non-zero fee, then reset to zero
+    client.set_creation_fee(&admin, &1_000_000i128);
+    client.set_creation_fee(&admin, &0i128);
+
+    let stored_fee = client.get_creation_fee();
+    assert_eq!(stored_fee, 0i128);
+}
+
+// (3) Negative fee fails with "InvalidFee".
+#[test]
+#[should_panic(expected = "InvalidFee")]
+fn test_set_creation_fee_negative_fee_fails_with_invalid_fee() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
+
+    // Negative fee must be rejected
+    client.set_creation_fee(&admin, &-1i128);
+}
+
+// (4) Non-admin authorization fails with "Unauthorized admin".
+#[test]
+#[should_panic(expected = "Unauthorized admin")]
+fn test_set_creation_fee_non_admin_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let non_admin = Address::generate(&env);
+    client.set_admin(&admin);
+
+    // A non-admin address must not be able to set the fee
+    client.set_creation_fee(&non_admin, &100_000i128);
+}
+
+// (5) Fee update emits a "creation_fee_updated" event.
+#[test]
+fn test_set_creation_fee_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
+
+    let new_fee: i128 = 250_000;
+    client.set_creation_fee(&admin, &new_fee);
+
+    // Verify the event was emitted with the correct topic and data.
+    // env.events().all() returns Vec<(Address, Vec<Val>, Val)>.
+    let events = env.events().all();
+    assert!(
+        !events.is_empty(),
+        "Expected at least one event after set_creation_fee"
+    );
+
+    // Build the expected event tuple using IntoVal (already imported).
+    // publish((Symbol,), data) stores topics as a Vec<Val> with one entry.
+    let expected = (
+        contract_id.clone(),
+        (Symbol::new(&env, "creation_fee_updated"),).into_val(&env),
+        new_fee.into_val(&env),
+    );
+    assert_eq!(events.last().unwrap(), expected);
+}
+
+// (6) get_creation_fee returns the updated fee after set_creation_fee.
+#[test]
+fn test_get_creation_fee_returns_updated_fee() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
+
+    // Default fee before any set call should be 0
+    assert_eq!(client.get_creation_fee(), 0i128);
+
+    // Set fee and verify it is returned
+    client.set_creation_fee(&admin, &1_000_000i128);
+    assert_eq!(client.get_creation_fee(), 1_000_000i128);
+
+    // Update fee and verify the new value is returned
+    client.set_creation_fee(&admin, &2_500_000i128);
+    assert_eq!(client.get_creation_fee(), 2_500_000i128);
+
+    // Reset to zero and verify
+    client.set_creation_fee(&admin, &0i128);
+    assert_eq!(client.get_creation_fee(), 0i128);
+}
+
+// ============================================================================
+// POOL REFUND DEADLINE VALIDATION TESTS
+// Issue: Add tests for pool refund deadline validation
+//
+// Refund rules:
+//   - current_ledger > deadline          → deadline has passed
+//   - current_ledger >= deadline + GRACE → grace period elapsed → refund OK
+//   - otherwise                          → panic "PoolNotExpired"
+//
+// REFUND_GRACE_PERIOD_LEDGERS = 17_280 (≈24 h at 5 s/ledger)
+// ============================================================================
+
+/// Advance the ledger sequence by `delta` ledgers.
+fn advance_ledger(env: &Env, delta: u32) {
+    env.ledger().with_mut(|li| {
+        li.sequence_number += delta;
+    });
+}
+
+// (1) Refund before deadline fails with "PoolNotExpired".
+#[test]
+#[should_panic(expected = "PoolNotExpired")]
+fn test_refund_before_deadline_fails_with_pool_not_expired() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Refund Test Pool"),
+        &String::from_str(&env, "Testing refund deadline"),
+        &1_000_000_000,
+    );
+
+    // Donate so there is something to refund
+    let token_address = create_token(&env, 500_000_000, &donor);
+    client.donate_with_token(&pool_id, &donor, &token_address, &500_000_000);
+
+    // Set deadline 1000 ledgers in the future
+    let current = env.ledger().sequence();
+    let deadline = current + 1_000;
+    client.set_pool_deadline(&pool_id, &deadline);
+
+    // Attempt refund before deadline — must fail
+    client.refund_donation(&pool_id, &donor, &token_address);
+}
+
+// (2) Refund exactly at deadline fails (grace period required).
+#[test]
+#[should_panic(expected = "PoolNotExpired")]
+fn test_refund_exactly_at_deadline_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Refund Test Pool"),
+        &String::from_str(&env, "Testing refund at deadline"),
+        &1_000_000_000,
+    );
+
+    let token_address = create_token(&env, 500_000_000, &donor);
+    client.donate_with_token(&pool_id, &donor, &token_address, &500_000_000);
+
+    // Set deadline 500 ledgers ahead
+    let current = env.ledger().sequence();
+    let deadline = current + 500;
+    client.set_pool_deadline(&pool_id, &deadline);
+
+    // Advance ledger to exactly the deadline
+    advance_ledger(&env, 500);
+    assert_eq!(env.ledger().sequence(), deadline);
+
+    // Attempt refund at exactly the deadline — must fail (grace period not elapsed)
+    client.refund_donation(&pool_id, &donor, &token_address);
+}
+
+// (3) Refund after deadline but before grace period fails with "PoolNotExpired".
+#[test]
+#[should_panic(expected = "PoolNotExpired")]
+fn test_refund_after_deadline_but_before_grace_period_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Refund Test Pool"),
+        &String::from_str(&env, "Testing refund in grace period"),
+        &1_000_000_000,
+    );
+
+    let token_address = create_token(&env, 500_000_000, &donor);
+    client.donate_with_token(&pool_id, &donor, &token_address, &500_000_000);
+
+    // Set deadline 100 ledgers ahead
+    let current = env.ledger().sequence();
+    let deadline = current + 100;
+    client.set_pool_deadline(&pool_id, &deadline);
+
+    // Advance past the deadline but NOT past the grace period
+    // deadline + 1  <  deadline + GRACE_PERIOD (17_280)
+    advance_ledger(&env, 101); // now at deadline + 1
+    assert!(env.ledger().sequence() > deadline);
+    assert!(env.ledger().sequence() < deadline + 17_280);
+
+    // Attempt refund inside grace period — must fail
+    client.refund_donation(&pool_id, &donor, &token_address);
+}
+
+// (4) Refund after grace period succeeds.
+#[test]
+fn test_refund_after_grace_period_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Refund Test Pool"),
+        &String::from_str(&env, "Testing successful refund"),
+        &1_000_000_000,
+    );
+
+    // Donate 500_000_000 tokens to the pool via donate_with_token
+    // The contract holds the tokens; we need to fund it for the refund transfer.
+    let donation_amount: i128 = 500_000_000;
+    // Mint tokens directly into the contract so it can pay the refund back
+    let token_address = create_token(&env, donation_amount, &contract_id);
+
+    // Record the contribution manually via donate (no token transfer) so the
+    // contract knows how much to refund.
+    client.donate(&pool_id, &donor, &(donation_amount as u128));
+
+    // Set deadline 100 ledgers ahead
+    let current = env.ledger().sequence();
+    let deadline = current + 100;
+    client.set_pool_deadline(&pool_id, &deadline);
+
+    // Advance past deadline AND past the full grace period (17_280 ledgers)
+    advance_ledger(&env, 100 + 17_280 + 1);
+    assert!(env.ledger().sequence() >= deadline + 17_280);
+
+    // Refund should succeed — no panic
+    client.refund_donation(&pool_id, &donor, &token_address);
+
+    // Verify the contribution is cleared (second refund attempt must fail)
+    let contribution = client.get_contribution(&pool_id, &donor);
+    assert_eq!(contribution, 0u128);
+}

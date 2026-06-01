@@ -26,6 +26,15 @@ const APPLICATION_STATUS_REJECTED: &str = "Rejected";
 // Protocol fees accumulator - tracks unclaimed fees collected from operations
 const UNCLAIMED_FEES: &str = "unclaimed_fees";
 
+// Creation fee key - stores the fee charged when creating a new pool
+const CREATION_FEE_KEY: &str = "creation_fee";
+
+// Refund deadline constants
+// Donors may request a refund only after the pool deadline has passed AND
+// the grace period (REFUND_GRACE_PERIOD_LEDGERS) has elapsed.
+const POOL_DEADLINE_PREFIX: &str = "pool_deadline";
+const REFUND_GRACE_PERIOD_LEDGERS: u32 = 17_280; // ~24 hours at 5s/ledger
+
 // Pool metadata validation constraints
 const MAX_DESCRIPTION_LENGTH: usize = 500;
 const MAX_URL_LENGTH: usize = 256;
@@ -739,6 +748,167 @@ impl Contract {
         env.storage().persistent().set(&unclaimed_fees_key, &0i128);
 
         fees
+    }
+
+    // ─── Creation Fee ─────────────────────────────────────────────────────────
+
+    /// Set the pool creation fee (in stroops / smallest token unit).
+    ///
+    /// Only the stored admin may call this function.
+    /// A fee of zero is valid (disables the creation fee).
+    /// A negative fee panics with `"InvalidFee"`.
+    ///
+    /// Emits a `creation_fee_updated` event on success.
+    ///
+    /// # Panics
+    /// - `"Admin not set"` if no admin has been configured
+    /// - `"Unauthorized admin"` if `admin` does not match the stored admin
+    /// - `"InvalidFee"` if `fee` is negative
+    pub fn set_creation_fee(env: Env, admin: Address, fee: i128) {
+        admin.require_auth();
+
+        let admin_key = Symbol::new(&env, ADMIN_KEY);
+        let stored_admin: Address = env
+            .storage()
+            .persistent()
+            .get::<_, Address>(&admin_key)
+            .expect("Admin not set");
+        if stored_admin != admin {
+            panic!("Unauthorized admin");
+        }
+
+        if fee < 0 {
+            panic!("InvalidFee");
+        }
+
+        let fee_key = Symbol::new(&env, CREATION_FEE_KEY);
+        env.storage().persistent().set(&fee_key, &fee);
+
+        // Emit event: topics = ["creation_fee_updated"], data = new fee value
+        env.events().publish(
+            (Symbol::new(&env, "creation_fee_updated"),),
+            fee,
+        );
+    }
+
+    /// Get the current pool creation fee.
+    /// Returns `0` if no fee has been set.
+    pub fn get_creation_fee(env: Env) -> i128 {
+        let fee_key = Symbol::new(&env, CREATION_FEE_KEY);
+        env.storage()
+            .persistent()
+            .get::<_, i128>(&fee_key)
+            .unwrap_or(0)
+    }
+
+    // ─── Refund Deadline ──────────────────────────────────────────────────────
+
+    /// Set the refund deadline (as a ledger sequence number) for a pool.
+    ///
+    /// Only the pool sponsor may call this.
+    /// The deadline must be in the future (greater than the current ledger).
+    ///
+    /// # Panics
+    /// - `"Pool not found"` if pool_id is invalid
+    /// - `"Error(Auth, InvalidAction)"` if caller is not the pool sponsor
+    /// - `"Deadline must be in the future"` if deadline <= current ledger
+    pub fn set_pool_deadline(env: Env, pool_id: u32, deadline: u32) {
+        let pool: Pool = env
+            .storage()
+            .persistent()
+            .get::<_, Pool>(&pool_id)
+            .expect("Pool not found");
+
+        pool.sponsor.require_auth();
+
+        if deadline <= env.ledger().sequence() {
+            panic!("Deadline must be in the future");
+        }
+
+        let deadline_key = (Symbol::new(&env, POOL_DEADLINE_PREFIX), pool_id);
+        env.storage().persistent().set(&deadline_key, &deadline);
+    }
+
+    /// Get the refund deadline ledger for a pool.
+    /// Returns `0` if no deadline has been set.
+    pub fn get_pool_deadline(env: Env, pool_id: u32) -> u32 {
+        let deadline_key = (Symbol::new(&env, POOL_DEADLINE_PREFIX), pool_id);
+        env.storage()
+            .persistent()
+            .get::<_, u32>(&deadline_key)
+            .unwrap_or(0)
+    }
+
+    /// Refund a donor's contribution from an expired pool.
+    ///
+    /// A refund is only permitted when ALL of the following hold:
+    ///   1. The pool has a deadline set (non-zero).
+    ///   2. The current ledger is strictly after the deadline
+    ///      (`current_ledger > deadline`).
+    ///   3. The grace period has elapsed
+    ///      (`current_ledger >= deadline + REFUND_GRACE_PERIOD_LEDGERS`).
+    ///
+    /// # Panics
+    /// - `"Pool not found"` if pool_id is invalid
+    /// - `"PoolNotExpired"` if the deadline has not passed yet
+    /// - `"PoolNotExpired"` if the pool is exactly at the deadline (no grace)
+    /// - `"PoolNotExpired"` if inside the grace period
+    /// - `"No contribution to refund"` if the donor has no recorded contribution
+    pub fn refund_donation(
+        env: Env,
+        pool_id: u32,
+        donor: Address,
+        token_address: Address,
+    ) {
+        donor.require_auth();
+
+        let mut pool: Pool = env
+            .storage()
+            .persistent()
+            .get::<_, Pool>(&pool_id)
+            .expect("Pool not found");
+
+        let deadline_key = (Symbol::new(&env, POOL_DEADLINE_PREFIX), pool_id);
+        let deadline: u32 = env
+            .storage()
+            .persistent()
+            .get::<_, u32>(&deadline_key)
+            .unwrap_or(0);
+
+        let current_ledger = env.ledger().sequence();
+
+        // Deadline must have passed AND grace period must have elapsed
+        if deadline == 0
+            || current_ledger <= deadline
+            || current_ledger < deadline + REFUND_GRACE_PERIOD_LEDGERS
+        {
+            panic!("PoolNotExpired");
+        }
+
+        let contrib_key = (pool_id, "contribution", &donor);
+        let contribution: u128 = env
+            .storage()
+            .persistent()
+            .get::<_, u128>(&contrib_key)
+            .unwrap_or(0);
+
+        if contribution == 0 {
+            panic!("No contribution to refund");
+        }
+
+        // Clear the contribution record before transferring (re-entrancy guard)
+        env.storage().persistent().set(&contrib_key, &0u128);
+
+        // Reduce pool collected amount
+        pool.collected = pool.collected.saturating_sub(contribution);
+        env.storage().persistent().set(&pool_id, &pool);
+
+        let token_client = token::Client::new(&env, &token_address);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &donor,
+            &(contribution as i128),
+        );
     }
 
     /// Donate to a pool using a specific token.
