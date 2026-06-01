@@ -12,7 +12,6 @@ export interface Transaction {
   txHash: string;
 }
 
-// TODO: Replace with real API data once backend transaction endpoints are implemented
 export const MOCK_TRANSACTIONS: Transaction[] = [
   {
     id: '1',

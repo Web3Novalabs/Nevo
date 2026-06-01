@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useWalletStore } from '@/src/store/walletStore';
@@ -10,7 +10,7 @@ function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { publicKey, loading, initialize } = useWalletStore();
-  const [error] = useState<string | null>(null);
+  const [accepted, setAccepted] = useState(false);
 
   const from = searchParams.get('from') || '/dashboard';
 
@@ -34,15 +34,42 @@ function LoginPageContent() {
           </p>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-          <ConnectWallet />
-        </div>
+        <div className="mt-8">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={accepted}
+              onChange={(e) => setAccepted(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded text-brand-600"
+            />
+            <div className="text-sm text-[var(--color-text-muted)]">
+              I agree to the{' '}
+              <Link href="/terms" className="font-medium text-brand-600">
+                Terms of Service
+              </Link>{' '}
+              and{' '}
+              <Link href="/privacy" className="font-medium text-brand-600">
+                Privacy Policy
+              </Link>
+              .
+            </div>
+          </label>
 
-        {error && (
-          <p className="mt-4 text-sm text-center text-[var(--color-error)]">
-            {error}
-          </p>
-        )}
+          <div className="mt-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+            {accepted ? (
+              <ConnectWallet />
+            ) : (
+              <div className="flex items-center justify-center">
+                <button
+                  disabled
+                  className="rounded-full bg-[var(--color-border)] px-6 py-3 text-sm font-medium text-[var(--color-text-muted)]"
+                >
+                  Accept terms to connect
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
 
         <p className="mt-8 text-center text-sm text-[var(--color-text-muted)]">
           Don&apos;t have a wallet?{' '}

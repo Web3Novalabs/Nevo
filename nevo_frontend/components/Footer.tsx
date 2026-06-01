@@ -39,10 +39,16 @@ export const Footer = () => {
             Contact
           </Link>
           <Link
-            href="/legal"
+            href="/terms"
             className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
           >
-            Legal
+            Terms
+          </Link>
+          <Link
+            href="/privacy"
+            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
+          >
+            Privacy
           </Link>
         </nav>
 

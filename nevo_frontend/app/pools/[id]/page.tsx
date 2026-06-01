@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { DonateModal } from '@/components/DonateModal';
 import { EmptyState } from '@/components/EmptyState';
+import { SocialShareButtons } from '@/components/SocialShareButtons';
 import { WalletAddress } from '@/components/WalletAddress';
 import type { Pool } from '@/src/store/poolsStore';
 import { useWalletStore } from '@/src/store/walletStore';
@@ -448,6 +449,12 @@ export default function PoolDetailPage() {
               </p>
             )}
           </div>
+
+          <SocialShareButtons
+            poolId={pool.id}
+            poolTitle={pool.title}
+            customMessage={`Check out this amazing pool: "${pool.title}" - Support the cause and make a difference! 🌟`}
+          />
         </aside>
       </div>
 

@@ -8,7 +8,7 @@ import {
   type Transaction,
   type TxStatus,
   type TxType,
-} from './data';
+} from '@/src/lib/mockTransactions';
 
 const PAGE_SIZE = 8;
 

@@ -5,7 +5,7 @@ import { useWalletStore } from '@/src/store/walletStore';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { WalletAddress } from '@/components/WalletAddress';
-import { MOCK_TRANSACTIONS } from '@/app/transactions/data';
+import { MOCK_TRANSACTIONS } from '@/src/lib/mockTransactions';
 
 // Mock user preferences store
 interface UserPreferences {

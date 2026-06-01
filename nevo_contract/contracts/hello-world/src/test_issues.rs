@@ -417,3 +417,190 @@ fn test_contribution_exceeding_balance_fails() {
     // Try to contribute more than balance - should fail with token transfer error
     client.donate_with_token(&pool_id, &donor, &token, &200_000_000i128);
 }
+
+// ============= ISSUE #476: POOL CLOSURE STATE VALIDATION TESTS =============
+
+/// Test 1: Close pool in Disbursed state succeeds
+#[test]
+fn test_close_disbursed_pool_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Disbursed Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+    );
+
+    // Set pool state to Disbursed
+    client.set_pool_state(&pool_id, &PoolState::Disbursed);
+
+    // Close should succeed for Disbursed pool
+    client.close_pool(&pool_id);
+
+    // Verify closed state persists
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.4, true);
+}
+
+/// Test 2: Close pool in Cancelled state succeeds
+#[test]
+fn test_close_cancelled_pool_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Cancelled Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+    );
+
+    // Set pool state to Cancelled
+    client.set_pool_state(&pool_id, &PoolState::Cancelled);
+
+    // Close should succeed for Cancelled pool
+    client.close_pool(&pool_id);
+
+    // Verify closed state persists
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.4, true);
+}
+
+/// Test 3: Close pool in Active state fails with PoolNotDisbursedOrRefunded error
+#[test]
+#[should_panic(expected = "PoolNotDisbursedOrRefunded")]
+fn test_close_active_pool_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Active Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+    );
+
+    // Pool is in Active state by default - should fail
+    client.close_pool(&pool_id);
+}
+
+/// Test 4: Close pool in Paused state fails with PoolNotDisbursedOrRefunded error
+#[test]
+#[should_panic(expected = "PoolNotDisbursedOrRefunded")]
+fn test_close_paused_pool_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Paused Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+    );
+
+    // Set pool state to Paused
+    client.set_pool_state(&pool_id, &PoolState::Paused);
+
+    // Close should fail for Paused pool
+    client.close_pool(&pool_id);
+}
+
+/// Test 5: Close pool in Completed state fails with PoolNotDisbursedOrRefunded error
+#[test]
+#[should_panic(expected = "PoolNotDisbursedOrRefunded")]
+fn test_close_completed_pool_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Completed Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+    );
+
+    // Set pool state to Completed
+    client.set_pool_state(&pool_id, &PoolState::Completed);
+
+    // Close should fail for Completed pool
+    client.close_pool(&pool_id);
+}
+
+/// Test 6: Close pool in Closed state fails with PoolNotDisbursedOrRefunded error
+#[test]
+#[should_panic(expected = "PoolNotDisbursedOrRefunded")]
+fn test_close_already_closed_pool_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Closed Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+    );
+
+    // Set pool state to Closed
+    client.set_pool_state(&pool_id, &PoolState::Closed);
+
+    // Close should fail for already Closed pool
+    client.close_pool(&pool_id);
+}
+
+/// Test 7: Closed state persists correctly after successful close
+#[test]
+fn test_closed_state_persists() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+    );
+
+    // Set pool state to Disbursed
+    client.set_pool_state(&pool_id, &PoolState::Disbursed);
+
+    // Close the pool
+    client.close_pool(&pool_id);
+
+    // Verify is_closed returns true via get_pool
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.4, true);
+
+    // Verify state persists across multiple reads
+    let pool2 = client.get_pool(&pool_id);
+    assert_eq!(pool2.4, true);
+}
