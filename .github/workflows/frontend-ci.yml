@@ -18,20 +18,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-      
+
       - name: Install dependencies
-        run: npm install
-      
+        run: npm install --legacy-peer-deps
+
       - name: Lint Check
         run: npm run lint
-        
+
       - name: Prettier Check
         run: npx prettier --check .
-      
+
       - name: Build Check
         run: npm run build
