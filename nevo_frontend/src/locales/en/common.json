@@ -1,0 +1,23 @@
+{
+  "nav": {
+    "home": "Home",
+    "pools": "Pools",
+    "transactions": "Transactions",
+    "dashboard": "Dashboard",
+    "profile": "Profile",
+    "createPool": "Create Pool"
+  },
+  "menu": {
+    "title": "Menu",
+    "close": "Close menu"
+  },
+  "actions": {
+    "connectWallet": "Connect Wallet",
+    "disconnect": "Disconnect"
+  },
+  "language": {
+    "label": "Language",
+    "english": "English",
+    "spanish": "Español"
+  }
+}
