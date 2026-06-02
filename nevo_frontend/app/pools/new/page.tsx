@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
@@ -23,6 +23,90 @@ const DURATION_OPTIONS = [
   { label: '60 days', value: 60 },
   { label: '90 days', value: 90 },
 ];
+
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+function validateImageFile(file: File): string | undefined {
+  if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
+    return 'Unsupported format. Use JPG, PNG, or WebP.';
+  }
+  if (file.size > MAX_IMAGE_SIZE_BYTES) {
+    return 'Image is too large. Max size is 5MB.';
+  }
+  return undefined;
+}
+
+function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Unable to load image.'));
+    };
+    image.src = url;
+  });
+}
+
+function drawCropPreview(image: HTMLImageElement, zoom: number): string {
+  const aspectRatio = 16 / 9;
+  let cropWidth = image.naturalWidth / zoom;
+  let cropHeight = cropWidth / aspectRatio;
+
+  if (cropHeight > image.naturalHeight) {
+    cropHeight = image.naturalHeight;
+    cropWidth = cropHeight * aspectRatio;
+  }
+
+  const cropX = Math.max(0, (image.naturalWidth - cropWidth) / 2);
+  const cropY = Math.max(0, (image.naturalHeight - cropHeight) / 2);
+  const targetWidth = 1280;
+  const targetHeight = Math.round(targetWidth / aspectRatio);
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error('Canvas context not available.');
+  }
+
+  ctx.clearRect(0, 0, targetWidth, targetHeight);
+  ctx.drawImage(
+    image,
+    cropX,
+    cropY,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    targetWidth,
+    targetHeight,
+  );
+
+  return canvas.toDataURL('image/webp', 0.85);
+}
+
+async function generateCropPreview(file: File, zoom: number): Promise<string> {
+  const image = await loadImage(file);
+  return drawCropPreview(image, zoom);
+}
+
+async function optimizeImage(file: File, zoom: number, onProgress?: (value: number) => void): Promise<string> {
+  if (onProgress) onProgress(10);
+  const image = await loadImage(file);
+  if (onProgress) onProgress(35);
+  const dataUrl = drawCropPreview(image, zoom);
+  if (onProgress) onProgress(75);
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  if (onProgress) onProgress(100);
+  return dataUrl;
+}
 
 interface FormData {
   title: string;
@@ -61,11 +145,99 @@ function CreatePoolPageContent() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
+  const [cropPreviewUrl, setCropPreviewUrl] = useState('');
+  const [cropZoom, setCropZoom] = useState(1);
+  const [imageProgress, setImageProgress] = useState(0);
+  const [imageUploadError, setImageUploadError] = useState<string | undefined>();
+  const [imageOptimizing, setImageOptimizing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!imageFile) {
+      setCropPreviewUrl('');
+      return undefined;
+    }
+
+    generateCropPreview(imageFile, cropZoom)
+      .then((preview) => {
+        if (!cancelled) {
+          setCropPreviewUrl(preview);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCropPreviewUrl('');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [imageFile, cropZoom]);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl]);
 
   function update(field: keyof FormData, value: string | number) {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (errors[field as keyof FormErrors]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
+    }
+  }
+
+  function handleFileSelection(fileList: FileList | null) {
+    const file = fileList?.[0];
+    if (!file) return;
+
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setImageUploadError(validationError);
+      setImageFile(null);
+      setCropPreviewUrl('');
+      return;
+    }
+
+    setImageUploadError(undefined);
+    setImageFile(file);
+    setCropZoom(1);
+    setImageProgress(0);
+    setImagePreviewUrl(URL.createObjectURL(file));
+  }
+
+  function clearImageSelection() {
+    setImageFile(null);
+    setCropPreviewUrl('');
+    setImageProgress(0);
+    setImageUploadError(undefined);
+    setCropZoom(1);
+    setImagePreviewUrl('');
+  }
+
+  async function applyCropAndOptimize() {
+    if (!imageFile) return;
+    setImageUploadError(undefined);
+    setImageOptimizing(true);
+
+    try {
+      const dataUrl = await optimizeImage(imageFile, cropZoom, setImageProgress);
+      update('imageUrl', dataUrl);
+      setImagePreviewUrl(dataUrl);
+      setImageFile(null);
+      setCropPreviewUrl('');
+      setCropZoom(1);
+    } catch (error) {
+      setImageUploadError('Could not process the image. Please try a different file.');
+    } finally {
+      setImageOptimizing(false);
+      setImageProgress(0);
     }
   }
 
@@ -106,6 +278,9 @@ function CreatePoolPageContent() {
 
   async function handleSubmit() {
     setSubmitting(true);
+    if (imageFile && !form.imageUrl) {
+      await applyCropAndOptimize();
+    }
     // TODO: Replace with real pool creation call once backend is implemented
     await new Promise((r) => setTimeout(r, 1000));
     setSubmitting(false);
@@ -149,6 +324,17 @@ function CreatePoolPageContent() {
             onChange={update}
             onNext={handleNext}
             onBack={handleBack}
+            imageFile={imageFile}
+            imagePreviewUrl={imagePreviewUrl}
+            cropPreviewUrl={cropPreviewUrl}
+            cropZoom={cropZoom}
+            imageProgress={imageProgress}
+            imageUploadError={imageUploadError}
+            imageOptimizing={imageOptimizing}
+            onSelectFile={handleFileSelection}
+            onZoomChange={setCropZoom}
+            onApplyCrop={applyCropAndOptimize}
+            onRemoveImage={clearImageSelection}
           />
         )}
         {step === 3 && (
@@ -304,9 +490,37 @@ interface Step2Props {
   onChange: (field: keyof FormData, value: string | number) => void;
   onNext: () => void;
   onBack: () => void;
+  imageFile: File | null;
+  imagePreviewUrl: string;
+  cropPreviewUrl: string;
+  cropZoom: number;
+  imageProgress: number;
+  imageUploadError?: string;
+  imageOptimizing: boolean;
+  onSelectFile: (files: FileList | null) => void;
+  onZoomChange: (value: number) => void;
+  onApplyCrop: () => Promise<void>;
+  onRemoveImage: () => void;
 }
 
-function Step2({ form, errors, onChange, onNext, onBack }: Step2Props) {
+function Step2({
+  form,
+  errors,
+  onChange,
+  onNext,
+  onBack,
+  imageFile,
+  imagePreviewUrl,
+  cropPreviewUrl,
+  cropZoom,
+  imageProgress,
+  imageUploadError,
+  imageOptimizing,
+  onSelectFile,
+  onZoomChange,
+  onApplyCrop,
+  onRemoveImage,
+}: Step2Props) {
   return (
     <div>
       <h2 className="mb-6 text-lg font-semibold">Goal &amp; Duration</h2>
@@ -363,8 +577,105 @@ function Step2({ form, errors, onChange, onNext, onBack }: Step2Props) {
         </Field>
 
         <Field
+          label="Banner Image"
+          hint="Upload a JPG, PNG, or WebP cover photo for your pool. Max size 5MB."
+        >
+          <div className="space-y-3">
+            <label className="block rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-text)] transition-colors hover:border-brand-400">
+              <span className="font-medium">Select image</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => onSelectFile(e.target.files)}
+                className="sr-only"
+              />
+              <span className="mt-3 inline-flex cursor-pointer items-center rounded-full border border-brand-600 bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700">
+                Choose file
+              </span>
+            </label>
+
+            {imageUploadError && (
+              <p role="alert" className="text-xs text-[var(--color-error)]">
+                {imageUploadError}
+              </p>
+            )}
+
+            {imagePreviewUrl && (
+              <div className="space-y-3">
+                <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imagePreviewUrl}
+                    alt="Selected banner preview"
+                    className="h-52 w-full object-cover"
+                  />
+                </div>
+
+                <div className="space-y-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium">Crop preview</p>
+                    <span className="text-xs text-[var(--color-text-muted)]">
+                      Tighten or loosen crop
+                    </span>
+                  </div>
+
+                  <input
+                    id="cropZoom"
+                    type="range"
+                    min={1}
+                    max={2.5}
+                    step={0.1}
+                    value={cropZoom}
+                    onChange={(e) => onZoomChange(Number(e.target.value))}
+                    className="w-full"
+                  />
+
+                  {cropPreviewUrl && (
+                    <div className="overflow-hidden rounded-2xl border border-[var(--color-border)]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={cropPreviewUrl}
+                        alt="Crop preview"
+                        className="h-40 w-full object-cover"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={onApplyCrop}
+                      disabled={imageOptimizing}
+                      className={primaryBtn}
+                    >
+                      {imageOptimizing ? 'Processing...' : 'Apply Crop'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onRemoveImage}
+                      disabled={imageOptimizing}
+                      className={secondaryBtn}
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  {imageProgress > 0 && (
+                    <progress
+                      value={imageProgress}
+                      max={100}
+                      className="w-full appearance-none rounded-full bg-[var(--color-border)] h-2"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </Field>
+
+        <Field
           label="Banner Image URL"
-          hint="Optional. Provide a URL for your pool's banner image."
+          hint="Optional. Provide a URL for your pool's banner image if you do not want to upload a file."
         >
           <input
             id="imageUrl"
@@ -403,7 +714,7 @@ function Step2({ form, errors, onChange, onNext, onBack }: Step2Props) {
   );
 }
 
-/* ── Step 3: Preview ──────────────────────────────────────────────────────── */
+/* ── Step 3: Preview ───────────────────────────────────────────────────────── */
 
 interface Step3Props {
   form: FormData;
