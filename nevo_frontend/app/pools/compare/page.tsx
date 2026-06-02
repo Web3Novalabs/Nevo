@@ -48,6 +48,47 @@ export default function PoolComparePage() {
     return sorted;
   }, [selectedPools, sortBy, pools]);
 
+  const comparisonStats = useMemo(() => {
+    const pools = sortedComparisonPools;
+    const maxRaised = Math.max(0, ...pools.map((pool) => pool.raised));
+    const maxTarget = Math.max(0, ...pools.map((pool) => pool.target));
+    const maxProgress = Math.max(
+      0,
+      ...pools.map((pool) =>
+        pool.target ? (pool.raised / pool.target) * 100 : 0
+      )
+    );
+    const maxDonors = Math.max(0, ...pools.map((pool) => getDonorCount(pool)));
+    return { maxRaised, maxTarget, maxProgress, maxDonors };
+  }, [sortedComparisonPools]);
+
+  const highlightClass = (pool: Pool, metric: SortMetric) => {
+    const { maxRaised, maxTarget, maxProgress, maxDonors } = comparisonStats;
+    const value =
+      metric === 'raised'
+        ? pool.raised
+        : metric === 'target'
+          ? pool.target
+          : metric === 'progress'
+            ? pool.target
+              ? (pool.raised / pool.target) * 100
+              : 0
+            : getDonorCount(pool);
+
+    const best =
+      metric === 'raised'
+        ? value === maxRaised
+        : metric === 'target'
+          ? value === maxTarget
+          : metric === 'progress'
+            ? Math.round(value) === Math.round(maxProgress)
+            : value === maxDonors;
+
+    return best
+      ? 'bg-brand-50 text-brand-700 dark:text-brand-300'
+      : 'text-[var(--color-text)]';
+  };
+
   const togglePoolSelection = (poolId: string) => {
     if (selectedPools.includes(poolId)) {
       setSelectedPools(selectedPools.filter((id) => id !== poolId));
@@ -70,7 +111,8 @@ export default function PoolComparePage() {
               Compare Pools
             </h1>
             <p className="text-lg text-[var(--color-text-secondary)]">
-              Select up to 4 pools to compare side-by-side and make informed decisions
+              Select up to 4 pools to compare side-by-side and make informed
+              decisions
             </p>
           </div>
 
@@ -213,7 +255,8 @@ export default function PoolComparePage() {
               Pool Comparison
             </h1>
             <p className="text-[var(--color-text-secondary)] mt-1">
-              {sortedComparisonPools.length} pool{sortedComparisonPools.length !== 1 ? 's' : ''} selected
+              {sortedComparisonPools.length} pool
+              {sortedComparisonPools.length !== 1 ? 's' : ''} selected
             </p>
           </div>
 
@@ -335,7 +378,7 @@ export default function PoolComparePage() {
                 {sortedComparisonPools.map((pool) => (
                   <td
                     key={pool.id}
-                    className="px-6 py-4 text-sm font-semibold text-[var(--color-text)]"
+                    className={`px-6 py-4 text-sm font-semibold ${highlightClass(pool, 'target')}`}
                   >
                     ${pool.target.toLocaleString()}
                   </td>
@@ -350,7 +393,7 @@ export default function PoolComparePage() {
                 {sortedComparisonPools.map((pool) => (
                   <td
                     key={pool.id}
-                    className="px-6 py-4 text-sm font-semibold text-brand-600 dark:text-brand-400"
+                    className={`px-6 py-4 text-sm font-semibold ${highlightClass(pool, 'raised')}`}
                   >
                     ${pool.raised.toLocaleString()}
                   </td>
@@ -368,7 +411,10 @@ export default function PoolComparePage() {
                     Math.round((pool.raised / pool.target) * 100)
                   );
                   return (
-                    <td key={pool.id} className="px-6 py-4">
+                    <td
+                      key={pool.id}
+                      className={`px-6 py-4 ${highlightClass(pool, 'progress')}`}
+                    >
                       <div className="space-y-2">
                         <ProgressBar
                           value={pool.raised}
@@ -392,7 +438,7 @@ export default function PoolComparePage() {
                 {sortedComparisonPools.map((pool) => (
                   <td
                     key={pool.id}
-                    className="px-6 py-4 text-sm font-semibold text-[var(--color-text)]"
+                    className={`px-6 py-4 text-sm font-semibold ${highlightClass(pool, 'donors')}`}
                   >
                     {getDonorCount(pool)}
                   </td>
@@ -421,10 +467,7 @@ export default function PoolComparePage() {
                 {sortedComparisonPools.map((pool) => (
                   <td key={pool.id} className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <Avatar
-                        name={pool.creator || 'Anonymous'}
-                        size="sm"
-                      />
+                      <Avatar name={pool.creator || 'Anonymous'} size="sm" />
                       <span className="text-sm text-[var(--color-text)]">
                         {pool.creator
                           ? `${pool.creator.slice(0, 6)}...${pool.creator.slice(-4)}`
@@ -476,7 +519,9 @@ export default function PoolComparePage() {
                   >
                     <span
                       className={`h-1.5 w-1.5 rounded-full mr-1.5 ${
-                        pool.status === 'Active' ? 'bg-emerald-500' : 'bg-zinc-500'
+                        pool.status === 'Active'
+                          ? 'bg-emerald-500'
+                          : 'bg-zinc-500'
                       }`}
                     />
                     {pool.status}
@@ -538,10 +583,7 @@ export default function PoolComparePage() {
                     <span className="text-[var(--color-text-secondary)]">
                       Creator:
                     </span>
-                    <Avatar
-                      name={pool.creator || 'Anonymous'}
-                      size="sm"
-                    />
+                    <Avatar name={pool.creator || 'Anonymous'} size="sm" />
                     <span className="text-[var(--color-text)]">
                       {pool.creator
                         ? `${pool.creator.slice(0, 6)}...${pool.creator.slice(-4)}`
@@ -595,7 +637,8 @@ export default function PoolComparePage() {
                     Highest Raised:
                   </span>
                   <span className="float-right text-brand-600 dark:text-brand-400">
-                    {pools.find((p) => p.raised === maxRaised)?.title} (${maxRaised.toLocaleString()})
+                    {pools.find((p) => p.raised === maxRaised)?.title} ($
+                    {maxRaised.toLocaleString()})
                   </span>
                 </div>
                 <div>
@@ -603,7 +646,8 @@ export default function PoolComparePage() {
                     Largest Goal:
                   </span>
                   <span className="float-right">
-                    {pools.find((p) => p.target === maxTarget)?.title} (${maxTarget.toLocaleString()})
+                    {pools.find((p) => p.target === maxTarget)?.title} ($
+                    {maxTarget.toLocaleString()})
                   </span>
                 </div>
                 <div>
@@ -611,9 +655,12 @@ export default function PoolComparePage() {
                     Highest Progress:
                   </span>
                   <span className="float-right">
-                    {pools.find(
-                      (p) => (p.raised / p.target) * 100 === maxProgress
-                    )?.title} ({Math.round(maxProgress)}%)
+                    {
+                      pools.find(
+                        (p) => (p.raised / p.target) * 100 === maxProgress
+                      )?.title
+                    }{' '}
+                    ({Math.round(maxProgress)}%)
                   </span>
                 </div>
                 <div>
@@ -622,12 +669,17 @@ export default function PoolComparePage() {
                   </span>
                   <span className="float-right">
                     {
-                      pools.reduce((max, pool) => 
+                      pools.reduce((max, pool) =>
                         getDonorCount(pool) > getDonorCount(max) ? pool : max
                       )?.title
-                    } ({getDonorCount(pools.reduce((max, pool) => 
-                      getDonorCount(pool) > getDonorCount(max) ? pool : max
-                    ))})
+                    }{' '}
+                    (
+                    {getDonorCount(
+                      pools.reduce((max, pool) =>
+                        getDonorCount(pool) > getDonorCount(max) ? pool : max
+                      )
+                    )}
+                    )
                   </span>
                 </div>
               </div>
@@ -645,9 +697,7 @@ export default function PoolComparePage() {
             Select Different Pools
           </Button>
           <Link href="/pools" className="inline-block">
-            <Button className="w-full md:w-auto">
-              Browse All Pools
-            </Button>
+            <Button className="w-full md:w-auto">Browse All Pools</Button>
           </Link>
         </div>
       </div>
