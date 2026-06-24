@@ -88,7 +88,7 @@ export function MobileMenu({ open, onClose }: MobileMenuProps) {
       <button
         type="button"
         className="absolute inset-0 bg-black/40 transition-opacity duration-300"
-        aria-label="Close menu"
+        aria-label="Close menu overlay"
         tabIndex={open ? 0 : -1}
         onClick={onClose}
       />
