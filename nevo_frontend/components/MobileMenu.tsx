@@ -10,6 +10,7 @@ export const NAV_LINKS = [
   { label: 'Pools', href: '/pools' },
   { label: 'Donations', href: '/donations' },
   { label: 'Transactions', href: '/transactions' },
+  { label: 'Stories', href: '/stories' },
   { label: 'Dashboard', href: '/dashboard' },
   { label: 'Profile', href: '/profile' },
   { label: 'Create Pool', href: '/pools/new' },
