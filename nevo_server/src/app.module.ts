@@ -7,6 +7,9 @@ import { SyncModule } from './sync/sync.module.js';
 import { Pool } from './pools/pool.entity.js';
 import { PoolsModule } from './pools/pools.module.js';
 import { User } from './users/user.entity.js';
+import { UsersModule } from './users/users.module.js';
+import { Donation } from './donations/donation.entity.js';
+import { DonationsModule } from './donations/donations.module.js';
 
 @Module({
   imports: [
@@ -17,13 +20,15 @@ import { User } from './users/user.entity.js';
       username: process.env.DB_USER ?? 'postgres',
       password: process.env.DB_PASSWORD ?? 'postgres',
       database: process.env.DB_NAME ?? 'nevo',
-      entities: [User, Pool],
+      entities: [User, Pool, Donation],
       migrations: ['dist/migrations/*.js'],
       synchronize: false,
     }),
     ScheduleModule.forRoot(),
     SyncModule,
     PoolsModule,
+    UsersModule,
+    DonationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
