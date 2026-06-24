@@ -27,7 +27,7 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/platform-express": "^11.0.1",
-    "@nestjs/schedule": "^4.1.2",
+    "@nestjs/schedule": "^5.0.0",
     "@nestjs/typeorm": "^11.0.2",
     "@stellar/stellar-sdk": "^13.1.0",
     "cron": "^3.1.7",
