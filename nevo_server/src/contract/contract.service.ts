@@ -6,7 +6,7 @@ import {
   nativeToScVal,
   xdr,
   BASE_FEE,
-  SorobanRpc,
+  rpc,
   Transaction,
 } from '@stellar/stellar-sdk';
 import { StellarError } from './stellar.error';
@@ -22,7 +22,7 @@ const TIMEOUT = 30;
 @Injectable()
 export class ContractService {
   private readonly contract = new Contract(CONTRACT_ID);
-  private readonly server = new SorobanRpc.Server(RPC_URL);
+  private readonly server = new rpc.Server(RPC_URL);
 
   // ── XDR builders ────────────────────────────────────────────────────────────
 
@@ -138,8 +138,8 @@ export class ContractService {
           ),
         ),
       );
-      if (SorobanRpc.Api.isSimulationError(result)) return 0n;
-      const retval = (result as SorobanRpc.Api.SimulateTransactionSuccessResponse).result?.retval;
+      if (rpc.Api.isSimulationError(result)) return 0n;
+      const retval = (result as rpc.Api.SimulateTransactionSuccessResponse).result?.retval;
       if (!retval) return 0n;
       return BigInt(retval.i128().lo().toString());
     } catch {
@@ -154,9 +154,9 @@ export class ContractService {
           this.contract.call('get_pool', nativeToScVal(poolId, { type: 'u32' })),
         ),
       );
-      if (SorobanRpc.Api.isSimulationError(result)) return null;
+      if (rpc.Api.isSimulationError(result)) return null;
       return (
-        (result as SorobanRpc.Api.SimulateTransactionSuccessResponse).result?.retval ?? null
+        (result as rpc.Api.SimulateTransactionSuccessResponse).result?.retval ?? null
       );
     } catch {
       return null;
