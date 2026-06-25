@@ -472,3 +472,29 @@ apiClient.addRequestInterceptor((config) => {
   }
   return config;
 });
+
+export interface UserProfile {
+  email: string;
+  displayName: string;
+  notifications: {
+    donations: boolean;
+    withdrawals: boolean;
+    poolUpdates: boolean;
+  };
+  avatarSrc?: string;
+}
+
+// TODO: replace with real implementation once backend profile endpoint is implemented
+export async function fetchMyProfile(): Promise<UserProfile> {
+  // Simulate API delay
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  return {
+    email: 'user@example.com',
+    displayName: 'Crypto Philanthropist',
+    notifications: {
+      donations: true,
+      withdrawals: true,
+      poolUpdates: false,
+    },
+  };
+}
