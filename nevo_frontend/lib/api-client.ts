@@ -497,3 +497,24 @@ export function fetchMyDonations(): Promise<ApiDonation[]> {
 export function fetchMyProfile(): Promise<ApiProfile> {
   return apiClient.get<ApiProfile>('/users/me');
 }
+
+export interface CreatePoolPayload {
+  title: string;
+  description: string;
+  category: string;
+  goalAmount: string;
+  duration: number;
+  imageUrl: string;
+  tags: string;
+}
+
+export interface CreatePoolResponse {
+  id: string;
+  unsignedXdr: string;
+}
+
+export function createPool(
+  payload: CreatePoolPayload
+): Promise<CreatePoolResponse> {
+  return apiClient.post<CreatePoolResponse>('/pools', payload);
+}

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { createPool } from '@/lib/api-client';
 
 // TODO: Replace with real pool creation API call once backend is implemented
 const CATEGORIES = [
@@ -295,8 +296,19 @@ function CreatePoolPageContent() {
     if (imageFile && !form.imageUrl) {
       await applyCropAndOptimize();
     }
-    // TODO: Replace with real pool creation call once backend is implemented
-    await new Promise((r) => setTimeout(r, 1000));
+    try {
+      await createPool({
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        goalAmount: form.goalAmount,
+        duration: form.duration,
+        imageUrl: form.imageUrl,
+        tags: form.tags,
+      });
+    } catch {
+      // TODO: surface error to user once error UI is designed
+    }
     setSubmitting(false);
     setSubmitted(true);
   }
