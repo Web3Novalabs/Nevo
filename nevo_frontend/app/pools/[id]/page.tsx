@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { DonateModal } from '@/components/DonateModal';
 import { EmptyState } from '@/components/EmptyState';
 import { WalletAddress } from '@/components/WalletAddress';
+import { CopyButton } from '@/components/CopyButton';
 import type { Pool } from '@/src/store/poolsStore';
 import { useWalletStore } from '@/src/store/walletStore';
 
@@ -421,13 +422,25 @@ export default function PoolDetailPage() {
               {isCompleted ? 'Pool Closed' : 'Donate Now'}
             </button>
 
+            <div className="mt-4">
+              <CopyButton
+                text={
+                  typeof window !== 'undefined'
+                    ? window.location.href
+                    : `/pools/${pool.id}`
+                }
+                label="Copy Pool Link"
+                copiedLabel="Link Copied!"
+                className="w-full justify-center"
+              />
+            </div>
+
             {!publicKey && isActive && (
               <p className="mt-3 text-center text-xs text-[var(--color-text-muted)]">
                 Connect your wallet to donate to this pool.
               </p>
             )}
           </div>
-
         </aside>
       </div>
 
