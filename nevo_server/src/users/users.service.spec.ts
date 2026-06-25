@@ -12,7 +12,7 @@ describe('UsersService', () => {
       findOne: jest.fn().mockResolvedValue(existing),
       save: jest.fn().mockImplementation((u: User) => {
         lastSaved = u;
-        return Promise.resolve({ id: 'new-uuid', ...u });
+        return Promise.resolve({ ...u, id: 'new-uuid' });
       }),
       create: jest
         .fn()
