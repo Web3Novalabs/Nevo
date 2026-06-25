@@ -5,6 +5,7 @@ import { useWalletStore } from '@/src/store/walletStore';
 import { useDonationsStore } from '@/src/store/donationsStore';
 import type { Pool } from '@/src/store/poolsStore';
 import { WalletAddress } from './WalletAddress';
+import { contractService } from '@/lib/contract-service';
 
 type Asset = 'XLM' | 'USDC';
 type Step = 'form' | 'loading' | 'success' | 'error';
@@ -62,29 +63,67 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
     if (!amountValid || !publicKey) return;
 
     setStep('loading');
+    setErrorMsg('');
 
-    // TODO: Replace with real contract call once backend is integrated
-    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      // 1. Check if pool is closed/completed
+      if (pool.status === 'Completed') {
+        throw new Error('Pool is closed');
+      }
 
-    const shouldFail = false; // flip to true to test error state
-    if (shouldFail) {
-      setErrorMsg('Transaction rejected by the network. Please try again.');
+      // 2. Check if donor has insufficient balance
+      const availableBalanceNum = parseFloat(availableBalance);
+      const donationAmountNum = parseFloat(amount);
+      const requiredBalance =
+        donationAmountNum + (asset === 'XLM' ? parseFloat(TX_FEE_XLM) : 0);
+      if (availableBalanceNum < requiredBalance) {
+        throw new Error('Insufficient balance');
+      }
+
+      // 3. Try to build the transaction using the contract service
+      try {
+        await contractService.buildDonateTransaction(
+          parseInt(pool.id, 10),
+          publicKey,
+          BigInt(Math.floor(donationAmountNum * 10_000_000))
+        );
+      } catch (stellarError: unknown) {
+        // Map common Stellar/RPC errors to human-readable messages, or fall back to 'Transaction failed'
+        const errorObject =
+          stellarError instanceof Error
+            ? stellarError
+            : new Error(String(stellarError));
+        const errMsg = errorObject.message || '';
+        if (
+          errMsg.includes('404') ||
+          errMsg.includes('not found') ||
+          errMsg.includes('getAccount')
+        ) {
+          throw new Error('Transaction failed: Account not found on network.');
+        }
+        throw new Error('Transaction failed');
+      }
+
+      // TODO: Replace with real Freighter signing and submission when ready
+      await new Promise((r) => setTimeout(r, 1500));
+
+      const donation = {
+        id: `mock-${Date.now()}`,
+        poolId: pool.id,
+        poolName: pool.title,
+        amount,
+        asset,
+        txHash: `mock-tx-${Math.random().toString(36).slice(2)}`,
+        timestamp: new Date().toISOString(),
+        status: 'confirmed' as const,
+      };
+      addDonation(donation);
+      setStep('success');
+    } catch (err: unknown) {
+      const errorObject = err instanceof Error ? err : new Error(String(err));
+      setErrorMsg(errorObject.message || 'Transaction failed');
       setStep('error');
-      return;
     }
-
-    const donation = {
-      id: `mock-${Date.now()}`,
-      poolId: pool.id,
-      poolName: pool.title,
-      amount,
-      asset,
-      txHash: `mock-tx-${Math.random().toString(36).slice(2)}`,
-      timestamp: new Date().toISOString(),
-      status: 'confirmed' as const,
-    };
-    addDonation(donation);
-    setStep('success');
   }
 
   return (

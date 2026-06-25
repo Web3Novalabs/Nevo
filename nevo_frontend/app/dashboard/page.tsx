@@ -4,50 +4,9 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useWalletStore } from '@/src/store/walletStore';
 import { EmptyState } from '@/components/EmptyState';
-import ConnectWallet from '@/components/ConnectWallet';
 import { WalletAddress } from '@/components/WalletAddress';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import type { Pool } from '@/src/store/poolsStore';
-
-// TODO: Replace with real API call once backend pool endpoints are implemented
-const MOCK_CREATOR_POOLS: Pool[] = [
-  {
-    id: '1',
-    title: 'Clean Water Initiative',
-    description: 'Providing clean drinking water to rural communities in need.',
-    category: 'Humanitarian',
-    status: 'Active',
-    target: 10000,
-    raised: 6800,
-    imageColor: '#27926e',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2025-03-01',
-  },
-  {
-    id: '2',
-    title: 'Open Source Dev Fund',
-    description: 'Supporting open source contributors building on Stellar.',
-    category: 'Technology',
-    status: 'Active',
-    target: 5000,
-    raised: 5000,
-    imageColor: '#1c7459',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2025-01-15',
-  },
-  {
-    id: '3',
-    title: 'Community Garden Project',
-    description: 'Building urban gardens to improve food security locally.',
-    category: 'Environment',
-    status: 'Completed',
-    target: 3000,
-    raised: 3200,
-    imageColor: '#47ae88',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2024-11-10',
-  },
-];
+import { usePoolsStore, type Pool } from '@/src/store/poolsStore';
 
 // TODO: Replace with real contributor counts from backend
 const MOCK_CONTRIBUTOR_COUNTS: Record<string, number> = {
@@ -63,6 +22,7 @@ type ActionModal =
 
 function DashboardPageContent() {
   const { publicKey, loading, initialize } = useWalletStore();
+  const { pools: allPools } = usePoolsStore();
   const [pools, setPools] = useState<Pool[]>([]);
   const [loadingPools, setLoadingPools] = useState(true);
   const [actionModal, setActionModal] = useState<ActionModal>(null);
@@ -74,13 +34,13 @@ function DashboardPageContent() {
 
   useEffect(() => {
     if (!publicKey) return;
-    // TODO: Replace with real fetch filtered by creator === publicKey
     const timer = setTimeout(() => {
-      setPools(MOCK_CREATOR_POOLS);
+      const userPools = allPools.filter((p) => p.creator === publicKey);
+      setPools(userPools);
       setLoadingPools(false);
     }, 400);
     return () => clearTimeout(timer);
-  }, [publicKey]);
+  }, [publicKey, allPools]);
 
   // ── Summary metrics ────────────────────────────────────────────────────
   const totalRaised = pools.reduce((s, p) => s + p.raised, 0);
@@ -191,9 +151,9 @@ function DashboardPageContent() {
       ) : pools.length === 0 ? (
         <EmptyState
           icon="pool"
-          title="No pools yet"
+          title="You haven't created any pools yet"
           description="Create your first pool to start raising funds on-chain."
-          action={{ label: 'Create a Pool', href: '/pools/new' }}
+          action={{ label: 'Create Pool', href: '/pools/new' }}
           steps={[
             { text: 'Set a title, goal, and category for your cause' },
             { text: 'Share your pool link with supporters' },
