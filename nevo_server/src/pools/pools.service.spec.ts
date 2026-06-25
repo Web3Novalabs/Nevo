@@ -1,8 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { PoolsService, ChainPoolData } from './pools.service';
-import { Pool } from './pool.entity';
-import { ContractService } from '../contract/contract.service.js';
 
 describe('PoolsService', () => {
   const chainData: ChainPoolData = {
@@ -26,7 +24,7 @@ describe('PoolsService', () => {
       creatorWallet: 'GOLD',
       goal: '5000',
       raised: '0',
-      status: 'Active',
+      status: PoolStatus.Active,
       category: '',
       title: 'Existing Title',
       description: 'Existing description',

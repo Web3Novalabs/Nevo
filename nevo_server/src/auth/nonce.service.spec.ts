@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import { NonceService } from './nonce.service';
 import { Nonce } from './nonce.entity';
 
@@ -64,7 +64,7 @@ describe('NonceService', () => {
       await service.generateNonce(publicKey);
 
       const callArgs = jest.spyOn(repository, 'save').mock.calls[0][0];
-      const expiresAt = new Date(callArgs.expiresAt);
+      const expiresAt = new Date((callArgs as Nonce).expiresAt);
 
       expect(expiresAt.getTime()).toBeGreaterThan(beforeTime + 4 * 60 * 1000); // At least 4 minutes
       expect(expiresAt.getTime()).toBeLessThanOrEqual(
@@ -195,7 +195,7 @@ describe('NonceService', () => {
 
       expect(repository.delete).toHaveBeenCalled();
       const deleteCall = jest.spyOn(repository, 'delete').mock.calls[0][0];
-      expect(deleteCall.expiresAt).toEqual(expect.any(Date));
+      expect((deleteCall as FindOptionsWhere<Nonce>).expiresAt).toEqual(expect.any(Date));
     });
   });
 });
