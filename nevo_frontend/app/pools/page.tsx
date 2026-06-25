@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { EmptyState } from '@/components/EmptyState';
-import { Pagination, PoolCard } from '@/components';
+import { Pagination, PoolCard, Skeleton } from '@/components';
 import {
   usePoolsStore,
   type Pool,
@@ -269,7 +269,15 @@ function buildDefaultFilters(pools: Pool[]): FilterState {
 }
 
 export default function BrowsePoolsPage() {
-  const { pools } = usePoolsStore();
+  const { pools, loading, error, fetchPools } = usePoolsStore();
+  const hasFetched = useRef(false);
+
+  useEffect(() => {
+    if (!hasFetched.current) {
+      fetchPools();
+      hasFetched.current = true;
+    }
+  }, [fetchPools]);
   const bounds = useMemo(() => getBounds(pools), [pools]);
   const categories = useMemo(
     () => Array.from(new Set(pools.map((pool) => pool.category))).sort(),
@@ -448,6 +456,40 @@ export default function BrowsePoolsPage() {
         ]
       : []),
   ];
+
+  if (error !== null) {
+    return (
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-6 py-10">
+        <EmptyState
+          variant="bordered"
+          iconTone="muted"
+          icon="not-found"
+          title="Failed to load pools"
+          description={error}
+          action={{
+            label: 'Try again',
+            onClick: fetchPools,
+            variant: 'primary',
+          }}
+        />
+      </main>
+    );
+  }
+
+  if (loading && pools.length === 0) {
+    return (
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-6 py-10">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <Skeleton variant="text" lines={2} className="w-64" />
+        </div>
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} variant="card" />
+          ))}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-6 py-10">

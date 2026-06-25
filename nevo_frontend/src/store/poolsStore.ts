@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { apiClient } from '@/lib/api-client';
 
 export type PoolStatus = 'Active' | 'Completed';
 export type SortOption = 'newest' | 'most_raised' | 'goal_low';
@@ -32,8 +33,13 @@ interface PoolsState {
   filters: PoolFilters;
   sortBy: SortOption;
   loading: boolean;
+  poolLoading: boolean;
+  error: string | null;
+  currentPool: Pool | null;
   setPools: (pools: Pool[]) => void;
   setLoading: (loading: boolean) => void;
+  fetchPools: () => Promise<void>;
+  fetchPool: (id: number) => Promise<Pool | null>;
   setSearch: (search: string) => void;
   toggleCategory: (category: string) => void;
   toggleStatus: (status: PoolStatus) => void;
@@ -125,18 +131,59 @@ export const usePoolsStore = create<PoolsState>()(
       filters: DEFAULT_FILTERS,
       sortBy: DEFAULT_SORT,
       loading: false,
+      poolLoading: false,
+      error: null,
+      currentPool: null,
 
       setPools: (pools) => set({ pools }),
       setLoading: (loading) => set({ loading }),
 
+      fetchPools: async () => {
+        set({ loading: true, error: null });
+        try {
+          const data = await apiClient.get<Pool[]>('/pools');
+          set({ pools: data, loading: false });
+        } catch (error) {
+          const err = error as Error;
+          set({
+            error: err?.message || 'Failed to fetch pools',
+            loading: false,
+          });
+        }
+      },
+
+      fetchPool: async (id: number) => {
+        set({ poolLoading: true, error: null, currentPool: null });
+        try {
+          const data = await apiClient.get<Pool>(`/pools/${id}`);
+          set({ currentPool: data, poolLoading: false });
+          return data;
+        } catch (error) {
+          const err = error as Error;
+          set({
+            error: err?.message || 'Failed to fetch pool',
+            poolLoading: false,
+          });
+          return null;
+        }
+      },
+
       setSearch: (search) =>
         set((s) => ({ filters: { ...s.filters, search } })),
 
-          setPriceRange: (min?: number | null, max?: number | null) =>
-            set((s) => ({ filters: { ...s.filters, minTarget: min ?? null, maxTarget: max ?? null } })),
+      setPriceRange: (min?: number | null, max?: number | null) =>
+        set((s) => ({
+          filters: {
+            ...s.filters,
+            minTarget: min ?? null,
+            maxTarget: max ?? null,
+          },
+        })),
 
-          setDateRange: (from?: string | null, to?: string | null) =>
-            set((s) => ({ filters: { ...s.filters, dateFrom: from ?? null, dateTo: to ?? null } })),
+      setDateRange: (from?: string | null, to?: string | null) =>
+        set((s) => ({
+          filters: { ...s.filters, dateFrom: from ?? null, dateTo: to ?? null },
+        })),
 
       toggleCategory: (category) =>
         set((s) => ({
@@ -179,12 +226,18 @@ export const usePoolsStore = create<PoolsState>()(
             filters.statuses.length === 0 ||
             filters.statuses.includes(pool.status);
           const matchMinTarget =
-            filters.minTarget == null || pool.target >= (filters.minTarget ?? 0);
+            filters.minTarget == null ||
+            pool.target >= (filters.minTarget ?? 0);
           const matchMaxTarget =
-            filters.maxTarget == null || pool.target <= (filters.maxTarget ?? Infinity);
-          const createdTs = new Date(pool.createdAt ?? '1970-01-01').toISOString();
-          const matchDateFrom = !filters.dateFrom || createdTs >= (filters.dateFrom + 'T00:00:00Z');
-          const matchDateTo = !filters.dateTo || createdTs <= (filters.dateTo + 'T23:59:59Z');
+            filters.maxTarget == null ||
+            pool.target <= (filters.maxTarget ?? Infinity);
+          const createdTs = new Date(
+            pool.createdAt ?? '1970-01-01'
+          ).toISOString();
+          const matchDateFrom =
+            !filters.dateFrom || createdTs >= filters.dateFrom + 'T00:00:00Z';
+          const matchDateTo =
+            !filters.dateTo || createdTs <= filters.dateTo + 'T23:59:59Z';
           return (
             matchSearch &&
             matchCategory &&
