@@ -67,7 +67,7 @@ export class ApiClient {
 
   constructor(
     baseURL: string = '',
-    defaultTimeout: number = 10000,
+    defaultTimeout: number = 15000,
     rateLimit: Partial<RateLimitOptions> = DEFAULT_RATE_LIMIT_OPTIONS
   ) {
     this.baseURL =
@@ -395,7 +395,9 @@ export class ApiClient {
             'name' in error &&
             error.name === 'AbortError'
           ) {
-            finalError = new Error(`Request timed out after ${timeout}ms`);
+            finalError = new Error(
+              `Request timed out. Please check your connection.`
+            );
           }
 
           // Don't retry on client errors (4xx) except 429 Too Many Requests
