@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Pool } from './pool.entity';
 import type { CreatePoolDto, UpdatePoolDto } from './pools.controller';
+import { ContractService } from '../contract/contract.service.js';
 
 export interface ChainPoolData {
   contractPoolId: string;
@@ -15,6 +16,7 @@ export class PoolsService {
   constructor(
     @InjectRepository(Pool)
     private readonly poolRepo: Repository<Pool>,
+    private readonly contractService: ContractService,
   ) {}
 
   async upsertFromChain(data: ChainPoolData): Promise<Pool> {
@@ -63,6 +65,42 @@ export class PoolsService {
 
   async findByContractId(contractPoolId: string): Promise<Pool | null> {
     return this.poolRepo.findOne({ where: { contractPoolId } });
+  }
+
+  async findOneMerged(contractPoolId: string) {
+    const pool = await this.poolRepo.findOne({ where: { contractPoolId } });
+    if (!pool) return null;
+
+    const poolIdNum = parseInt(contractPoolId, 10);
+    let raisedOnChain = '0';
+    let closedOnChain = false;
+    let donorCount = 0;
+
+    if (!isNaN(poolIdNum)) {
+      const [poolOnChain, totalRaisedOnChain, donorCountOnChain] = await Promise.all([
+        this.contractService.getPoolOnChain(poolIdNum),
+        this.contractService.getTotalRaisedOnChain(poolIdNum),
+        this.contractService.getDonorCountOnChain(poolIdNum),
+      ]);
+
+      if (poolOnChain) {
+        raisedOnChain = poolOnChain.collected.toString();
+        closedOnChain = poolOnChain.isClosed;
+      } else if (totalRaisedOnChain) {
+        raisedOnChain = totalRaisedOnChain.toString();
+      }
+
+      if (donorCountOnChain) {
+        donorCount = donorCountOnChain;
+      }
+    }
+
+    return {
+      ...pool,
+      raisedOnChain,
+      closedOnChain,
+      donorCount,
+    };
   }
 
   buildWithdrawTx(pool: Pool): { unsignedXdr: string; poolId: string } {

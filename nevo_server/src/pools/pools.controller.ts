@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
   NotFoundException,
   Param,
   Patch,
@@ -31,6 +32,13 @@ export interface WithdrawDto {
 @Controller('pools')
 export class PoolsController {
   constructor(private readonly poolsService: PoolsService) {}
+
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    const pool = await this.poolsService.findOneMerged(id);
+    if (!pool) throw new NotFoundException('Pool not found');
+    return pool;
+  }
 
   @Post()
   create(@Body() dto: CreatePoolDto) {

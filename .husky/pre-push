@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Detect which packages have changes being pushed
-UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null)
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)
 if [ -z "$UPSTREAM" ]; then
   CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null)
 else

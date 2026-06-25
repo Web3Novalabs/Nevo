@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { TransactionBuilder, Networks } from '@stellar/stellar-sdk';
+import { TransactionBuilder, Networks, Keypair } from '@stellar/stellar-sdk';
 import { ContractService } from './contract.service.js';
 import { StellarError } from './stellar.error.js';
 
-const SOURCE = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+const SOURCE = Keypair.random().publicKey();
 const NETWORK = Networks.TESTNET;
 
 describe('ContractService', () => {
@@ -50,15 +50,13 @@ describe('ContractService', () => {
 
   describe('buildWithdrawTransaction', () => {
     it('returns a parseable XDR string', () => {
-      const tokenAddress =
-        'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+      const tokenAddress = Keypair.random().publicKey();
       const xdr = service.buildWithdrawTransaction(SOURCE, 1, tokenAddress);
       expect(() => TransactionBuilder.fromXDR(xdr, NETWORK)).not.toThrow();
     });
 
     it('XDR contains the token address bytes', () => {
-      const tokenAddress =
-        'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+      const tokenAddress = Keypair.random().publicKey();
       const xdr = service.buildWithdrawTransaction(SOURCE, 1, tokenAddress);
       expect(xdr.length).toBeGreaterThan(0);
     });
