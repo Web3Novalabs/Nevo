@@ -16,7 +16,7 @@ describe('AuthService', () => {
 
   const mockUser: User = {
     id: 'uuid-1',
-    publicKey: 'GABC123',
+    publicKey: 'GBM3T7V2NNWJVSQ5Q7WPEMMO5G2E2UZY4D2Z24W73SHZJ2E4A5F2D3FZ',
     username: null,
     createdAt: new Date(),
     updatedAt: new Date(),

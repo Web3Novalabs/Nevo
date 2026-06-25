@@ -4,10 +4,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UsersService } from '../users/users.service';
-import { User } from '../users/user.entity';
-import { randomBytes } from 'crypto';
 import { Keypair, StrKey } from '@stellar/stellar-sdk';
+import { UsersService } from '../users/users.service';
+import { randomBytes } from 'crypto';
 import { NonceService } from './nonce.service';
 
 export interface VerifyDto {
@@ -18,7 +17,6 @@ export interface VerifyDto {
 
 export interface AuthResult {
   accessToken: string;
-  user: User;
 }
 
 export interface ChallengeResult {
@@ -76,13 +74,11 @@ export class AuthService {
     // Mark nonce as used
     await this.nonceService.markNonceAsUsed(nonce.id);
 
-    const user = await this.usersService.findOrCreate(dto.publicKey);
     const accessToken = this.jwtService.sign({
-      sub: user.id,
-      publicKey: user.publicKey,
+      sub: dto.publicKey,
     });
 
-    return { accessToken, user };
+    return { accessToken };
   }
 
   private verifySignature(

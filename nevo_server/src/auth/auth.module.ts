@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import type { StringValue } from 'ms';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from '../users/users.module';
 import { AuthService } from './auth.service';
@@ -12,7 +13,9 @@ import { Nonce } from './nonce.entity';
     TypeOrmModule.forFeature([Nonce]),
     JwtModule.register({
       secret: process.env.JWT_SECRET ?? 'dev-secret',
-      signOptions: { expiresIn: '7d' },
+      signOptions: {
+        expiresIn: (process.env.JWT_EXPIRY ?? '7d') as StringValue,
+      },
     }),
     UsersModule,
   ],
