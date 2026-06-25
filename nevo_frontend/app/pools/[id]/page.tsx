@@ -1,57 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { DonateModal } from '@/components/DonateModal';
 import { EmptyState } from '@/components/EmptyState';
 import { WalletAddress } from '@/components/WalletAddress';
 import { CopyButton } from '@/components/CopyButton';
+import { usePoolsStore } from '@/src/store/poolsStore';
 import type { Pool } from '@/src/store/poolsStore';
 import { useWalletStore } from '@/src/store/walletStore';
 
-// TODO: Replace with real API call once backend pool endpoints are implemented
-const MOCK_POOLS: Pool[] = [
-  {
-    id: '1',
-    title: 'Clean Water Initiative',
-    description:
-      'Providing clean drinking water to rural communities in need. Every contribution helps us build wells and water purification systems in underserved areas.',
-    category: 'Humanitarian',
-    status: 'Active',
-    target: 10000,
-    raised: 6800,
-    imageColor: '#27926e',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2025-03-01',
-  },
-  {
-    id: '2',
-    title: 'Open Source Dev Fund',
-    description:
-      'Supporting open source contributors building on Stellar. Funds go directly to developers maintaining critical infrastructure.',
-    category: 'Technology',
-    status: 'Completed',
-    target: 5000,
-    raised: 5000,
-    imageColor: '#1c7459',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2025-01-15',
-  },
-  {
-    id: '3',
-    title: 'Community Garden Project',
-    description:
-      'Building urban gardens to improve food security locally. We partner with city councils to transform unused land into productive green spaces.',
-    category: 'Environment',
-    status: 'Completed',
-    target: 3000,
-    raised: 3200,
-    imageColor: '#47ae88',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2024-11-10',
-  },
-];
+// Removed MOCK_POOLS
 
 interface Contributor {
   address: string;
@@ -103,11 +63,14 @@ const MOCK_LAST_UPDATED: Record<string, string> = {
 
 export default function PoolDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { publicKey, initialize } = useWalletStore();
-  const [pool, setPool] = useState<Pool | null>(null);
+  const {
+    currentPool: pool,
+    poolLoading: loading,
+    fetchPool,
+  } = usePoolsStore();
   const [contributors, setContributors] = useState<Contributor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
 
   useEffect(() => {
@@ -116,25 +79,22 @@ export default function PoolDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    const timer = setTimeout(() => {
-      const found = MOCK_POOLS.find((p) => p.id === id) ?? null;
-      if (!found) {
-        setNotFound(true);
-        setPool(null);
+    const loadPool = async () => {
+      const p = await fetchPool(Number(id));
+      if (!p) {
+        router.replace('/pools');
       } else {
-        setPool(found);
         setContributors(MOCK_CONTRIBUTORS[id] ?? []);
       }
-      setLoading(false);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [id]);
+    };
+    loadPool();
+  }, [id, fetchPool, router]);
 
   if (loading) {
     return <PoolDetailSkeleton />;
   }
 
-  if (notFound || !pool) {
+  if (!pool) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
         <EmptyState

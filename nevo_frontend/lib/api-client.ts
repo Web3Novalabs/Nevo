@@ -472,3 +472,9 @@ apiClient.addRequestInterceptor((config) => {
   }
   return config;
 });
+
+export async function submitSignedXdr(
+  xdr: string
+): Promise<{ txHash: string }> {
+  return apiClient.post<{ txHash: string }>('/transactions/submit', { xdr });
+}
