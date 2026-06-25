@@ -514,6 +514,8 @@ function TransactionsPageContent() {
 
 /* ── TransactionRow ─────────────────────────────────────────────────────── */
 
+import { CopyButton } from '@/components/CopyButton';
+
 function TransactionRow({ tx }: { tx: Transaction }) {
   return (
     <li className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 transition-shadow hover:shadow-sm">
@@ -550,8 +552,15 @@ function TransactionRow({ tx }: { tx: Transaction }) {
             <time dateTime={tx.date}>
               {formatDate(tx.date)} · {formatTime(tx.date)}
             </time>
-            <span className="font-mono truncate max-w-32" title={tx.txHash}>
-              {tx.txHash.slice(0, 8)}…
+            <span className="inline-flex items-center gap-1">
+              <span className="font-mono truncate max-w-32" title={tx.txHash}>
+                {tx.txHash.slice(0, 8)}…
+              </span>
+              <CopyButton
+                text={tx.txHash}
+                iconOnly
+                aria-label={`Copy transaction hash ${tx.txHash}`}
+              />
             </span>
           </div>
         </div>

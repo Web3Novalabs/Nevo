@@ -12,7 +12,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: { sub: string; publicKey: string }) {
-    return { userId: payload.sub, publicKey: payload.publicKey };
+  validate(payload: { sub?: string }) {
+    return { publicKey: payload.sub };
   }
 }

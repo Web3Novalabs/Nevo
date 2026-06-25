@@ -1,9 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { TransactionBuilder, Networks } from '@stellar/stellar-sdk';
+import { ConfigService } from '@nestjs/config';
+import { TransactionBuilder, Networks, Keypair } from '@stellar/stellar-sdk';
 import { ContractService } from './contract.service.js';
 import { StellarError } from './stellar.error.js';
 
-const SOURCE = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+const mockConfigService = {
+  get: (key: string) => {
+    if (key === 'STELLAR_RPC_URL') return 'https://soroban-testnet.stellar.org';
+    if (key === 'CONTRACT_ID')
+      return 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM';
+    return undefined;
+  },
+};
+
+const SOURCE = Keypair.random().publicKey();
 const NETWORK = Networks.TESTNET;
 
 describe('ContractService', () => {
@@ -11,19 +21,24 @@ describe('ContractService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ContractService],
+      providers: [
+        ContractService,
+        { provide: ConfigService, useValue: mockConfigService },
+      ],
     }).compile();
     service = module.get(ContractService);
   });
 
   describe('buildCreatePoolTransaction', () => {
     it('returns a valid base64 XDR string', () => {
-      const xdr = service.buildCreatePoolTransaction(
-        SOURCE,
-        '1000',
-        'My Pool',
-        'desc',
-      );
+      const token = Keypair.random().publicKey();
+      const xdr = service.buildCreatePoolTransaction({
+        creator: SOURCE,
+        goal: '1000',
+        token,
+        title: 'My Pool',
+        description: 'desc',
+      });
       expect(typeof xdr).toBe('string');
       expect(xdr.length).toBeGreaterThan(0);
       // Must be parseable back into a transaction
@@ -50,15 +65,13 @@ describe('ContractService', () => {
 
   describe('buildWithdrawTransaction', () => {
     it('returns a parseable XDR string', () => {
-      const tokenAddress =
-        'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+      const tokenAddress = Keypair.random().publicKey();
       const xdr = service.buildWithdrawTransaction(SOURCE, 1, tokenAddress);
       expect(() => TransactionBuilder.fromXDR(xdr, NETWORK)).not.toThrow();
     });
 
     it('XDR contains the token address bytes', () => {
-      const tokenAddress =
-        'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+      const tokenAddress = Keypair.random().publicKey();
       const xdr = service.buildWithdrawTransaction(SOURCE, 1, tokenAddress);
       expect(xdr.length).toBeGreaterThan(0);
     });

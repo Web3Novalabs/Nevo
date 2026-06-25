@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Pool } from './pool.entity';
 import { PoolsService } from './pools.service';
 import { PoolsController } from './pools.controller';
-import { ContractModule } from '../contract/contract.module';
+import { ContractModule } from '../contract/contract.module.js';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Pool]), ContractModule],

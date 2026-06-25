@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
@@ -74,8 +75,28 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "useESM": true
+        }
+      ]
     },
+    "extensionsToTreatAsEsm": [
+      ".ts"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!(@stellar|@noble|uint8array-extras)/)"
+    ],
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    },
+    "moduleNameMapper": {
+      "^(\\.\\.?/.*)\\.js$": "$1"
+    },
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(@stellar/stellar-sdk|@noble/.*|uint8array-extras)/)"
+    ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
