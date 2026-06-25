@@ -16,6 +16,7 @@ export interface CreatePoolDto {
   goal: string;
   title?: string;
   description?: string;
+  category?: string;
   imageUrl?: string;
 }
 

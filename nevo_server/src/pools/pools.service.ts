@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Pool } from './pool.entity';
+import { Pool, PoolStatus } from './pool.entity';
 import type { CreatePoolDto, UpdatePoolDto } from './pools.controller';
 import { ContractService } from '../contract/contract.service.js';
 
@@ -35,6 +35,11 @@ export class PoolsService {
         contractPoolId: data.contractPoolId,
         creatorWallet: data.creatorWallet,
         goal: data.goal,
+        title: '',
+        description: '',
+        category: '',
+        status: PoolStatus.Active,
+        raised: '0',
       }),
     );
   }
@@ -45,8 +50,11 @@ export class PoolsService {
         contractPoolId: dto.contractPoolId,
         creatorWallet: dto.creatorWallet,
         goal: dto.goal,
-        title: dto.title ?? null,
-        description: dto.description ?? null,
+        title: dto.title ?? '',
+        description: dto.description ?? '',
+        category: dto.category ?? '',
+        status: PoolStatus.Active,
+        raised: '0',
         imageUrl: dto.imageUrl ?? null,
       }),
     );
