@@ -452,25 +452,28 @@ export {
   isRateLimitError,
 } from './rate-limit';
 
-// Add default auth interceptor for wallet signature
+// Add default auth interceptor for wallet signature and JWT
 apiClient.addRequestInterceptor((config) => {
   if (config.requireAuth !== false) {
-    // In a real app, you would get the wallet signature from your auth state/store
-    const signature =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('wallet_signature')
-        : null;
-    const pubKey =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('wallet_pubkey')
-        : null;
-
-    if (signature && pubKey) {
-      const headers = new Headers(config.headers);
-      headers.set('X-Wallet-Signature', signature);
-      headers.set('X-Wallet-Pubkey', pubKey);
-      config.headers = headers;
+    const headers = new Headers(config.headers);
+    
+    // Get access token from wallet store (via localStorage since we can't import zustand here)
+    if (typeof window !== 'undefined') {
+      const walletStoreData = localStorage.getItem('nevo-wallet');
+      if (walletStoreData) {
+        try {
+          const parsed = JSON.parse(walletStoreData);
+          const state = parsed.state || parsed;
+          if (state.accessToken) {
+            headers.set('Authorization', `Bearer ${state.accessToken}`);
+          }
+        } catch {
+          // Ignore parsing errors
+        }
+      }
     }
+    
+    config.headers = headers;
   }
   return config;
 });

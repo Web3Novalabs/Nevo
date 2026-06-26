@@ -1,6 +1,6 @@
 'use client';
 
-import { isConnected, requestAccess, getAddress } from '@stellar/freighter-api';
+import { isConnected, requestAccess, getAddress, signMessage } from '@stellar/freighter-api';
 
 /** Returns the connected public key, or null if not connected/allowed. */
 export async function getPublicKey(): Promise<string | null> {
@@ -28,4 +28,13 @@ export async function connect(onConnect: () => Promise<void>): Promise<void> {
 /** Clears the local wallet state (Freighter has no programmatic disconnect). */
 export async function disconnect(): Promise<void> {
   // Freighter does not expose a disconnect API; state is cleared in the store.
+}
+
+/** Signs a message with the connected wallet. */
+export async function signWithWallet(message: string): Promise<string> {
+  const result = await signMessage(message);
+  if (result.error) {
+    throw new Error(result.error);
+  }
+  return result.signature;
 }
