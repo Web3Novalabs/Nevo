@@ -138,9 +138,9 @@ function DashboardPageContent() {
       ) : pools.length === 0 ? (
         <EmptyState
           icon="pool"
-          title="No pools yet"
+          title="You haven't created any pools yet"
           description="Create your first pool to start raising funds on-chain."
-          action={{ label: 'Create a Pool', href: '/pools/new' }}
+          action={{ label: 'Create Pool', href: '/pools/new' }}
           steps={[
             { text: 'Set a title, goal, and category for your cause' },
             { text: 'Share your pool link with supporters' },
