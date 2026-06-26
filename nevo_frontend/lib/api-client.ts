@@ -505,9 +505,43 @@ export interface ApiPool {
 }
 
 export async function fetchCreatorPools(publicKey: string): Promise<ApiPool[]> {
-  return apiClient.get<ApiPool[]>(`/pools?creator=${encodeURIComponent(publicKey)}`);
+  return apiClient.get<ApiPool[]>(
+    `/pools?creator=${encodeURIComponent(publicKey)}`
+  );
 }
 
-export async function donate(poolId: number, amount: string, tokenAddress: string): Promise<void> {
+export async function donate(
+  poolId: number,
+  amount: string,
+  tokenAddress: string
+): Promise<void> {
   return apiClient.post('/donations', { poolId, amount, tokenAddress });
+}
+
+export async function createPool(data: {
+  title: string;
+  description: string;
+  category: string;
+  goal: string;
+  imageUrl?: string;
+}): Promise<{ poolId: number; unsignedXdr: string }> {
+  return apiClient.post<{ poolId: number; unsignedXdr: string }>(
+    '/pools',
+    data,
+    {
+      requireAuth: true,
+    }
+  );
+}
+
+export async function closePool(
+  poolId: string | number
+): Promise<{ unsignedXdr: string }> {
+  return apiClient.post<{ unsignedXdr: string }>(
+    `/pools/${poolId}/close`,
+    undefined,
+    {
+      requireAuth: true,
+    }
+  );
 }
