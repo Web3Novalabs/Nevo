@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { DonateModal } from '@/components/DonateModal';
@@ -11,12 +11,9 @@ import { toast } from '@/components/Toast';
 import { usePoolsStore } from '@/src/store/poolsStore';
 import type { Pool } from '@/src/store/poolsStore';
 import { useWalletStore } from '@/src/store/walletStore';
-import {
-  fetchPoolDonations,
-  withdrawPool,
-  submitSignedXdr,
-  type Donation,
-} from '@/lib/api-client';
+import { closePool, submitSignedXdr } from '@/lib/api-client';
+import { signTransaction } from '@stellar/freighter-api';
+import { toast } from '@/components/Toast';
 
 // Testnet XLM native contract address (same as api-client)
 const TESTNET_XLM_CONTRACT =
@@ -50,7 +47,8 @@ const MOCK_COMMENTS: Record<string, Comment[]> = {
     {
       id: 'c1',
       poolId: '1',
-      authorAddress: 'GXYZ1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890AB',
+      authorAddress:
+        'GXYZ1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890AB',
       text: 'Amazing initiative! How are the funds being allocated?',
       createdAt: '2025-03-06T10:00:00Z',
       parentId: null,
@@ -58,7 +56,8 @@ const MOCK_COMMENTS: Record<string, Comment[]> = {
         {
           id: 'c1r1',
           poolId: '1',
-          authorAddress: 'GABC9876543210ZYXWV9876543210ZYXWV9876543210ZYXWV9876543210ZY',
+          authorAddress:
+            'GABC9876543210ZYXWV9876543210ZYXWV9876543210ZYXWV9876543210ZY',
           text: 'Funds go directly to vetted local partners. You can track every withdrawal on-chain!',
           createdAt: '2025-03-06T11:30:00Z',
           parentId: 'c1',
@@ -69,7 +68,8 @@ const MOCK_COMMENTS: Record<string, Comment[]> = {
     {
       id: 'c2',
       poolId: '1',
-      authorAddress: 'GABC9876543210ZYXWV9876543210ZYXWV9876543210ZYXWV9876543210ZY',
+      authorAddress:
+        'GABC9876543210ZYXWV9876543210ZYXWV9876543210ZYXWV9876543210ZY',
       text: 'Love that everything is transparent on-chain. Keep up the great work!',
       createdAt: '2025-03-10T14:20:00Z',
       parentId: null,
@@ -96,7 +96,36 @@ export default function PoolDetailPage() {
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [donateOpen, setDonateOpen] = useState(false);
-  const [withdrawStep, setWithdrawStep] = useState<WithdrawStep>('idle');
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClosePool = async () => {
+    if (!pool || !publicKey) return;
+    try {
+      setIsClosing(true);
+      const { unsignedXdr } = await closePool(pool.id);
+
+      const signedResult = await signTransaction(unsignedXdr, {
+        networkPassphrase:
+          process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
+          'Test SDF Network ; September 2015',
+      });
+
+      if (signedResult.error) {
+        throw new Error(signedResult.error);
+      }
+
+      await submitSignedXdr(signedResult.signedTxXdr);
+      toast('Pool closed successfully');
+
+      await fetchPool(Number(pool.id));
+    } catch (err: unknown) {
+      const error = err as Error;
+      toast(error.message || 'Failed to close pool', 'error');
+      console.error(error);
+    } finally {
+      setIsClosing(false);
+    }
+  };
 
   useEffect(() => {
     initialize();
@@ -142,35 +171,21 @@ export default function PoolDetailPage() {
   const isActive = pool.status === 'Active';
   const lastUpdated = MOCK_LAST_UPDATED[pool.id] ?? pool.createdAt;
 
-  async function handleWithdraw() {
-    if (!pool || !isOwner || !isCompleted) return;
-    setWithdrawStep('creating');
-    try {
-      const { xdr } = await withdrawPool(pool.id, TESTNET_XLM_CONTRACT);
-      setWithdrawStep('signing');
-      const signedResult = await signTransaction(xdr, {
-        networkPassphrase:
-          process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-          'Test SDF Network ; September 2015',
-      });
-      if (signedResult.error) throw new Error(signedResult.error);
-      setWithdrawStep('submitting');
-      await submitSignedXdr(signedResult.signedTxXdr);
-      toast('Funds withdrawn successfully!', 'success');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Withdrawal failed.';
-      toast(msg, 'error');
-    } finally {
-      setWithdrawStep('idle');
-    }
-  }
+  // Impact Dashboard Calculations
+  const averageDonation =
+    contributors.length > 0
+      ? (
+          contributors.reduce((acc, c) => acc + c.amount, 0) /
+          contributors.length
+        ).toFixed(1)
+      : '0';
 
-  function withdrawLabel() {
-    if (withdrawStep === 'creating') return 'Creating...';
-    if (withdrawStep === 'signing') return 'Waiting for signature...';
-    if (withdrawStep === 'submitting') return 'Submitting...';
-    return 'Withdraw Funds';
-  }
+  // For visual chart: let's group donations by month or just show the top 5 donations
+  const chartData = contributors.slice(0, 5).map((c) => ({
+    label: c.address.slice(0, 4) + '...' + c.address.slice(-4),
+    value: c.amount,
+    pct: Math.min(100, Math.round((c.amount / pool.target) * 100)),
+  }));
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
@@ -246,12 +261,31 @@ export default function PoolDetailPage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <WalletAddress address={pool.creator} />
                 {isOwner && (
-                  <Link
-                    href={`/pools/${pool.id}/edit`}
-                    className="w-fit rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--color-border)] transition-colors"
-                  >
-                    Edit Pool
-                  </Link>
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/pools/${pool.id}/edit`}
+                      className="w-fit rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--color-border)] transition-colors"
+                    >
+                      Edit Pool
+                    </Link>
+                    {isActive && (
+                      <button
+                        type="button"
+                        onClick={handleClosePool}
+                        disabled={isClosing}
+                        className="w-fit rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
+                      >
+                        {isClosing ? (
+                          <span className="flex items-center gap-1">
+                            <span className="size-3 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
+                            Closing...
+                          </span>
+                        ) : (
+                          'Close Pool'
+                        )}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </section>
@@ -269,43 +303,26 @@ export default function PoolDetailPage() {
             </h2>
 
             {contributors.length === 0 ? (
-              <>
-                <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-8 text-center">
-                  <p className="font-semibold">No contributions yet</p>
-                  <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-                    Be the first to support this pool.
-                  </p>
-                  {isActive && (
-                    <button
-                      type="button"
-                      onClick={() => setDonateOpen(true)}
-                      className="mt-4 rounded-full bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
-                    >
-                      Donate Now
-                    </button>
-                  )}
-                </div>
-                <EmptyState
-                  variant="compact"
-                  icon="contributors"
-                  iconTone="muted"
-                  title="No contributions yet"
-                  description="Be the first to support this pool."
-                  action={
-                    isActive
-                      ? {
-                          label: 'Donate Now',
-                          onClick: () => setDonateOpen(true),
-                        }
-                      : undefined
-                  }
-                  steps={[
-                    { text: 'Connect your Stellar wallet' },
-                    { text: 'Choose an amount to donate' },
-                    { text: 'Confirm the transaction in Freighter' },
-                  ]}
-                />
-              </>
+              <EmptyState
+                variant="compact"
+                icon="contributors"
+                iconTone="muted"
+                title="No contributions yet"
+                description="Be the first to support this pool."
+                action={
+                  isActive
+                    ? {
+                        label: 'Donate Now',
+                        onClick: () => setDonateOpen(true),
+                      }
+                    : undefined
+                }
+                steps={[
+                  { text: 'Connect your Stellar wallet' },
+                  { text: 'Choose an amount to donate' },
+                  { text: 'Confirm the transaction in Freighter' },
+                ]}
+              />
             ) : (
               <ul className="flex flex-col gap-2" role="list">
                 {contributors.map((c, i) => (
@@ -333,6 +350,71 @@ export default function PoolDetailPage() {
             )}
           </section>
 
+          {/* Impact Dashboard */}
+          <section
+            aria-labelledby="impact-heading"
+            className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-5 sm:p-8"
+          >
+            <h2 id="impact-heading" className="mb-6 text-xl font-bold">
+              Impact Dashboard
+            </h2>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Total Raised
+                </p>
+                <p className="mt-1 text-2xl font-bold text-brand-600">
+                  {pool.raised.toLocaleString()}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">Donors</p>
+                <p className="mt-1 text-2xl font-bold text-brand-600">
+                  {contributors.length}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Avg Donation
+                </p>
+                <p className="mt-1 text-2xl font-bold text-brand-600">
+                  {averageDonation}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Progress
+                </p>
+                <p className="mt-1 text-2xl font-bold text-brand-600">{pct}%</p>
+              </div>
+            </div>
+
+            {chartData.length > 0 && (
+              <div>
+                <h3 className="mb-4 text-sm font-semibold text-[var(--color-text-muted)]">
+                  Recent Top Donations
+                </h3>
+                <div className="flex flex-col gap-3">
+                  {chartData.map((d, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="w-20 truncate text-xs text-[var(--color-text-muted)]">
+                        {d.label}
+                      </span>
+                      <div className="flex-1 h-3 rounded-full bg-[var(--color-border)] overflow-hidden">
+                        <div
+                          className="h-full bg-brand-400 rounded-full"
+                          style={{ width: `${Math.max(2, d.pct)}%` }}
+                        />
+                      </div>
+                      <span className="w-16 text-right text-xs font-semibold">
+                        {d.value} XLM
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           <section aria-labelledby="comments-heading">
             <h2 id="comments-heading" className="mb-4 text-lg font-semibold">
               Discussion
@@ -354,18 +436,13 @@ export default function PoolDetailPage() {
             </h2>
 
             {timeline.length === 0 ? (
-              <>
-                <p className="text-sm text-[var(--color-text-muted)]">
-                  Pool milestones and donations will appear here as they happen.
-                </p>
-                <EmptyState
-                  variant="compact"
-                  icon="history"
-                  iconTone="muted"
-                  title="No activity yet"
-                  description="Pool milestones and donations will appear here as they happen."
-                />
-              </>
+              <EmptyState
+                variant="compact"
+                icon="history"
+                iconTone="muted"
+                title="No activity yet"
+                description="Pool milestones and donations will appear here as they happen."
+              />
             ) : (
               <ol
                 className="relative border-l border-[var(--color-border)] pl-6"
@@ -551,7 +628,7 @@ function CommentsSection({
   function handleAddComment(text: string) {
     if (!currentUserAddress) return;
     const newComment: Comment = {
-      id: `c-${Date.now()}`,
+      id: `c-${crypto.randomUUID()}`,
       poolId,
       authorAddress: currentUserAddress,
       text,
@@ -566,7 +643,7 @@ function CommentsSection({
   function handleAddReply(parentId: string, text: string) {
     if (!currentUserAddress) return;
     const newReply: Comment = {
-      id: `c-${Date.now()}`,
+      id: `c-${crypto.randomUUID()}`,
       poolId,
       authorAddress: currentUserAddress,
       text,
@@ -582,7 +659,12 @@ function CommentsSection({
     );
   }
 
-  function handleEditComment(id: string, text: string, isReply: boolean, parentId?: string) {
+  function handleEditComment(
+    id: string,
+    text: string,
+    isReply: boolean,
+    parentId?: string
+  ) {
     // TODO: replace with real API call: apiClient.put(`/pools/${poolId}/comments/${id}`, { text })
     if (isReply && parentId) {
       setComments((prev) =>
@@ -591,7 +673,9 @@ function CommentsSection({
             ? {
                 ...c,
                 replies: c.replies.map((r) =>
-                  r.id === id ? { ...r, text, updatedAt: new Date().toISOString() } : r
+                  r.id === id
+                    ? { ...r, text, updatedAt: new Date().toISOString() }
+                    : r
                 ),
               }
             : c
@@ -606,7 +690,11 @@ function CommentsSection({
     }
   }
 
-  function handleDeleteComment(id: string, isReply: boolean, parentId?: string) {
+  function handleDeleteComment(
+    id: string,
+    isReply: boolean,
+    parentId?: string
+  ) {
     // TODO: replace with real API call: apiClient.delete(`/pools/${poolId}/comments/${id}`)
     if (isReply && parentId) {
       setComments((prev) =>
@@ -768,7 +856,8 @@ function CommentItem({
 }: CommentItemProps) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const isOwn = currentUserAddress !== null && currentUserAddress === comment.authorAddress;
+  const isOwn =
+    currentUserAddress !== null && currentUserAddress === comment.authorAddress;
   const shortAddress = `${comment.authorAddress.slice(0, 6)}…${comment.authorAddress.slice(-4)}`;
 
   return (
@@ -788,9 +877,7 @@ function CommentItem({
             className="text-xs text-[var(--color-text-muted)]"
           >
             {formatCommentDate(comment.createdAt)}
-            {comment.updatedAt && (
-              <span className="ml-1 italic">(edited)</span>
-            )}
+            {comment.updatedAt && <span className="ml-1 italic">(edited)</span>}
           </time>
         </div>
         {isOwn && (
@@ -840,7 +927,9 @@ function CommentItem({
             onClick={() => setShowReplyForm((v) => !v)}
             className="text-xs text-[var(--color-text-muted)] hover:text-brand-600 transition-colors"
           >
-            {showReplyForm ? 'Cancel reply' : `Reply${comment.replies.length > 0 ? ` (${comment.replies.length})` : ''}`}
+            {showReplyForm
+              ? 'Cancel reply'
+              : `Reply${comment.replies.length > 0 ? ` (${comment.replies.length})` : ''}`}
           </button>
 
           {showReplyForm && (
