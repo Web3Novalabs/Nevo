@@ -38,7 +38,7 @@ interface PoolsState {
   currentPool: Pool | null;
   setPools: (pools: Pool[]) => void;
   setLoading: (loading: boolean) => void;
-  fetchPools: () => Promise<void>;
+  fetchPools: (filters?: Partial<PoolFilters>) => Promise<void>;
   fetchPool: (id: number) => Promise<Pool | null>;
   setSearch: (search: string) => void;
   toggleCategory: (category: string) => void;
@@ -60,74 +60,10 @@ const DEFAULT_FILTERS: PoolFilters = {
 
 const DEFAULT_SORT: SortOption = 'newest';
 
-const MOCK_POOLS: Pool[] = [
-  {
-    id: '1',
-    title: 'Clean Water Initiative',
-    description: 'Providing clean drinking water to rural communities in need.',
-    category: 'Humanitarian',
-    status: 'Active',
-    target: 10000,
-    raised: 6800,
-    imageColor: '#27926e',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2025-03-01',
-  },
-  {
-    id: '2',
-    title: 'Open Source Dev Fund',
-    description: 'Supporting open source contributors building on Stellar.',
-    category: 'Technology',
-    status: 'Active',
-    target: 5000,
-    raised: 5000,
-    imageColor: '#1c7459',
-    creator: 'GB222222222222222222222222222222222222222222222222222222222',
-    createdAt: '2025-01-15',
-  },
-  {
-    id: '3',
-    title: 'Community Garden Project',
-    description: 'Building urban gardens to improve food security locally.',
-    category: 'Environment',
-    status: 'Completed',
-    target: 3000,
-    raised: 3200,
-    imageColor: '#47ae88',
-    creator: 'GC333333333333333333333333333333333333333333333333333333333',
-    createdAt: '2024-11-10',
-  },
-  {
-    id: '4',
-    title: 'Local Animal Shelter Relief',
-    description: 'Funding medical supplies and food for rescued animals.',
-    category: 'Animal Welfare',
-    status: 'Active',
-    target: 8000,
-    raised: 1200,
-    imageColor: '#ae4747',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2025-04-12',
-  },
-  {
-    id: '5',
-    title: 'Blockchain Education for Youth',
-    description:
-      'Providing free workshops on Web3 and blockchain development to high school students.',
-    category: 'Education',
-    status: 'Active',
-    target: 15000,
-    raised: 500,
-    imageColor: '#476bae',
-    creator: 'GD444444444444444444444444444444444444444444444444444444444',
-    createdAt: '2025-05-20',
-  },
-];
-
 export const usePoolsStore = create<PoolsState>()(
   persist(
     (set, get) => ({
-      pools: MOCK_POOLS,
+      pools: [],
       filters: DEFAULT_FILTERS,
       sortBy: DEFAULT_SORT,
       loading: false,
@@ -138,11 +74,27 @@ export const usePoolsStore = create<PoolsState>()(
       setPools: (pools) => set({ pools }),
       setLoading: (loading) => set({ loading }),
 
-      fetchPools: async () => {
+      fetchPools: async (filters?: Partial<PoolFilters>) => {
         set({ loading: true, error: null });
         try {
-          const data = await apiClient.get<Pool[]>('/pools');
-          set({ pools: data, loading: false });
+          // Merge provided filters with current store filters
+          const currentFilters = get().filters;
+          const mergedFilters = { ...currentFilters, ...filters };
+          
+          // Build params object
+          const params: Record<string, unknown> = {};
+          if (mergedFilters.search) params.search = mergedFilters.search;
+          if (mergedFilters.categories.length > 0) params.categories = mergedFilters.categories;
+          if (mergedFilters.statuses.length > 0) params.statuses = mergedFilters.statuses;
+          if (mergedFilters.minTarget != null) params.minTarget = mergedFilters.minTarget;
+          if (mergedFilters.maxTarget != null) params.maxTarget = mergedFilters.maxTarget;
+          if (mergedFilters.dateFrom) params.dateFrom = mergedFilters.dateFrom;
+          if (mergedFilters.dateTo) params.dateTo = mergedFilters.dateTo;
+          if (get().sortBy) params.sortBy = get().sortBy;
+          
+          const data = await apiClient.get<Pool[]>('/pools', { params });
+          get().setPools(data);
+          set({ loading: false });
         } catch (error) {
           const err = error as Error;
           set({

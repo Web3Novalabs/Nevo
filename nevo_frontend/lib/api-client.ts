@@ -67,7 +67,7 @@ export class ApiClient {
 
   constructor(
     baseURL: string = '',
-    defaultTimeout: number = 10000,
+    defaultTimeout: number = 15000,
     rateLimit: Partial<RateLimitOptions> = DEFAULT_RATE_LIMIT_OPTIONS
   ) {
     this.baseURL =
@@ -395,7 +395,9 @@ export class ApiClient {
             'name' in error &&
             error.name === 'AbortError'
           ) {
-            finalError = new Error(`Request timed out after ${timeout}ms`);
+            finalError = new Error(
+              `Request timed out. Please check your connection.`
+            );
           }
 
           // Don't retry on client errors (4xx) except 429 Too Many Requests
@@ -450,31 +452,145 @@ export {
   isRateLimitError,
 } from './rate-limit';
 
-// Add default auth interceptor for wallet signature
+// Add default auth interceptor for wallet signature and JWT
 apiClient.addRequestInterceptor((config) => {
   if (config.requireAuth !== false) {
-    // In a real app, you would get the wallet signature from your auth state/store
-    const signature =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('wallet_signature')
-        : null;
-    const pubKey =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('wallet_pubkey')
-        : null;
-
-    if (signature && pubKey) {
-      const headers = new Headers(config.headers);
-      headers.set('X-Wallet-Signature', signature);
-      headers.set('X-Wallet-Pubkey', pubKey);
-      config.headers = headers;
+    const headers = new Headers(config.headers);
+    
+    // Get access token from wallet store (via localStorage since we can't import zustand here)
+    if (typeof window !== 'undefined') {
+      const walletStoreData = localStorage.getItem('nevo-wallet');
+      if (walletStoreData) {
+        try {
+          const parsed = JSON.parse(walletStoreData);
+          const state = parsed.state || parsed;
+          if (state.accessToken) {
+            headers.set('Authorization', `Bearer ${state.accessToken}`);
+          }
+        } catch {
+          // Ignore parsing errors
+        }
+      }
     }
+    
+    config.headers = headers;
   }
   return config;
 });
 
+export interface ApiDonation {
+  id: string;
+  poolId: string;
+  poolName: string;
+  amount: string;
+  asset: 'XLM' | 'USDC';
+  txHash: string;
+  timestamp: string;
+  status: 'pending' | 'confirmed' | 'failed';
+}
+
+export interface ApiProfile {
+  publicKey: string;
+  displayName: string | null;
+  createdAt: string;
+}
+
+export function fetchMyDonations(): Promise<ApiDonation[]> {
+  return apiClient.get<ApiDonation[]>('/users/me/donations');
+}
+
+export function fetchMyProfile(): Promise<ApiProfile> {
+  return apiClient.get<ApiProfile>('/users/me');
+}
+
+export interface CreatePoolPayload {
+  title: string;
+  description: string;
+  category: string;
+  goalAmount: string;
+  duration: number;
+  imageUrl: string;
+  tags: string;
+}
+
+export interface CreatePoolResponse {
+  id: string;
+  unsignedXdr: string;
+}
+
+export function createPool(
+  payload: CreatePoolPayload
+): Promise<CreatePoolResponse> {
+  return apiClient.post<CreatePoolResponse>('/pools', payload);
 export async function submitSignedXdr(
   xdr: string
 ): Promise<{ txHash: string }> {
   return apiClient.post<{ txHash: string }>('/transactions/submit', { xdr });
+}
+
+export interface ApiDonation {
+  id: string;
+  type: 'donation' | 'pool_creation' | 'withdrawal';
+  amount: string;
+  asset: string;
+  recipient: string;
+  date: string;
+  status: 'completed' | 'pending' | 'failed';
+  txHash: string;
+}
+
+export async function fetchMyDonations(): Promise<ApiDonation[]> {
+  return apiClient.get<ApiDonation[]>('/donations/me');
+}
+
+export interface ApiPool {
+  id: string;
+  contractPoolId: string;
+  title: string;
+  description: string;
+  goal: string;
+  raised: string;
+  status: string;
+}
+
+export async function fetchCreatorPools(publicKey: string): Promise<ApiPool[]> {
+  return apiClient.get<ApiPool[]>(
+    `/pools?creator=${encodeURIComponent(publicKey)}`
+  );
+}
+
+export async function donate(
+  poolId: number,
+  amount: string,
+  tokenAddress: string
+): Promise<void> {
+  return apiClient.post('/donations', { poolId, amount, tokenAddress });
+}
+
+export async function createPool(data: {
+  title: string;
+  description: string;
+  category: string;
+  goal: string;
+  imageUrl?: string;
+}): Promise<{ poolId: number; unsignedXdr: string }> {
+  return apiClient.post<{ poolId: number; unsignedXdr: string }>(
+    '/pools',
+    data,
+    {
+      requireAuth: true,
+    }
+  );
+}
+
+export async function closePool(
+  poolId: string | number
+): Promise<{ unsignedXdr: string }> {
+  return apiClient.post<{ unsignedXdr: string }>(
+    `/pools/${poolId}/close`,
+    undefined,
+    {
+      requireAuth: true,
+    }
+  );
 }

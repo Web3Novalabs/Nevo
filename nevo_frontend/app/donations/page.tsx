@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '@/components/EmptyState';
 import { useDonationsStore, Donation } from '@/src/store';
 import { CopyButton } from '@/components/CopyButton';
+import { fetchMyDonations } from '@/lib/api-client';
 
 const PAGE_SIZE = 8;
 
@@ -31,12 +32,30 @@ function csvEscape(val: string) {
 
 export default function DonationsPage() {
   const history = useDonationsStore((s) => s.history);
+  const addDonation = useDonationsStore((s) => s.addDonation);
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchMyDonations()
+      .then((donations) => {
+        donations.forEach((d) => {
+          if (!history.some((h) => h.id === d.id)) {
+            addDonation(d);
+          }
+        });
+      })
+      .catch(() => {
+        // API unavailable — fall back to local store data
+      })
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(() => {
     return history
@@ -124,153 +143,169 @@ export default function DonationsPage() {
         </p>
       </div>
 
-      <section
-        aria-label="Donation filters"
-        className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
-      >
-        <input
-          type="search"
-          placeholder="Search by pool name…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2 px-4 text-sm placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500"
-          aria-label="Search pools"
-        />
-
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => {
-            setDateFrom(e.target.value);
-            setPage(1);
-          }}
-          className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          aria-label="From date"
-        />
-        <input
-          type="date"
-          value={dateTo}
-          onChange={(e) => {
-            setDateTo(e.target.value);
-            setPage(1);
-          }}
-          className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          aria-label="To date"
-        />
-
-        <div className="flex gap-2">
-          <select
-            value={sortBy}
-            onChange={(e) => {
-              setSortBy(e.target.value as 'date' | 'amount');
-              setPage(1);
-            }}
-            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
-            aria-label="Sort by"
-          >
-            <option value="date">Date</option>
-            <option value="amount">Amount</option>
-          </select>
-          <button
-            onClick={() => setSortDir((s) => (s === 'desc' ? 'asc' : 'desc'))}
-            className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm"
-            aria-label="Toggle sort direction"
-          >
-            {sortDir === 'desc' ? 'Desc' : 'Asc'}
-          </button>
+      {loading ? (
+        <div className="flex justify-center py-16" aria-busy="true">
+          <div className="size-8 animate-spin rounded-full border-4 border-[var(--color-border)] border-t-brand-600" />
         </div>
-
-        {hasActiveFilters && (
-          <button
-            onClick={resetFilters}
-            className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-muted)]"
-          >
-            Clear
-          </button>
-        )}
-      </section>
-
-      <div className="mb-3 flex items-center justify-between gap-4">
-        <p className="text-xs text-[var(--color-text-muted)]">
-          {filtered.length} donation{filtered.length !== 1 ? 's' : ''}
-        </p>
-        <div className="flex gap-2">
-          <button
-            onClick={exportCSV}
-            className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm"
-          >
-            Export CSV
-          </button>
-        </div>
-      </div>
-
-      {paginated.length === 0 ? (
-        <EmptyState
-          icon="history"
-          iconTone="muted"
-          title={
-            hasActiveFilters ? 'No matching donations' : 'No donations yet'
-          }
-          description={
-            hasActiveFilters
-              ? 'Try adjusting your filters or search term.'
-              : 'Your donations will appear here.'
-          }
-          action={
-            hasActiveFilters
-              ? {
-                  label: 'Clear filters',
-                  onClick: resetFilters,
-                  variant: 'secondary',
-                }
-              : { label: 'Browse Pools', href: '/pools' }
-          }
-        />
       ) : (
         <>
-          <ul
-            className="flex flex-col gap-3"
-            role="list"
-            aria-label="Donations"
+          <section
+            aria-label="Donation filters"
+            className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
           >
-            {paginated.map((d) => (
-              <DonationRow key={d.id} d={d} />
-            ))}
-          </ul>
+            <input
+              type="search"
+              placeholder="Search by pool name…"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2 px-4 text-sm placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500"
+              aria-label="Search pools"
+            />
 
-          {totalPages > 1 && (
-            <nav
-              aria-label="Pagination"
-              className="mt-6 flex items-center justify-center gap-2"
-            >
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm disabled:opacity-40"
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              aria-label="From date"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              aria-label="To date"
+            />
+
+            <div className="flex gap-2">
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value as 'date' | 'amount');
+                  setPage(1);
+                }}
+                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+                aria-label="Sort by"
               >
-                ←
+                <option value="date">Date</option>
+                <option value="amount">Amount</option>
+              </select>
+              <button
+                onClick={() =>
+                  setSortDir((s) => (s === 'desc' ? 'asc' : 'desc'))
+                }
+                className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm"
+                aria-label="Toggle sort direction"
+              >
+                {sortDir === 'desc' ? 'Desc' : 'Asc'}
               </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setPage(n)}
-                  aria-current={n === currentPage ? 'page' : undefined}
-                  className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${n === currentPage ? 'bg-brand-600 text-white' : 'border border-[var(--color-border)] hover:bg-[var(--color-surface-raised)]'}`}
+            </div>
+
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-muted)]"
+              >
+                Clear
+              </button>
+            )}
+          </section>
+
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {filtered.length} donation{filtered.length !== 1 ? 's' : ''}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={exportCSV}
+                className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm"
+              >
+                Export CSV
+              </button>
+            </div>
+          </div>
+
+          {paginated.length === 0 ? (
+            <EmptyState
+              icon="history"
+              iconTone="muted"
+              title={
+                hasActiveFilters ? 'No matching donations' : 'No donations yet'
+              }
+              description={
+                hasActiveFilters
+                  ? 'Try adjusting your filters or search term.'
+                  : 'Your donations will appear here.'
+              }
+              action={
+                hasActiveFilters
+                  ? {
+                      label: 'Clear filters',
+                      onClick: resetFilters,
+                      variant: 'secondary',
+                    }
+                  : { label: 'Browse Pools', href: '/pools' }
+              }
+            />
+          ) : (
+            <>
+              <ul
+                className="flex flex-col gap-3"
+                role="list"
+                aria-label="Donations"
+              >
+                {paginated.map((d) => (
+                  <DonationRow key={d.id} d={d} />
+                ))}
+              </ul>
+
+              {totalPages > 1 && (
+                <nav
+                  aria-label="Pagination"
+                  className="mt-6 flex items-center justify-center gap-2"
                 >
-                  {n}
-                </button>
-              ))}
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm disabled:opacity-40"
-              >
-                →
-              </button>
-            </nav>
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm disabled:opacity-40"
+                  >
+                    ←
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                    (n) => (
+                      <button
+                        key={n}
+                        onClick={() => setPage(n)}
+                        aria-current={n === currentPage ? 'page' : undefined}
+                        className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                          n === currentPage
+                            ? 'bg-brand-600 text-white'
+                            : 'border border-[var(--color-border)] hover:bg-[var(--color-surface-raised)]'
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    )
+                  )}
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm disabled:opacity-40"
+                  >
+                    →
+                  </button>
+                </nav>
+              )}
+            </>
           )}
         </>
       )}

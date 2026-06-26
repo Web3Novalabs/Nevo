@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { createPool } from '@/lib/api-client';
 import { signTransaction } from '@stellar/freighter-api';
 import { contractService } from '@/lib/contract-service';
 import { submitSignedXdr } from '@/lib/api-client';
@@ -153,6 +154,9 @@ function CreatePoolPageContent() {
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [submitStep, setSubmitStep] = useState<
+    'idle' | 'creating' | 'signing' | 'submitting'
+  >('idle');
   const [submitted, setSubmitted] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
@@ -297,6 +301,7 @@ function CreatePoolPageContent() {
 
   async function handleSubmit() {
     setSubmitting(true);
+    setSubmitStep('creating');
     setErrors({});
     try {
       if (imageFile && !form.imageUrl) {
@@ -317,6 +322,7 @@ function CreatePoolPageContent() {
         form.description,
         goalInStroops
       );
+      setSubmitStep('signing');
       const signedResult = await signTransaction(xdr, {
         networkPassphrase:
           process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
@@ -325,15 +331,31 @@ function CreatePoolPageContent() {
       if (signedResult.error) {
         throw new Error(signedResult.error);
       }
+      setSubmitStep('submitting');
       await submitSignedXdr(signedResult.signedTxXdr);
       setSubmitted(true);
     } catch (error) {
       const err = error as Error;
-      console.error('Pool creation failed:', err);
       setErrors({ submit: err?.message || 'Failed to submit transaction.' });
     } finally {
       setSubmitting(false);
+      setSubmitStep('idle');
     }
+    try {
+      await createPool({
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        goalAmount: form.goalAmount,
+        duration: form.duration,
+        imageUrl: form.imageUrl,
+        tags: form.tags,
+      });
+    } catch {
+      // TODO: surface error to user once error UI is designed
+    }
+    setSubmitting(false);
+    setSubmitted(true);
   }
 
   if (submitted) {
@@ -390,6 +412,7 @@ function CreatePoolPageContent() {
             form={form}
             tagList={tagList}
             submitting={submitting}
+            submitStep={submitStep}
             errors={errors}
             onBack={handleBack}
             onSubmit={handleSubmit}
@@ -767,6 +790,7 @@ interface Step3Props {
   form: FormData;
   tagList: string[];
   submitting: boolean;
+  submitStep: 'idle' | 'creating' | 'signing' | 'submitting';
   errors?: FormErrors;
   onBack: () => void;
   onSubmit: () => void;
@@ -776,6 +800,7 @@ function Step3({
   form,
   tagList,
   submitting,
+  submitStep,
   errors,
   onBack,
   onSubmit,
@@ -864,7 +889,11 @@ function Step3({
           {submitting ? (
             <span className="flex items-center gap-2">
               <SpinnerIcon />
-              Creating Pool…
+              {submitStep === 'signing'
+                ? 'Waiting for signature...'
+                : submitStep === 'submitting'
+                  ? 'Submitting...'
+                  : 'Creating...'}
             </span>
           ) : (
             'Create Pool'

@@ -84,6 +84,31 @@ class ContractService {
     const prepared = await this.server.prepareTransaction(tx);
     return prepared.toXDR();
   }
+
+  async buildWithdrawTransaction(
+    poolId: number,
+    creator: string,
+    tokenAddress: string
+  ): Promise<string> {
+    const contract = new Contract(getContractId());
+    const account = await this.server.getAccount(creator);
+    const tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(
+        contract.call(
+          'withdraw_unallocated_funds',
+          nativeToScVal(poolId, { type: 'u32' }),
+          new Address(tokenAddress).toScVal()
+        )
+      )
+      .setTimeout(TX_TIMEOUT)
+      .build();
+
+    const prepared = await this.server.prepareTransaction(tx);
+    return prepared.toXDR();
+  }
 }
 
 export const contractService = new ContractService();

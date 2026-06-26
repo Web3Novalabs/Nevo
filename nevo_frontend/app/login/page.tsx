@@ -4,13 +4,17 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useWalletStore } from '@/src/store/walletStore';
-import ConnectWallet from '@/components/ConnectWallet';
+import { apiClient } from '@/lib/api-client';
+import { connect, signWithWallet, getPublicKey } from '@/app/stellar-wallets-kit';
+import { Spinner } from '@/components/Spinner';
 
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { publicKey, loading, initialize } = useWalletStore();
+  const { isAuthenticated, loading, initialize, setAccessToken } = useWalletStore();
   const [accepted, setAccepted] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const from = searchParams.get('from') || '/dashboard';
 
@@ -19,10 +23,53 @@ function LoginPageContent() {
   }, [initialize]);
 
   useEffect(() => {
-    if (!loading && publicKey) {
+    if (!loading && isAuthenticated) {
       router.push(from);
     }
-  }, [loading, publicKey, from, router]);
+  }, [loading, isAuthenticated, from, router]);
+
+  async function handleAuth() {
+    setAuthLoading(true);
+    setError(null);
+    try {
+      await connect(async () => {
+        const publicKey = await getPublicKey();
+        if (!publicKey) {
+          throw new Error('Failed to get wallet address');
+        }
+
+        // Get challenge nonce
+        const challenge = await apiClient.get<{ nonce: string }>('/auth/challenge', {
+          params: { publicKey },
+        });
+
+        // Sign the nonce
+        const signature = await signWithWallet(challenge.nonce);
+
+        // Verify and get access token
+        const authResult = await apiClient.post<{ accessToken: string }>('/auth/verify', {
+          publicKey,
+          signature,
+          message: challenge.nonce,
+        });
+
+        // Set the access token in the store
+        setAccessToken(authResult.accessToken);
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Authentication failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <main className="flex min-h-[calc(100vh-56px)] items-center justify-center px-6 py-12">
+        <Spinner size="lg" />
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-[calc(100vh-56px)] items-center justify-center px-6 py-12">
@@ -57,7 +104,20 @@ function LoginPageContent() {
 
           <div className="mt-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
             {accepted ? (
-              <ConnectWallet />
+              <div className="flex flex-col items-center gap-3">
+                <button
+                  onClick={handleAuth}
+                  disabled={authLoading}
+                  className="w-full rounded-full bg-brand-600 px-6 py-3 text-sm font-medium text-white hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {authLoading ? 'Authenticating...' : 'Connect Wallet & Sign In'}
+                </button>
+                {error && (
+                  <p className="text-sm text-red-500" role="alert">
+                    {error}
+                  </p>
+                )}
+              </div>
             ) : (
               <div className="flex items-center justify-center">
                 <button

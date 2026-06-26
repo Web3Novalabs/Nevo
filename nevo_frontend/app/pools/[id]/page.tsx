@@ -1,52 +1,25 @@
 'use client';
 
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import { DonateModal } from '@/components/DonateModal';
 import { EmptyState } from '@/components/EmptyState';
 import { WalletAddress } from '@/components/WalletAddress';
 import { CopyButton } from '@/components/CopyButton';
+import { toast } from '@/components/Toast';
 import { usePoolsStore } from '@/src/store/poolsStore';
 import type { Pool } from '@/src/store/poolsStore';
 import { useWalletStore } from '@/src/store/walletStore';
+import { closePool, submitSignedXdr } from '@/lib/api-client';
+import { signTransaction } from '@stellar/freighter-api';
+import { toast } from '@/components/Toast';
 
-// Removed MOCK_POOLS
+// Testnet XLM native contract address (same as api-client)
+const TESTNET_XLM_CONTRACT =
+  'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
 
-interface Contributor {
-  address: string;
-  amount: number;
-  donatedAt: string;
-}
-
-const MOCK_CONTRIBUTORS: Record<string, Contributor[]> = {
-  '1': [
-    {
-      address: 'GXYZ1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890AB',
-      amount: 500,
-      donatedAt: '2025-03-05',
-    },
-    {
-      address: 'GABC9876543210ZYXWV9876543210ZYXWV9876543210ZYXWV9876543210ZY',
-      amount: 1200,
-      donatedAt: '2025-03-12',
-    },
-  ],
-  '2': [
-    {
-      address: 'GXYZ1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890AB',
-      amount: 750,
-      donatedAt: '2025-01-20',
-    },
-  ],
-  '3': [
-    {
-      address: 'GDEF5555555555GHIJK5555555555GHIJK5555555555GHIJK5555555555GH',
-      amount: 1000,
-      donatedAt: '2024-11-15',
-    },
-  ],
-};
+type WithdrawStep = 'idle' | 'creating' | 'signing' | 'submitting';
 
 interface TimelineEvent {
   id: string;
@@ -54,6 +27,56 @@ interface TimelineEvent {
   date: string;
   amount?: number;
 }
+
+// ── Comments ────────────────────────────────────────────────────────────────
+
+interface Comment {
+  id: string;
+  poolId: string;
+  authorAddress: string;
+  text: string;
+  createdAt: string;
+  updatedAt?: string;
+  parentId: string | null;
+  replies: Comment[];
+}
+
+// TODO: Replace with real API call to GET /pools/:id/comments
+const MOCK_COMMENTS: Record<string, Comment[]> = {
+  '1': [
+    {
+      id: 'c1',
+      poolId: '1',
+      authorAddress:
+        'GXYZ1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890AB',
+      text: 'Amazing initiative! How are the funds being allocated?',
+      createdAt: '2025-03-06T10:00:00Z',
+      parentId: null,
+      replies: [
+        {
+          id: 'c1r1',
+          poolId: '1',
+          authorAddress:
+            'GABC9876543210ZYXWV9876543210ZYXWV9876543210ZYXWV9876543210ZY',
+          text: 'Funds go directly to vetted local partners. You can track every withdrawal on-chain!',
+          createdAt: '2025-03-06T11:30:00Z',
+          parentId: 'c1',
+          replies: [],
+        },
+      ],
+    },
+    {
+      id: 'c2',
+      poolId: '1',
+      authorAddress:
+        'GABC9876543210ZYXWV9876543210ZYXWV9876543210ZYXWV9876543210ZY',
+      text: 'Love that everything is transparent on-chain. Keep up the great work!',
+      createdAt: '2025-03-10T14:20:00Z',
+      parentId: null,
+      replies: [],
+    },
+  ],
+};
 
 const MOCK_LAST_UPDATED: Record<string, string> = {
   '1': '2025-04-15',
@@ -71,7 +94,38 @@ export default function PoolDetailPage() {
     fetchPool,
   } = usePoolsStore();
   const [contributors, setContributors] = useState<Contributor[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [donateOpen, setDonateOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClosePool = async () => {
+    if (!pool || !publicKey) return;
+    try {
+      setIsClosing(true);
+      const { unsignedXdr } = await closePool(pool.id);
+
+      const signedResult = await signTransaction(unsignedXdr, {
+        networkPassphrase:
+          process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
+          'Test SDF Network ; September 2015',
+      });
+
+      if (signedResult.error) {
+        throw new Error(signedResult.error);
+      }
+
+      await submitSignedXdr(signedResult.signedTxXdr);
+      toast('Pool closed successfully');
+
+      await fetchPool(Number(pool.id));
+    } catch (err: unknown) {
+      const error = err as Error;
+      toast(error.message || 'Failed to close pool', 'error');
+      console.error(error);
+    } finally {
+      setIsClosing(false);
+    }
+  };
 
   useEffect(() => {
     initialize();
@@ -85,6 +139,8 @@ export default function PoolDetailPage() {
         router.replace('/pools');
       } else {
         setContributors(MOCK_CONTRIBUTORS[id] ?? []);
+        // TODO: replace with real API call: apiClient.get(`/pools/${id}/comments`)
+        setComments(MOCK_COMMENTS[id] ?? []);
       }
     };
     loadPool();
@@ -114,6 +170,22 @@ export default function PoolDetailPage() {
   const isCompleted = pool.status === 'Completed';
   const isActive = pool.status === 'Active';
   const lastUpdated = MOCK_LAST_UPDATED[pool.id] ?? pool.createdAt;
+
+  // Impact Dashboard Calculations
+  const averageDonation =
+    contributors.length > 0
+      ? (
+          contributors.reduce((acc, c) => acc + c.amount, 0) /
+          contributors.length
+        ).toFixed(1)
+      : '0';
+
+  // For visual chart: let's group donations by month or just show the top 5 donations
+  const chartData = contributors.slice(0, 5).map((c) => ({
+    label: c.address.slice(0, 4) + '...' + c.address.slice(-4),
+    value: c.amount,
+    pct: Math.min(100, Math.round((c.amount / pool.target) * 100)),
+  }));
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
@@ -189,12 +261,31 @@ export default function PoolDetailPage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <WalletAddress address={pool.creator} />
                 {isOwner && (
-                  <Link
-                    href={`/pools/${pool.id}/edit`}
-                    className="w-fit rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--color-border)] transition-colors"
-                  >
-                    Edit Pool
-                  </Link>
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/pools/${pool.id}/edit`}
+                      className="w-fit rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--color-border)] transition-colors"
+                    >
+                      Edit Pool
+                    </Link>
+                    {isActive && (
+                      <button
+                        type="button"
+                        onClick={handleClosePool}
+                        disabled={isClosing}
+                        className="w-fit rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
+                      >
+                        {isClosing ? (
+                          <span className="flex items-center gap-1">
+                            <span className="size-3 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
+                            Closing...
+                          </span>
+                        ) : (
+                          'Close Pool'
+                        )}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </section>
@@ -212,43 +303,26 @@ export default function PoolDetailPage() {
             </h2>
 
             {contributors.length === 0 ? (
-              <>
-                <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-8 text-center">
-                  <p className="font-semibold">No contributions yet</p>
-                  <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-                    Be the first to support this pool.
-                  </p>
-                  {isActive && (
-                    <button
-                      type="button"
-                      onClick={() => setDonateOpen(true)}
-                      className="mt-4 rounded-full bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
-                    >
-                      Donate Now
-                    </button>
-                  )}
-                </div>
-                <EmptyState
-                  variant="compact"
-                  icon="contributors"
-                  iconTone="muted"
-                  title="No contributions yet"
-                  description="Be the first to support this pool."
-                  action={
-                    isActive
-                      ? {
-                          label: 'Donate Now',
-                          onClick: () => setDonateOpen(true),
-                        }
-                      : undefined
-                  }
-                  steps={[
-                    { text: 'Connect your Stellar wallet' },
-                    { text: 'Choose an amount to donate' },
-                    { text: 'Confirm the transaction in Freighter' },
-                  ]}
-                />
-              </>
+              <EmptyState
+                variant="compact"
+                icon="contributors"
+                iconTone="muted"
+                title="No contributions yet"
+                description="Be the first to support this pool."
+                action={
+                  isActive
+                    ? {
+                        label: 'Donate Now',
+                        onClick: () => setDonateOpen(true),
+                      }
+                    : undefined
+                }
+                steps={[
+                  { text: 'Connect your Stellar wallet' },
+                  { text: 'Choose an amount to donate' },
+                  { text: 'Confirm the transaction in Freighter' },
+                ]}
+              />
             ) : (
               <ul className="flex flex-col gap-2" role="list">
                 {contributors.map((c, i) => (
@@ -276,24 +350,99 @@ export default function PoolDetailPage() {
             )}
           </section>
 
+          {/* Impact Dashboard */}
+          <section
+            aria-labelledby="impact-heading"
+            className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-5 sm:p-8"
+          >
+            <h2 id="impact-heading" className="mb-6 text-xl font-bold">
+              Impact Dashboard
+            </h2>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Total Raised
+                </p>
+                <p className="mt-1 text-2xl font-bold text-brand-600">
+                  {pool.raised.toLocaleString()}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">Donors</p>
+                <p className="mt-1 text-2xl font-bold text-brand-600">
+                  {contributors.length}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Avg Donation
+                </p>
+                <p className="mt-1 text-2xl font-bold text-brand-600">
+                  {averageDonation}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Progress
+                </p>
+                <p className="mt-1 text-2xl font-bold text-brand-600">{pct}%</p>
+              </div>
+            </div>
+
+            {chartData.length > 0 && (
+              <div>
+                <h3 className="mb-4 text-sm font-semibold text-[var(--color-text-muted)]">
+                  Recent Top Donations
+                </h3>
+                <div className="flex flex-col gap-3">
+                  {chartData.map((d, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="w-20 truncate text-xs text-[var(--color-text-muted)]">
+                        {d.label}
+                      </span>
+                      <div className="flex-1 h-3 rounded-full bg-[var(--color-border)] overflow-hidden">
+                        <div
+                          className="h-full bg-brand-400 rounded-full"
+                          style={{ width: `${Math.max(2, d.pct)}%` }}
+                        />
+                      </div>
+                      <span className="w-16 text-right text-xs font-semibold">
+                        {d.value} XLM
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          <section aria-labelledby="comments-heading">
+            <h2 id="comments-heading" className="mb-4 text-lg font-semibold">
+              Discussion
+              <span className="ml-2 text-sm font-normal text-[var(--color-text-muted)]">
+                ({comments.reduce((sum, c) => sum + 1 + c.replies.length, 0)})
+              </span>
+            </h2>
+            <CommentsSection
+              poolId={id}
+              comments={comments}
+              setComments={setComments}
+              currentUserAddress={publicKey}
+            />
+          </section>
+
           <section aria-labelledby="timeline-heading">
             <h2 id="timeline-heading" className="mb-4 text-lg font-semibold">
               History
             </h2>
 
             {timeline.length === 0 ? (
-              <>
-                <p className="text-sm text-[var(--color-text-muted)]">
-                  Pool milestones and donations will appear here as they happen.
-                </p>
-                <EmptyState
-                  variant="compact"
-                  icon="history"
-                  iconTone="muted"
-                  title="No activity yet"
-                  description="Pool milestones and donations will appear here as they happen."
-                />
-              </>
+              <EmptyState
+                variant="compact"
+                icon="history"
+                iconTone="muted"
+                title="No activity yet"
+                description="Pool milestones and donations will appear here as they happen."
+              />
             ) : (
               <ol
                 className="relative border-l border-[var(--color-border)] pl-6"
@@ -382,6 +531,20 @@ export default function PoolDetailPage() {
               {isCompleted ? 'Pool Closed' : 'Donate Now'}
             </button>
 
+            {isOwner && isCompleted && (
+              <button
+                type="button"
+                onClick={handleWithdraw}
+                disabled={withdrawStep !== 'idle'}
+                className="mt-3 w-full rounded-full border border-brand-600 px-6 py-3 text-sm font-semibold text-brand-600 hover:bg-brand-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              >
+                {withdrawStep !== 'idle' && (
+                  <span className="mr-2 inline-block size-4 animate-spin rounded-full border-2 border-brand-600 border-t-transparent align-middle" />
+                )}
+                {withdrawLabel()}
+              </button>
+            )}
+
             <div className="mt-4">
               <CopyButton
                 text={
@@ -444,6 +607,366 @@ function PoolDetailSkeleton() {
         <div className="h-64 w-full animate-pulse rounded-2xl bg-[var(--color-border)]" />
       </div>
     </main>
+  );
+}
+
+// ── CommentsSection ──────────────────────────────────────────────────────────
+
+interface CommentsSectionProps {
+  poolId: string;
+  comments: Comment[];
+  setComments: React.Dispatch<React.SetStateAction<Comment[]>>;
+  currentUserAddress: string | null;
+}
+
+function CommentsSection({
+  poolId,
+  comments,
+  setComments,
+  currentUserAddress,
+}: CommentsSectionProps) {
+  function handleAddComment(text: string) {
+    if (!currentUserAddress) return;
+    const newComment: Comment = {
+      id: `c-${crypto.randomUUID()}`,
+      poolId,
+      authorAddress: currentUserAddress,
+      text,
+      createdAt: new Date().toISOString(),
+      parentId: null,
+      replies: [],
+    };
+    // TODO: replace with real API call: apiClient.post(`/pools/${poolId}/comments`, { text })
+    setComments((prev) => [newComment, ...prev]);
+  }
+
+  function handleAddReply(parentId: string, text: string) {
+    if (!currentUserAddress) return;
+    const newReply: Comment = {
+      id: `c-${crypto.randomUUID()}`,
+      poolId,
+      authorAddress: currentUserAddress,
+      text,
+      createdAt: new Date().toISOString(),
+      parentId,
+      replies: [],
+    };
+    // TODO: replace with real API call: apiClient.post(`/pools/${poolId}/comments`, { text, parentId })
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === parentId ? { ...c, replies: [...c.replies, newReply] } : c
+      )
+    );
+  }
+
+  function handleEditComment(
+    id: string,
+    text: string,
+    isReply: boolean,
+    parentId?: string
+  ) {
+    // TODO: replace with real API call: apiClient.put(`/pools/${poolId}/comments/${id}`, { text })
+    if (isReply && parentId) {
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === parentId
+            ? {
+                ...c,
+                replies: c.replies.map((r) =>
+                  r.id === id
+                    ? { ...r, text, updatedAt: new Date().toISOString() }
+                    : r
+                ),
+              }
+            : c
+        )
+      );
+    } else {
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === id ? { ...c, text, updatedAt: new Date().toISOString() } : c
+        )
+      );
+    }
+  }
+
+  function handleDeleteComment(
+    id: string,
+    isReply: boolean,
+    parentId?: string
+  ) {
+    // TODO: replace with real API call: apiClient.delete(`/pools/${poolId}/comments/${id}`)
+    if (isReply && parentId) {
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === parentId
+            ? { ...c, replies: c.replies.filter((r) => r.id !== id) }
+            : c
+        )
+      );
+    } else {
+      setComments((prev) => prev.filter((c) => c.id !== id));
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <CommentForm
+        onSubmit={handleAddComment}
+        currentUserAddress={currentUserAddress}
+        placeholder="Share a thought or ask a question…"
+      />
+
+      {comments.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-8 text-center">
+          <p className="font-semibold">No comments yet</p>
+          <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+            Be the first to start the discussion.
+          </p>
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-4" role="list">
+          {comments.map((comment) => (
+            <CommentItem
+              key={comment.id}
+              comment={comment}
+              currentUserAddress={currentUserAddress}
+              onReply={(text) => handleAddReply(comment.id, text)}
+              onEdit={(text) => handleEditComment(comment.id, text, false)}
+              onDelete={() => handleDeleteComment(comment.id, false)}
+              onEditReply={(replyId, text) =>
+                handleEditComment(replyId, text, true, comment.id)
+              }
+              onDeleteReply={(replyId) =>
+                handleDeleteComment(replyId, true, comment.id)
+              }
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ── CommentForm ──────────────────────────────────────────────────────────────
+
+interface CommentFormProps {
+  onSubmit: (text: string) => void;
+  currentUserAddress: string | null;
+  placeholder?: string;
+  initialValue?: string;
+  onCancel?: () => void;
+  submitLabel?: string;
+}
+
+function CommentForm({
+  onSubmit,
+  currentUserAddress,
+  placeholder = 'Write a comment…',
+  initialValue = '',
+  onCancel,
+  submitLabel = 'Post',
+}: CommentFormProps) {
+  const [text, setText] = useState(initialValue);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    onSubmit(trimmed);
+    setText('');
+  }
+
+  if (!currentUserAddress) {
+    return (
+      <p className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm text-[var(--color-text-muted)]">
+        Connect your wallet to join the discussion.
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+      <label className="sr-only" htmlFor="comment-input">
+        {placeholder}
+      </label>
+      <textarea
+        id="comment-input"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={placeholder}
+        rows={3}
+        className="w-full resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-brand-500"
+        aria-label={placeholder}
+      />
+      <div className="flex items-center justify-end gap-2">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--color-surface-raised)] transition-colors"
+          >
+            Cancel
+          </button>
+        )}
+        <button
+          type="submit"
+          disabled={!text.trim()}
+          className="rounded-full bg-brand-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {submitLabel}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── CommentItem ───────────────────────────────────────────────────────────────
+
+interface CommentItemProps {
+  comment: Comment;
+  currentUserAddress: string | null;
+  onReply: (text: string) => void;
+  onEdit: (text: string) => void;
+  onDelete: () => void;
+  onEditReply: (replyId: string, text: string) => void;
+  onDeleteReply: (replyId: string) => void;
+  isReply?: boolean;
+}
+
+function formatCommentDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function CommentItem({
+  comment,
+  currentUserAddress,
+  onReply,
+  onEdit,
+  onDelete,
+  onEditReply,
+  onDeleteReply,
+  isReply = false,
+}: CommentItemProps) {
+  const [showReplyForm, setShowReplyForm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const isOwn =
+    currentUserAddress !== null && currentUserAddress === comment.authorAddress;
+  const shortAddress = `${comment.authorAddress.slice(0, 6)}…${comment.authorAddress.slice(-4)}`;
+
+  return (
+    <li
+      className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 ${isReply ? 'ml-6 border-l-2 border-l-brand-200' : ''}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-0.5">
+          <span
+            className="font-mono text-xs font-medium text-brand-600"
+            title={comment.authorAddress}
+          >
+            {shortAddress}
+          </span>
+          <time
+            dateTime={comment.createdAt}
+            className="text-xs text-[var(--color-text-muted)]"
+          >
+            {formatCommentDate(comment.createdAt)}
+            {comment.updatedAt && <span className="ml-1 italic">(edited)</span>}
+          </time>
+        </div>
+        {isOwn && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="text-xs text-[var(--color-text-muted)] hover:text-brand-600 transition-colors"
+              aria-label="Edit comment"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="text-xs text-[var(--color-text-muted)] hover:text-red-600 transition-colors"
+              aria-label="Delete comment"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+
+      {isEditing ? (
+        <div className="mt-2">
+          <CommentForm
+            onSubmit={(text) => {
+              onEdit(text);
+              setIsEditing(false);
+            }}
+            currentUserAddress={currentUserAddress}
+            placeholder="Edit your comment…"
+            initialValue={comment.text}
+            onCancel={() => setIsEditing(false)}
+            submitLabel="Save"
+          />
+        </div>
+      ) : (
+        <p className="mt-2 text-sm text-[var(--color-text)]">{comment.text}</p>
+      )}
+
+      {!isReply && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setShowReplyForm((v) => !v)}
+            className="text-xs text-[var(--color-text-muted)] hover:text-brand-600 transition-colors"
+          >
+            {showReplyForm
+              ? 'Cancel reply'
+              : `Reply${comment.replies.length > 0 ? ` (${comment.replies.length})` : ''}`}
+          </button>
+
+          {showReplyForm && (
+            <div className="mt-3">
+              <CommentForm
+                onSubmit={(text) => {
+                  onReply(text);
+                  setShowReplyForm(false);
+                }}
+                currentUserAddress={currentUserAddress}
+                placeholder="Write a reply…"
+                onCancel={() => setShowReplyForm(false)}
+                submitLabel="Reply"
+              />
+            </div>
+          )}
+
+          {comment.replies.length > 0 && (
+            <ul className="mt-3 flex flex-col gap-3" role="list">
+              {comment.replies.map((reply) => (
+                <CommentItem
+                  key={reply.id}
+                  comment={reply}
+                  currentUserAddress={currentUserAddress}
+                  onReply={() => {}}
+                  onEdit={(text) => onEditReply(reply.id, text)}
+                  onDelete={() => onDeleteReply(reply.id)}
+                  onEditReply={() => {}}
+                  onDeleteReply={() => {}}
+                  isReply
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </li>
   );
 }
 

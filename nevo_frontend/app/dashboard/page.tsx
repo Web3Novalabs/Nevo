@@ -4,57 +4,10 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useWalletStore } from '@/src/store/walletStore';
 import { EmptyState } from '@/components/EmptyState';
-import ConnectWallet from '@/components/ConnectWallet';
 import { WalletAddress } from '@/components/WalletAddress';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { apiClient } from '@/lib/api-client';
 import type { Pool } from '@/src/store/poolsStore';
-
-// TODO: Replace with real API call once backend pool endpoints are implemented
-const MOCK_CREATOR_POOLS: Pool[] = [
-  {
-    id: '1',
-    title: 'Clean Water Initiative',
-    description: 'Providing clean drinking water to rural communities in need.',
-    category: 'Humanitarian',
-    status: 'Active',
-    target: 10000,
-    raised: 6800,
-    imageColor: '#27926e',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2025-03-01',
-  },
-  {
-    id: '2',
-    title: 'Open Source Dev Fund',
-    description: 'Supporting open source contributors building on Stellar.',
-    category: 'Technology',
-    status: 'Active',
-    target: 5000,
-    raised: 5000,
-    imageColor: '#1c7459',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2025-01-15',
-  },
-  {
-    id: '3',
-    title: 'Community Garden Project',
-    description: 'Building urban gardens to improve food security locally.',
-    category: 'Environment',
-    status: 'Completed',
-    target: 3000,
-    raised: 3200,
-    imageColor: '#47ae88',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2024-11-10',
-  },
-];
-
-// TODO: Replace with real contributor counts from backend
-const MOCK_CONTRIBUTOR_COUNTS: Record<string, number> = {
-  '1': 42,
-  '2': 87,
-  '3': 31,
-};
 
 type ActionModal =
   | { type: 'withdraw'; pool: Pool }
@@ -74,21 +27,16 @@ function DashboardPageContent() {
 
   useEffect(() => {
     if (!publicKey) return;
-    // TODO: Replace with real fetch filtered by creator === publicKey
-    const timer = setTimeout(() => {
-      setPools(MOCK_CREATOR_POOLS);
-      setLoadingPools(false);
-    }, 400);
-    return () => clearTimeout(timer);
+    apiClient
+      .get<Pool[]>(`/pools?creator=${publicKey}`)
+      .then((data) => setPools(data ?? []))
+      .catch(() => setPools([]))
+      .finally(() => setLoadingPools(false));
   }, [publicKey]);
 
   // ── Summary metrics ────────────────────────────────────────────────────
   const totalRaised = pools.reduce((s, p) => s + p.raised, 0);
   const activePools = pools.filter((p) => p.status === 'Active').length;
-  const totalContributors = Object.values(MOCK_CONTRIBUTOR_COUNTS).reduce(
-    (s, n) => s + n,
-    0
-  );
 
   // ── Bulk selection helpers ─────────────────────────────────────────────
   const allSelected = pools.length > 0 && selectedIds.size === pools.length;
@@ -143,7 +91,6 @@ function DashboardPageContent() {
             label: 'Total Raised',
             value: `${totalRaised.toLocaleString()} XLM`,
           },
-          { label: 'Contributors', value: totalContributors },
         ].map(({ label, value }) => (
           <div
             key={label}
@@ -191,9 +138,9 @@ function DashboardPageContent() {
       ) : pools.length === 0 ? (
         <EmptyState
           icon="pool"
-          title="No pools yet"
+          title="You haven't created any pools yet"
           description="Create your first pool to start raising funds on-chain."
-          action={{ label: 'Create a Pool', href: '/pools/new' }}
+          action={{ label: 'Create Pool', href: '/pools/new' }}
           steps={[
             { text: 'Set a title, goal, and category for your cause' },
             { text: 'Share your pool link with supporters' },
@@ -222,7 +169,6 @@ function DashboardPageContent() {
               <PoolRow
                 key={pool.id}
                 pool={pool}
-                contributors={MOCK_CONTRIBUTOR_COUNTS[pool.id] ?? 0}
                 selected={selectedIds.has(pool.id)}
                 onToggle={() => toggleOne(pool.id)}
                 onWithdraw={() => setActionModal({ type: 'withdraw', pool })}
@@ -252,7 +198,6 @@ function DashboardPageContent() {
 
 interface PoolRowProps {
   pool: Pool;
-  contributors: number;
   selected: boolean;
   onToggle: () => void;
   onWithdraw: () => void;
@@ -261,7 +206,6 @@ interface PoolRowProps {
 
 function PoolRow({
   pool,
-  contributors,
   selected,
   onToggle,
   onWithdraw,
@@ -324,7 +268,6 @@ function PoolRow({
 
             {/* Meta row */}
             <div className="mt-2 flex flex-wrap gap-3 text-xs text-[var(--color-text-muted)]">
-              <span>{contributors} contributors</span>
               <span>{pool.category}</span>
               {pool.createdAt && <span>Created {pool.createdAt}</span>}
             </div>
