@@ -8,9 +8,13 @@ import { AuthModule } from './auth/auth.module.js';
 import { Donation } from './donations/donation.entity.js';
 import { Pool } from './pools/pool.entity.js';
 import { PoolsModule } from './pools/pools.module.js';
+import { DonationsModule } from './donations/donations.module.js';
 import { SyncModule } from './sync/sync.module.js';
 import { TransactionsModule } from './transactions/transactions.module.js';
 import { User } from './users/user.entity.js';
+import { UsersModule } from './users/users.module.js';
+import { Donation } from './donations/donation.entity.js';
+import { DonationsModule } from './donations/donations.module.js';
 
 @Module({
   imports: [
@@ -31,6 +35,8 @@ import { User } from './users/user.entity.js';
     SyncModule,
     TransactionsModule,
     PoolsModule,
+    UsersModule,
+    DonationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

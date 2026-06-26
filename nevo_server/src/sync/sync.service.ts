@@ -34,4 +34,9 @@ export class SyncService {
       goal,
     });
   }
+
+  async processPoolClosedEvent(event: HorizonContractEvent): Promise<void> {
+    const contractPoolId = event.topic[1];
+    await this.poolsService.markCompleted(contractPoolId);
+  }
 }

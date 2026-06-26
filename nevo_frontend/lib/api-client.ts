@@ -492,3 +492,36 @@ export async function submitSignedXdr(
 ): Promise<{ txHash: string }> {
   return apiClient.post<{ txHash: string }>('/transactions/submit', { xdr });
 }
+
+export interface ApiDonation {
+  id: string;
+  type: 'donation' | 'pool_creation' | 'withdrawal';
+  amount: string;
+  asset: string;
+  recipient: string;
+  date: string;
+  status: 'completed' | 'pending' | 'failed';
+  txHash: string;
+}
+
+export async function fetchMyDonations(): Promise<ApiDonation[]> {
+  return apiClient.get<ApiDonation[]>('/donations/me');
+}
+
+export interface ApiPool {
+  id: string;
+  contractPoolId: string;
+  title: string;
+  description: string;
+  goal: string;
+  raised: string;
+  status: string;
+}
+
+export async function fetchCreatorPools(publicKey: string): Promise<ApiPool[]> {
+  return apiClient.get<ApiPool[]>(`/pools?creator=${encodeURIComponent(publicKey)}`);
+}
+
+export async function donate(poolId: number, amount: string, tokenAddress: string): Promise<void> {
+  return apiClient.post('/donations', { poolId, amount, tokenAddress });
+}
