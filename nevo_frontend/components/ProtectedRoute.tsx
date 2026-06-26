@@ -12,19 +12,19 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { publicKey, loading, initialize } = useWalletStore();
+  const { isAuthenticated, loading, initialize } = useWalletStore();
 
   useEffect(() => {
     initialize();
   }, [initialize]);
 
   useEffect(() => {
-    if (!loading && !publicKey) {
+    if (!loading && !isAuthenticated) {
       router.push(`/login?from=${encodeURIComponent(pathname)}`);
     }
-  }, [loading, publicKey, pathname, router]);
+  }, [loading, isAuthenticated, pathname, router]);
 
-  if (loading || !publicKey) {
+  if (loading || !isAuthenticated) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <Spinner size="lg" />

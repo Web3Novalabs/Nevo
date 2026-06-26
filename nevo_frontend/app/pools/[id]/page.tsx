@@ -14,7 +14,7 @@ import { closePool, submitSignedXdr } from '@/lib/api-client';
 import { signTransaction } from '@stellar/freighter-api';
 import { toast } from '@/components/Toast';
 
-// Removed MOCK_POOLS
+
 
 interface Contributor {
   address: string;
