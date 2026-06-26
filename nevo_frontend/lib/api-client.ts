@@ -473,6 +473,20 @@ apiClient.addRequestInterceptor((config) => {
   return config;
 });
 
+export interface CreatePoolParams {
+  contractPoolId: string;
+  creatorWallet: string;
+  goal: string;
+  title?: string;
+  description?: string;
+  category?: string;
+  imageUrl?: string;
+}
+
+export async function createPool(data: CreatePoolParams): Promise<unknown> {
+  return apiClient.post('/pools', data);
+}
+
 export async function submitSignedXdr(
   xdr: string
 ): Promise<{ txHash: string }> {

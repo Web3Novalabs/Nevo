@@ -32,6 +32,8 @@
     "@nestjs/schedule": "^5.0.1",
     "@nestjs/typeorm": "^11.0.2",
     "@stellar/stellar-sdk": "^16.0.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
     "cron": "^4.4.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.22.0",
@@ -85,17 +87,11 @@
       ".ts"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!(@stellar|@noble|uint8array-extras)/)"
+      "/node_modules/(?!(@stellar/stellar-sdk|@noble/.*|uint8array-extras)/)"
     ],
-    "moduleNameMapper": {
-      "^(\\.{1,2}/.*)\\.js$": "$1"
-    },
     "moduleNameMapper": {
       "^(\\.\\.?/.*)\\.js$": "$1"
     },
-    "transformIgnorePatterns": [
-      "/node_modules/(?!(@stellar/stellar-sdk|@noble/.*|uint8array-extras)/)"
-    ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
