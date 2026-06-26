@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   Keypair,
   Networks,
@@ -13,29 +14,42 @@ import {
 import { rpc as StellarRpc } from '@stellar/stellar-sdk';
 import { StellarError } from './stellar.error.js';
 
-const CONTRACT_ID =
-  process.env.CONTRACT_ID ??
-  'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM';
 const NETWORK_PASSPHRASE =
   process.env.STELLAR_NETWORK === 'mainnet'
     ? Networks.PUBLIC
     : Networks.TESTNET;
-const SOROBAN_URL =
-  process.env.SOROBAN_URL ?? 'https://soroban-testnet.stellar.org';
 const SOURCE_SECRET = process.env.SOURCE_SECRET_KEY ?? '';
 
 @Injectable()
 export class ContractService {
-  private readonly contract = new Contract(CONTRACT_ID);
+  private readonly logger = new Logger(ContractService.name);
+  private readonly rpcServer: StellarRpc.Server;
+  private readonly contract: Contract;
 
-  buildCreatePoolTransaction(
-    sourcePublicKey: string,
-    goal: string,
-    title: string,
-    description: string,
-  ): string {
+  constructor(private readonly config: ConfigService) {
+    const rpcUrl =
+      this.config.get<string>('STELLAR_RPC_URL') ??
+      'https://soroban-testnet.stellar.org';
+    const contractId =
+      this.config.get<string>('CONTRACT_ID') ??
+      'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM';
+    this.rpcServer = new StellarRpc.Server(rpcUrl);
+    this.contract = new Contract(contractId);
+    const network =
+      NETWORK_PASSPHRASE === Networks.PUBLIC ? 'mainnet' : 'testnet';
+    this.logger.log(`Stellar RPC connected: ${rpcUrl} (${network})`);
+  }
+
+  buildCreatePoolTransaction(params: {
+    creator: string;
+    goal: string;
+    token: string;
+    title: string;
+    description: string;
+  }): string {
     try {
-      const source = new Account(sourcePublicKey, '0');
+      const { creator, goal, token, title, description } = params;
+      const source = new Account(creator, '0');
       const tx = new TransactionBuilder(source, {
         fee: BASE_FEE,
         networkPassphrase: NETWORK_PASSPHRASE,
@@ -43,8 +57,9 @@ export class ContractService {
         .addOperation(
           this.contract.call(
             'create_pool',
-            nativeToScVal(sourcePublicKey, { type: 'address' }),
+            nativeToScVal(creator, { type: 'address' }),
             nativeToScVal(BigInt(goal), { type: 'i128' }),
+            nativeToScVal(token, { type: 'address' }),
             nativeToScVal(title, { type: 'string' }),
             nativeToScVal(description, { type: 'string' }),
           ),
@@ -111,9 +126,8 @@ export class ContractService {
 
   async submitSignedXdr(signedXdr: string): Promise<string> {
     try {
-      const server = new StellarRpc.Server(SOROBAN_URL);
       const tx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
-      const result = await server.sendTransaction(tx);
+      const result = await this.rpcServer.sendTransaction(tx);
       return result.hash;
     } catch (err: unknown) {
       throw this.mapError(err);
@@ -122,11 +136,10 @@ export class ContractService {
 
   async getContributionOnChain(poolId: number, donor: string): Promise<bigint> {
     try {
-      const server = new StellarRpc.Server(SOROBAN_URL);
       const keypair = SOURCE_SECRET
         ? Keypair.fromSecret(SOURCE_SECRET)
         : Keypair.random();
-      const account = await server.getAccount(keypair.publicKey());
+      const account = await this.rpcServer.getAccount(keypair.publicKey());
       const tx = new TransactionBuilder(account, {
         fee: BASE_FEE,
         networkPassphrase: NETWORK_PASSPHRASE,
@@ -141,7 +154,7 @@ export class ContractService {
         .setTimeout(30)
         .build();
 
-      const result = await server.simulateTransaction(tx);
+      const result = await this.rpcServer.simulateTransaction(tx);
       if ('error' in result) return 0n;
 
       const simResult = result;
@@ -163,18 +176,17 @@ export class ContractService {
   }
 
   async getPoolOnChain(poolId: number): Promise<{
-    sponsor: string;
+    id: number;
+    creator: string;
     goal: bigint;
     collected: bigint;
-    isClosed: boolean;
-    applicationDeadline: bigint;
+    closed: boolean;
   } | null> {
     try {
-      const server = new StellarRpc.Server(SOROBAN_URL);
       const keypair = SOURCE_SECRET
         ? Keypair.fromSecret(SOURCE_SECRET)
         : Keypair.random();
-      const account = await server.getAccount(keypair.publicKey());
+      const account = await this.rpcServer.getAccount(keypair.publicKey());
       const tx = new TransactionBuilder(account, {
         fee: BASE_FEE,
         networkPassphrase: NETWORK_PASSPHRASE,
@@ -188,20 +200,20 @@ export class ContractService {
         .setTimeout(30)
         .build();
 
-      const result = await server.simulateTransaction(tx);
+      const result = await this.rpcServer.simulateTransaction(tx);
       if ('error' in result) return null;
 
       const retVal = result.result?.retval;
       if (!retVal) return null;
 
       const native = scValToNative(retVal);
-      if (Array.isArray(native) && native.length >= 6) {
+      if (Array.isArray(native) && native.length >= 5) {
         return {
-          sponsor: String(native[1]),
+          id: poolId,
+          creator: String(native[1]),
           goal: BigInt(native[2]),
           collected: BigInt(native[3]),
-          isClosed: Boolean(native[4]),
-          applicationDeadline: BigInt(native[5]),
+          closed: Boolean(native[4]),
         };
       }
       return null;
@@ -212,11 +224,10 @@ export class ContractService {
 
   async getTotalRaisedOnChain(poolId: number): Promise<bigint> {
     try {
-      const server = new StellarRpc.Server(SOROBAN_URL);
       const keypair = SOURCE_SECRET
         ? Keypair.fromSecret(SOURCE_SECRET)
         : Keypair.random();
-      const account = await server.getAccount(keypair.publicKey());
+      const account = await this.rpcServer.getAccount(keypair.publicKey());
       const tx = new TransactionBuilder(account, {
         fee: BASE_FEE,
         networkPassphrase: NETWORK_PASSPHRASE,
@@ -230,13 +241,14 @@ export class ContractService {
         .setTimeout(30)
         .build();
 
-      const result = await server.simulateTransaction(tx);
+      const result = await this.rpcServer.simulateTransaction(tx);
       if ('error' in result) return 0n;
 
       const retVal = result.result?.retval;
       if (!retVal) return 0n;
 
-      return BigInt(scValToNative(retVal));
+      const native = scValToNative(retVal);
+      return typeof native === 'bigint' ? native : BigInt(String(native));
     } catch {
       return 0n;
     }
@@ -244,11 +256,10 @@ export class ContractService {
 
   async getDonorCountOnChain(poolId: number): Promise<number> {
     try {
-      const server = new StellarRpc.Server(SOROBAN_URL);
       const keypair = SOURCE_SECRET
         ? Keypair.fromSecret(SOURCE_SECRET)
         : Keypair.random();
-      const account = await server.getAccount(keypair.publicKey());
+      const account = await this.rpcServer.getAccount(keypair.publicKey());
       const tx = new TransactionBuilder(account, {
         fee: BASE_FEE,
         networkPassphrase: NETWORK_PASSPHRASE,
@@ -262,7 +273,7 @@ export class ContractService {
         .setTimeout(30)
         .build();
 
-      const result = await server.simulateTransaction(tx);
+      const result = await this.rpcServer.simulateTransaction(tx);
       if ('error' in result) return 0;
 
       const retVal = result.result?.retval;

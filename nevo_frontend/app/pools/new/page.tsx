@@ -4,6 +4,10 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { createPool } from '@/lib/api-client';
+import { signTransaction } from '@stellar/freighter-api';
+import { contractService } from '@/lib/contract-service';
+import { submitSignedXdr } from '@/lib/api-client';
+import { useWalletStore } from '@/src/store/walletStore';
 
 // TODO: Replace with real pool creation API call once backend is implemented
 const CATEGORIES = [
@@ -129,6 +133,7 @@ interface FormErrors {
   category?: string;
   goalAmount?: string;
   duration?: string;
+  submit?: string;
 }
 
 const INITIAL_FORM: FormData = {
@@ -246,7 +251,7 @@ function CreatePoolPageContent() {
       setImageFile(null);
       setCropPreviewUrl('');
       setCropZoom(1);
-    } catch (error) {
+    } catch {
       setImageUploadError(
         'Could not process the image. Please try a different file.'
       );
@@ -293,8 +298,42 @@ function CreatePoolPageContent() {
 
   async function handleSubmit() {
     setSubmitting(true);
-    if (imageFile && !form.imageUrl) {
-      await applyCropAndOptimize();
+    setErrors({});
+    try {
+      if (imageFile && !form.imageUrl) {
+        await applyCropAndOptimize();
+      }
+      const { publicKey } = useWalletStore.getState();
+      if (!publicKey) {
+        throw new Error(
+          'Wallet not connected. Please connect your wallet first.'
+        );
+      }
+      const goalInStroops = BigInt(
+        Math.round(parseFloat(form.goalAmount) * 1e7)
+      );
+      const xdr = await contractService.buildCreatePoolTransaction(
+        publicKey,
+        form.title,
+        form.description,
+        goalInStroops
+      );
+      const signedResult = await signTransaction(xdr, {
+        networkPassphrase:
+          process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
+          'Test SDF Network ; September 2015',
+      });
+      if (signedResult.error) {
+        throw new Error(signedResult.error);
+      }
+      await submitSignedXdr(signedResult.signedTxXdr);
+      setSubmitted(true);
+    } catch (error) {
+      const err = error as Error;
+      console.error('Pool creation failed:', err);
+      setErrors({ submit: err?.message || 'Failed to submit transaction.' });
+    } finally {
+      setSubmitting(false);
     }
     try {
       await createPool({
@@ -350,7 +389,6 @@ function CreatePoolPageContent() {
             onChange={update}
             onNext={handleNext}
             onBack={handleBack}
-            imageFile={imageFile}
             imagePreviewUrl={imagePreviewUrl}
             cropPreviewUrl={cropPreviewUrl}
             cropZoom={cropZoom}
@@ -368,6 +406,7 @@ function CreatePoolPageContent() {
             form={form}
             tagList={tagList}
             submitting={submitting}
+            errors={errors}
             onBack={handleBack}
             onSubmit={handleSubmit}
           />
@@ -516,7 +555,6 @@ interface Step2Props {
   onChange: (field: keyof FormData, value: string | number) => void;
   onNext: () => void;
   onBack: () => void;
-  imageFile: File | null;
   imagePreviewUrl: string;
   cropPreviewUrl: string;
   cropZoom: number;
@@ -535,7 +573,6 @@ function Step2({
   onChange,
   onNext,
   onBack,
-  imageFile,
   imagePreviewUrl,
   cropPreviewUrl,
   cropZoom,
@@ -746,11 +783,19 @@ interface Step3Props {
   form: FormData;
   tagList: string[];
   submitting: boolean;
+  errors?: FormErrors;
   onBack: () => void;
   onSubmit: () => void;
 }
 
-function Step3({ form, tagList, submitting, onBack, onSubmit }: Step3Props) {
+function Step3({
+  form,
+  tagList,
+  submitting,
+  errors,
+  onBack,
+  onSubmit,
+}: Step3Props) {
   const endDate = new Date();
   endDate.setDate(endDate.getDate() + form.duration);
 
@@ -842,6 +887,11 @@ function Step3({ form, tagList, submitting, onBack, onSubmit }: Step3Props) {
           )}
         </button>
       </div>
+      {errors?.submit && (
+        <div className="mt-4 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-sm text-center">
+          {errors.submit}
+        </div>
+      )}
     </div>
   );
 }

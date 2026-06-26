@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { PoolsService, ChainPoolData } from './pools.service';
-import { Pool } from './pool.entity';
-import { ContractService } from '../contract/contract.service.js';
+import { Pool, PoolStatus } from './pool.entity';
+import { ContractService } from '../contract/contract.service';
 
 describe('PoolsService', () => {
   const chainData: ChainPoolData = {
@@ -25,6 +25,9 @@ describe('PoolsService', () => {
       contractPoolId: '1',
       creatorWallet: 'GOLD',
       goal: '5000',
+      raised: '0',
+      status: PoolStatus.Active,
+      category: '',
       title: 'Existing Title',
       description: 'Existing description',
       imageUrl: 'https://example.com/img.png',
@@ -107,6 +110,36 @@ describe('PoolsService', () => {
         closedOnChain: false,
         donorCount: 5,
       });
+    });
+  });
+
+  describe('markCompleted', () => {
+    it('sets pool status to Completed and saves', async () => {
+      const existing: Pool = {
+        id: 'uuid-1',
+        contractPoolId: 'pool-1',
+        creatorWallet: 'GWALLET',
+        goal: '5000',
+        raised: '0',
+        status: PoolStatus.Active,
+        category: '',
+        title: 'My Pool',
+        description: '',
+        imageUrl: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const { service, savedArg } = await buildService(existing);
+
+      await service.markCompleted('pool-1');
+
+      expect(savedArg().status).toBe(PoolStatus.Completed);
+    });
+
+    it('returns null if pool is not found', async () => {
+      const { service } = await buildService(null);
+      const result = await service.markCompleted('nonexistent');
+      expect(result).toBeNull();
     });
   });
 });
