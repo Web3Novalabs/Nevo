@@ -27,6 +27,7 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState<Step>('form');
   const [errorMsg, setErrorMsg] = useState('');
+  const [lastTxHash, setLastTxHash] = useState('');
   const backdropRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -84,6 +85,7 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
       status: 'confirmed' as const,
     };
     addDonation(donation);
+    setLastTxHash(donation.txHash);
     setStep('success');
   }
 
@@ -280,13 +282,25 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
                 to <span className="font-medium">{pool.title}</span>.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="mt-2 w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-            >
-              Done
-            </button>
+            <div className="mt-2 flex w-full gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-xl border border-[var(--color-border)] px-4 py-2.5 text-sm font-medium hover:bg-[var(--color-surface-raised)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              >
+                Done
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  window.location.href = `/donations/receipt?txHash=${encodeURIComponent(lastTxHash)}`;
+                }}
+                className="flex-1 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              >
+                View Receipt
+              </button>
+            </div>
           </div>
         )}
 

@@ -115,6 +115,22 @@ export default function PoolDetailPage() {
   const isActive = pool.status === 'Active';
   const lastUpdated = MOCK_LAST_UPDATED[pool.id] ?? pool.createdAt;
 
+  // Impact Dashboard Calculations
+  const averageDonation =
+    contributors.length > 0
+      ? (
+          contributors.reduce((acc, c) => acc + c.amount, 0) /
+          contributors.length
+        ).toFixed(1)
+      : '0';
+
+  // For visual chart: let's group donations by month or just show the top 5 donations
+  const chartData = contributors.slice(0, 5).map((c) => ({
+    label: c.address.slice(0, 4) + '...' + c.address.slice(-4),
+    value: c.amount,
+    pct: Math.min(100, Math.round((c.amount / pool.target) * 100)),
+  }));
+
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
       <nav
@@ -273,6 +289,73 @@ export default function PoolDetailPage() {
                   </li>
                 ))}
               </ul>
+            )}
+          </section>
+
+          {/* Impact Dashboard */}
+          <section
+            aria-labelledby="impact-heading"
+            className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-5 sm:p-8"
+          >
+            <h2 id="impact-heading" className="mb-6 text-xl font-bold">
+              Impact Dashboard
+            </h2>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Total Raised
+                </p>
+                <p className="mt-1 text-2xl font-bold text-brand-600">
+                  {pool.raised.toLocaleString()}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">Donors</p>
+                <p className="mt-1 text-2xl font-bold text-brand-600">
+                  {contributors.length}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Avg Donation
+                </p>
+                <p className="mt-1 text-2xl font-bold text-brand-600">
+                  {averageDonation}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Progress
+                </p>
+                <p className="mt-1 text-2xl font-bold text-brand-600">{pct}%</p>
+              </div>
+            </div>
+
+            {chartData.length > 0 && (
+              <div>
+                <h3 className="mb-4 text-sm font-semibold text-[var(--color-text-muted)]">
+                  Recent Top Donations
+                </h3>
+                <div className="flex flex-col gap-3">
+                  {chartData.map((d, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="w-20 truncate text-xs text-[var(--color-text-muted)]">
+                        {d.label}
+                      </span>
+                      <div className="flex-1 h-3 rounded-full bg-[var(--color-border)] overflow-hidden">
+                        <div
+                          className="h-full bg-brand-400 rounded-full"
+                          style={{ width: `${Math.max(2, d.pct)}%` }}
+                        />
+                      </div>
+                      <span className="w-16 text-right text-xs font-semibold">
+                        {d.value} XLM
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </section>
 
