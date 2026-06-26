@@ -514,7 +514,33 @@ function TransactionsPageContent() {
 
 /* ── TransactionRow ─────────────────────────────────────────────────────── */
 
+import { CopyButton } from '@/components/CopyButton';
+
+const STELLAR_EXPERT_BASE = 'https://stellar.expert/explorer/testnet/tx';
+
+function ExternalLinkIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="size-3"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+      />
+    </svg>
+  );
+}
+
 function TransactionRow({ tx }: { tx: Transaction }) {
+  const explorerUrl = `${STELLAR_EXPERT_BASE}/${tx.txHash}`;
+
   return (
     <li className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 transition-shadow hover:shadow-sm">
       <div className="flex items-start gap-4">
@@ -550,8 +576,25 @@ function TransactionRow({ tx }: { tx: Transaction }) {
             <time dateTime={tx.date}>
               {formatDate(tx.date)} · {formatTime(tx.date)}
             </time>
-            <span className="font-mono truncate max-w-32" title={tx.txHash}>
-              {tx.txHash.slice(0, 8)}…
+            <span className="inline-flex items-center gap-1.5">
+              <span className="font-mono truncate max-w-32" title={tx.txHash}>
+                {tx.txHash.slice(0, 8)}…
+              </span>
+              <CopyButton
+                text={tx.txHash}
+                iconOnly
+                aria-label={`Copy transaction hash ${tx.txHash}`}
+              />
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 text-brand-600 hover:text-brand-700 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600 rounded"
+                aria-label={`View transaction ${tx.txHash.slice(0, 8)} on Stellar Expert blockchain explorer (opens in new tab)`}
+              >
+                Explorer
+                <ExternalLinkIcon />
+              </a>
             </span>
           </div>
         </div>

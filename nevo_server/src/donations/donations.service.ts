@@ -1,18 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Donation } from './donation.entity';
+import { Donation } from './donation.entity.js';
 
-export interface PaginatedResult<T> {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
-}
-
-export interface DonationWithPool extends Donation {
-  poolTitle: string | null;
-}
+export type DonationSortBy = 'newest' | 'largest';
 
 @Injectable()
 export class DonationsService {
@@ -66,5 +57,25 @@ export class DonationsService {
     });
 
     return { data: rows, total: count, page, limit };
+  async findByPool(poolId: string, sortBy: DonationSortBy = 'newest'): Promise<Donation[]> {
+    if (sortBy === 'largest') {
+      return this.donationRepo
+        .createQueryBuilder('d')
+        .where('d.poolId = :poolId', { poolId })
+        .orderBy('CAST(d.amount AS NUMERIC)', 'DESC')
+        .getMany();
+    }
+    return this.donationRepo.find({ where: { poolId }, order: { createdAt: 'DESC' } });
+  }
+
+  async findByDonor(donorWallet: string, sortBy: DonationSortBy = 'newest'): Promise<Donation[]> {
+    if (sortBy === 'largest') {
+      return this.donationRepo
+        .createQueryBuilder('d')
+        .where('d.donorWallet = :donorWallet', { donorWallet })
+        .orderBy('CAST(d.amount AS NUMERIC)', 'DESC')
+        .getMany();
+    }
+    return this.donationRepo.find({ where: { donorWallet }, order: { createdAt: 'DESC' } });
   }
 }

@@ -3,25 +3,28 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
   Index,
 } from 'typeorm';
 
-@Entity('users')
-export class User {
+@Entity('nonces')
+export class Nonce {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Index({ unique: true })
+  @Column({ type: 'varchar', length: 255 })
+  nonce: string;
+
+  @Index()
   @Column({ name: 'public_key', type: 'varchar', length: 56 })
   publicKey: string;
-
-  @Column({ name: 'username', type: 'varchar', length: 255, nullable: true })
-  displayName: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
+  @Column({ name: 'expires_at', type: 'timestamp' })
+  expiresAt: Date;
+
+  @Column({ name: 'used', type: 'boolean', default: false })
+  used: boolean;
 }

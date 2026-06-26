@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { EmptyState } from '@/components/EmptyState';
 import { useDonationsStore, Donation } from '@/src/store';
+import { CopyButton } from '@/components/CopyButton';
 
 const PAGE_SIZE = 8;
 
@@ -322,15 +323,20 @@ function DonationRow({ d }: { d: Donation }) {
               <div className="font-semibold text-sm tabular-nums">
                 {d.amount} {d.asset}
               </div>
-              <div className="mt-1 text-xs text-[var(--color-text-muted)]">
+              <div className="mt-1 text-xs text-[var(--color-text-muted)] flex items-center gap-1">
                 <a
                   href={explorer}
                   target="_blank"
                   rel="noreferrer"
-                  className="font-mono truncate max-w-40 inline-block"
+                  className="font-mono truncate max-w-40 inline-block hover:underline"
                 >
                   {d.txHash.slice(0, 10)}…
                 </a>
+                <CopyButton
+                  text={d.txHash}
+                  iconOnly
+                  aria-label={`Copy transaction hash ${d.txHash}`}
+                />
               </div>
             </div>
           </div>

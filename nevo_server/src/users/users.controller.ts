@@ -1,11 +1,17 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
-import { Request } from 'express';
-import { StellarAuthGuard } from '../auth/stellar-auth.guard';
-import { DonationsService } from '../donations/donations.service';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  NotFoundException,
+  Patch,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
+import { StellarAuthGuard } from '../auth/stellar-auth.guard.js';
+import { UsersService } from './users.service.js';
 
-interface JwtPayload {
-  sub: string;
-  publicKey: string;
+export interface UpdateDisplayNameDto {
+  displayName: string;
 }
 
 @Controller('users')
@@ -24,5 +30,22 @@ export class UsersController {
       Math.max(1, parseInt(page, 10) || 1),
       Math.min(100, Math.max(1, parseInt(limit, 10) || 20)),
     );
+  constructor(private readonly usersService: UsersService) {}
+
+  @UseGuards(StellarAuthGuard)
+  @Patch('me')
+  async updateMe(
+    @Request() req: { user: { publicKey: string } },
+    @Body() dto: UpdateDisplayNameDto,
+  ) {
+    if (!dto.displayName || dto.displayName.length > 50) {
+      throw new BadRequestException('displayName must be 1–50 characters');
+    }
+    const user = await this.usersService.updateDisplayName(
+      req.user.publicKey,
+      dto.displayName,
+    );
+    if (!user) throw new NotFoundException('User not found');
+    return user;
   }
 }

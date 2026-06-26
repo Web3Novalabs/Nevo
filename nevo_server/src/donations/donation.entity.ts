@@ -11,22 +11,28 @@ export class Donation {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Index({ unique: true })
-  @Column({ name: 'tx_hash', type: 'varchar', length: 255 })
-  txHash: string;
+  @Index()
+  @Column({ name: 'pool_id', type: 'varchar', length: 255 })
+  poolId: string;
 
-  @Column({ name: 'pool_id', type: 'int' })
-  poolId: number;
-
+  @Index()
   @Column({ name: 'donor_wallet', type: 'varchar', length: 56 })
   donorWallet: string;
 
-  @Column({ type: 'bigint' })
+  @Column({ type: 'varchar', length: 255 })
   amount: string;
 
-  @Column({ type: 'varchar', length: 56 })
+  @Column({ type: 'varchar', length: 10 })
   asset: string;
 
+  @Index({ unique: true })
+  @Column({ name: 'tx_hash', type: 'varchar', length: 64 })
+  txHash: string;
+
+  @Column({ type: 'text', nullable: true })
+  memo: string | null;
+
+  @Index()
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

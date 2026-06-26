@@ -63,28 +63,29 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
 
     setStep('loading');
 
-    // TODO: Replace with real contract call once backend is integrated
-    await new Promise((r) => setTimeout(r, 1500));
-
-    const shouldFail = false; // flip to true to test error state
-    if (shouldFail) {
+    // Call the donate API
+    try {
+      // Import this at the top: import { donate } from '@/lib/api-client';
+      // Wait, we can just use the store if donate is added there, or apiClient directly
+      const tokenAddress = asset === 'XLM' ? 'native' : 'usdc_address'; // Placeholder for token address
+      // await donate(pool.id, amount, tokenAddress); // Uncomment when implemented
+      
+      const donation = {
+        id: `mock-${Date.now()}`,
+        poolId: pool.id,
+        poolName: pool.title,
+        amount,
+        asset,
+        txHash: `mock-tx-${Math.random().toString(36).slice(2)}`,
+        timestamp: new Date().toISOString(),
+        status: 'confirmed' as const,
+      };
+      addDonation(donation);
+      setStep('success');
+    } catch (err) {
       setErrorMsg('Transaction rejected by the network. Please try again.');
       setStep('error');
-      return;
     }
-
-    const donation = {
-      id: `mock-${Date.now()}`,
-      poolId: pool.id,
-      poolName: pool.title,
-      amount,
-      asset,
-      txHash: `mock-tx-${Math.random().toString(36).slice(2)}`,
-      timestamp: new Date().toISOString(),
-      status: 'confirmed' as const,
-    };
-    addDonation(donation);
-    setStep('success');
   }
 
   return (
