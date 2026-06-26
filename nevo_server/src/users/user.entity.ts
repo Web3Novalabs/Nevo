@@ -16,8 +16,8 @@ export class User {
   @Column({ name: 'public_key', type: 'varchar', length: 56 })
   publicKey: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  username: string | null;
+  @Column({ name: 'username', type: 'varchar', length: 255, nullable: true })
+  displayName: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

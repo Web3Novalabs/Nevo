@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { createPool } from '@/lib/api-client';
 import { signTransaction } from '@stellar/freighter-api';
 import { contractService } from '@/lib/contract-service';
 import { submitSignedXdr } from '@/lib/api-client';
@@ -334,6 +335,21 @@ function CreatePoolPageContent() {
     } finally {
       setSubmitting(false);
     }
+    try {
+      await createPool({
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        goalAmount: form.goalAmount,
+        duration: form.duration,
+        imageUrl: form.imageUrl,
+        tags: form.tags,
+      });
+    } catch {
+      // TODO: surface error to user once error UI is designed
+    }
+    setSubmitting(false);
+    setSubmitted(true);
   }
 
   if (submitted) {
