@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { PoolsService } from './pools.service';
+import { GetPoolsDto } from './dto/get-pools.dto';
 import { DonationsService } from '../donations/donations.service';
 import { ContractService } from '../contract/contract.service';
 import { StellarAuthGuard } from '../auth/stellar-auth.guard';
@@ -62,6 +63,11 @@ export class PoolsController {
     const pool = await this.poolsService.findOneMerged(id);
     if (!pool) throw new NotFoundException('Pool not found');
     return pool;
+  }
+
+  @Get()
+  async findAll(@Query() query: GetPoolsDto) {
+    return this.poolsService.findAll(query);
   }
 
   @Post()
