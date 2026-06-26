@@ -9,7 +9,6 @@ import {
   type Pool,
   type PoolStatus,
 } from '@/src/store/poolsStore';
-import { usePoolsStore } from '@/src/store/poolsStore';
 
 type SortOption = 'newest' | 'most-funded' | 'close-to-goal' | 'trending';
 

@@ -415,6 +415,7 @@ export default function PoolDetailPage() {
                 </div>
               </div>
             )}
+          </section>
           <section aria-labelledby="comments-heading">
             <h2 id="comments-heading" className="mb-4 text-lg font-semibold">
               Discussion

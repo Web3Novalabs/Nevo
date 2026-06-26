@@ -117,30 +117,20 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
 
       const donation = {
         id: hash,
-    // Call the donate API
-    try {
-      // Import this at the top: import { donate } from '@/lib/api-client';
-      // Wait, we can just use the store if donate is added there, or apiClient directly
-      const tokenAddress = asset === 'XLM' ? 'native' : 'usdc_address'; // Placeholder for token address
-      // await donate(pool.id, amount, tokenAddress); // Uncomment when implemented
-      
-      const donation = {
-        id: `mock-${Date.now()}`,
         poolId: pool.id,
         poolName: pool.title,
         amount,
         asset,
         txHash: hash,
-        txHash: `mock-tx-${Math.random().toString(36).slice(2)}`,
         timestamp: new Date().toISOString(),
         status: 'confirmed' as const,
       };
       addDonation(donation);
       setTxHash(hash);
+      setLastTxHash(hash);
       setStep('success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Transaction failed.';
-      // User rejected in Freighter popup
       if (
         msg.toLowerCase().includes('cancel') ||
         msg.toLowerCase().includes('reject') ||
@@ -150,25 +140,8 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
       } else {
         setErrorMsg(msg);
       }
-      setStep('success');
-    } catch (err) {
-      setErrorMsg('Transaction rejected by the network. Please try again.');
       setStep('error');
     }
-
-    const donation = {
-      id: `mock-${Date.now()}`,
-      poolId: pool.id,
-      poolName: pool.title,
-      amount,
-      asset,
-      txHash: `mock-tx-${Math.random().toString(36).slice(2)}`,
-      timestamp: new Date().toISOString(),
-      status: 'confirmed' as const,
-    };
-    addDonation(donation);
-    setLastTxHash(donation.txHash);
-    setStep('success');
   }
 
   return (
