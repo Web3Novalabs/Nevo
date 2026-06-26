@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { TrendingPools } from '@/components/TrendingPools';
 
 const features = [
   {
@@ -168,6 +169,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* ── Trending Pools ──────────────────────────────────────────────── */}
+      <TrendingPools />
 
       {/* ── Stats ────────────────────────────────────────────────────────── */}
       <section

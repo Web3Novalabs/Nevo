@@ -111,6 +111,13 @@ export class PoolsService {
     };
   }
 
+  async markCompleted(contractPoolId: string): Promise<Pool | null> {
+    const pool = await this.poolRepo.findOne({ where: { contractPoolId } });
+    if (!pool) return null;
+    pool.status = PoolStatus.Completed;
+    return this.poolRepo.save(pool);
+  }
+
   buildWithdrawTx(pool: Pool): { unsignedXdr: string; poolId: string } {
     // TODO: replace with real Stellar transaction build calling contract.withdraw (#657)
     return { unsignedXdr: 'placeholder_xdr', poolId: pool.contractPoolId };

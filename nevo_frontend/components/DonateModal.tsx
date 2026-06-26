@@ -1,17 +1,43 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { signTransaction } from '@stellar/freighter-api';
+import {
+  Networks,
+  Transaction,
+  TransactionBuilder,
+} from '@stellar/stellar-sdk';
+import { Server } from '@stellar/stellar-sdk/rpc';
 import { useWalletStore } from '@/src/store/walletStore';
 import { useDonationsStore } from '@/src/store/donationsStore';
+import { contractService } from '@/lib/contract-service';
 import type { Pool } from '@/src/store/poolsStore';
 import { WalletAddress } from './WalletAddress';
+
+const NETWORK_PASSPHRASE =
+  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ?? Networks.TESTNET;
+const RPC_URL =
+  process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ??
+  'https://soroban-testnet.stellar.org';
+
+async function submitSignedXdr(signedXdr: string): Promise<string> {
+  const server = new Server(RPC_URL);
+  const tx = TransactionBuilder.fromXDR(
+    signedXdr,
+    NETWORK_PASSPHRASE
+  ) as Transaction;
+  const result = await server.sendTransaction(tx);
+  if (result.status === 'ERROR') {
+    throw new Error(result.errorResult?.toString() ?? 'Transaction failed');
+  }
+  return result.hash;
+}
 
 type Asset = 'XLM' | 'USDC';
 type Step = 'form' | 'loading' | 'success' | 'error';
 
 const MIN_AMOUNT = 1;
 const MAX_AMOUNT = 100_000;
-// Mock fee estimate (Stellar base fee in XLM)
 const TX_FEE_XLM = '0.00001';
 
 interface DonateModalProps {
@@ -27,6 +53,8 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState<Step>('form');
   const [errorMsg, setErrorMsg] = useState('');
+  const [lastTxHash, setLastTxHash] = useState('');
+  const [txHash, setTxHash] = useState('');
   const backdropRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -63,14 +91,69 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
 
     setStep('loading');
 
-    // TODO: Replace with real contract call once backend is integrated
-    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      // Build the unsigned XDR from the contract service
+      const amountInStroops = BigInt(Math.round(numAmount * 1e7));
+      const unsignedXdr = await contractService.buildDonateTransaction(
+        parseInt(pool.id),
+        publicKey,
+        amountInStroops
+      );
 
-    const shouldFail = false; // flip to true to test error state
-    if (shouldFail) {
+      // Sign with Freighter
+      const signResult = await signTransaction(unsignedXdr, {
+        networkPassphrase: NETWORK_PASSPHRASE,
+        address: publicKey,
+      });
+
+      if (signResult.error) {
+        setErrorMsg('Donation cancelled.');
+        setStep('error');
+        return;
+      }
+
+      // Submit the signed XDR
+      const hash = await submitSignedXdr(signResult.signedTxXdr);
+
+      const donation = {
+        id: hash,
+    // Call the donate API
+    try {
+      // Import this at the top: import { donate } from '@/lib/api-client';
+      // Wait, we can just use the store if donate is added there, or apiClient directly
+      const tokenAddress = asset === 'XLM' ? 'native' : 'usdc_address'; // Placeholder for token address
+      // await donate(pool.id, amount, tokenAddress); // Uncomment when implemented
+      
+      const donation = {
+        id: `mock-${Date.now()}`,
+        poolId: pool.id,
+        poolName: pool.title,
+        amount,
+        asset,
+        txHash: hash,
+        txHash: `mock-tx-${Math.random().toString(36).slice(2)}`,
+        timestamp: new Date().toISOString(),
+        status: 'confirmed' as const,
+      };
+      addDonation(donation);
+      setTxHash(hash);
+      setStep('success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Transaction failed.';
+      // User rejected in Freighter popup
+      if (
+        msg.toLowerCase().includes('cancel') ||
+        msg.toLowerCase().includes('reject') ||
+        msg.toLowerCase().includes('declined')
+      ) {
+        setErrorMsg('Donation cancelled.');
+      } else {
+        setErrorMsg(msg);
+      }
+      setStep('success');
+    } catch (err) {
       setErrorMsg('Transaction rejected by the network. Please try again.');
       setStep('error');
-      return;
     }
 
     const donation = {
@@ -84,6 +167,7 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
       status: 'confirmed' as const,
     };
     addDonation(donation);
+    setLastTxHash(donation.txHash);
     setStep('success');
   }
 
@@ -254,9 +338,9 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
             aria-busy="true"
           >
             <div className="size-12 animate-spin rounded-full border-4 border-[var(--color-border)] border-t-brand-600" />
-            <p className="text-sm font-medium">Processing transaction…</p>
+            <p className="text-sm font-medium">Sign with Freighter…</p>
             <p className="text-xs text-[var(--color-text-muted)]">
-              Please wait while your donation is being submitted.
+              Please approve the transaction in your Freighter wallet.
             </p>
           </div>
         )}
@@ -271,7 +355,7 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
               <CheckCircleIcon />
             </div>
             <div>
-              <p className="font-semibold">Donation successful!</p>
+              <p className="font-semibold">Donation successful! Thank you.</p>
               <p className="mt-1 text-sm text-[var(--color-text-muted)]">
                 You donated{' '}
                 <span className="font-medium">
@@ -279,13 +363,42 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
                 </span>{' '}
                 to <span className="font-medium">{pool.title}</span>.
               </p>
+              {txHash && (
+                <a
+                  href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-block font-mono text-xs text-brand-600 hover:underline"
+                >
+                  {txHash.slice(0, 10)}…{txHash.slice(-6)}
+                </a>
+              )}
+            </div>
+            <div className="mt-2 flex w-full gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-xl border border-[var(--color-border)] px-4 py-2.5 text-sm font-medium hover:bg-[var(--color-surface-raised)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              >
+                Done
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  window.location.href = `/donations/receipt?txHash=${encodeURIComponent(lastTxHash)}`;
+                }}
+                className="flex-1 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              >
+                View Receipt
+              </button>
             </div>
             <button
               type="button"
               onClick={onClose}
               className="mt-2 w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
             >
-              Done
+              Close
             </button>
           </div>
         )}

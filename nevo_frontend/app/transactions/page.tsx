@@ -1,146 +1,10 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '@/components/EmptyState';
 import ProtectedRoute from '@/components/ProtectedRoute';
-
-// TODO: Replace with real API data once backend transaction endpoints are implemented
-export type TxType = 'donation' | 'pool_creation' | 'withdrawal';
-export type TxStatus = 'completed' | 'pending' | 'failed';
-
-export interface Transaction {
-  id: string;
-  type: TxType;
-  amount: string;
-  asset: string;
-  recipient: string;
-  date: string;
-  status: TxStatus;
-  txHash: string;
-}
-
-const MOCK_TRANSACTIONS: Transaction[] = [
-  {
-    id: '1',
-    type: 'donation',
-    amount: '250',
-    asset: 'XLM',
-    recipient: 'Clean Water Initiative',
-    date: '2025-05-20T14:32:00Z',
-    status: 'completed',
-    txHash: 'abc123def456',
-  },
-  {
-    id: '2',
-    type: 'pool_creation',
-    amount: '0',
-    asset: 'XLM',
-    recipient: 'Open Source Dev Fund',
-    date: '2025-05-18T09:15:00Z',
-    status: 'completed',
-    txHash: 'bcd234efg567',
-  },
-  {
-    id: '3',
-    type: 'withdrawal',
-    amount: '3200',
-    asset: 'XLM',
-    recipient: 'Community Garden Project',
-    date: '2025-05-15T17:45:00Z',
-    status: 'completed',
-    txHash: 'cde345fgh678',
-  },
-  {
-    id: '4',
-    type: 'donation',
-    amount: '100',
-    asset: 'USDC',
-    recipient: 'Education for All',
-    date: '2025-05-12T11:20:00Z',
-    status: 'pending',
-    txHash: 'def456ghi789',
-  },
-  {
-    id: '5',
-    type: 'donation',
-    amount: '500',
-    asset: 'XLM',
-    recipient: 'Medical Relief Fund',
-    date: '2025-05-10T08:05:00Z',
-    status: 'failed',
-    txHash: 'efg567hij890',
-  },
-  {
-    id: '6',
-    type: 'pool_creation',
-    amount: '0',
-    asset: 'XLM',
-    recipient: 'Tech Scholarship Pool',
-    date: '2025-05-08T13:30:00Z',
-    status: 'completed',
-    txHash: 'fgh678ijk901',
-  },
-  {
-    id: '7',
-    type: 'donation',
-    amount: '75',
-    asset: 'XLM',
-    recipient: 'Clean Water Initiative',
-    date: '2025-05-05T16:00:00Z',
-    status: 'completed',
-    txHash: 'ghi789jkl012',
-  },
-  {
-    id: '8',
-    type: 'withdrawal',
-    amount: '1500',
-    asset: 'XLM',
-    recipient: 'Open Source Dev Fund',
-    date: '2025-04-28T10:10:00Z',
-    status: 'completed',
-    txHash: 'hij890klm123',
-  },
-  {
-    id: '9',
-    type: 'donation',
-    amount: '200',
-    asset: 'USDC',
-    recipient: 'Education for All',
-    date: '2025-04-20T14:00:00Z',
-    status: 'completed',
-    txHash: 'ijk901lmn234',
-  },
-  {
-    id: '10',
-    type: 'donation',
-    amount: '50',
-    asset: 'XLM',
-    recipient: 'Medical Relief Fund',
-    date: '2025-04-15T09:45:00Z',
-    status: 'failed',
-    txHash: 'jkl012mno345',
-  },
-  {
-    id: '11',
-    type: 'pool_creation',
-    amount: '0',
-    asset: 'XLM',
-    recipient: 'Climate Action Fund',
-    date: '2025-04-10T11:00:00Z',
-    status: 'completed',
-    txHash: 'klm123nop456',
-  },
-  {
-    id: '12',
-    type: 'donation',
-    amount: '300',
-    asset: 'XLM',
-    recipient: 'Tech Scholarship Pool',
-    date: '2025-04-05T15:30:00Z',
-    status: 'completed',
-    txHash: 'lmn234opq567',
-  },
-];
+import { apiClient } from '@/lib/api-client';
+import type { Transaction, TxType, TxStatus } from '@/src/lib/mockTransactions';
 
 const PAGE_SIZE = 8;
 
@@ -268,6 +132,8 @@ const TYPE_ICON_BG: Record<TxType, string> = {
 /* ── Main Page ──────────────────────────────────────────────────────────── */
 
 function TransactionsPageContent() {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingTx, setLoadingTx] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<TxType | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<TxStatus | 'all'>('all');
@@ -275,8 +141,16 @@ function TransactionsPageContent() {
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
 
+  useEffect(() => {
+    apiClient
+      .get<Transaction[]>('/transactions')
+      .then((data) => setTransactions(data ?? []))
+      .catch(() => setTransactions([]))
+      .finally(() => setLoadingTx(false));
+  }, []);
+
   const filtered = useMemo(() => {
-    return MOCK_TRANSACTIONS.filter((tx) => {
+    return transactions.filter((tx) => {
       if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
       if (statusFilter !== 'all' && tx.status !== statusFilter) return false;
       if (
@@ -289,7 +163,7 @@ function TransactionsPageContent() {
       if (dateTo && tx.date > dateTo + 'T23:59:59Z') return false;
       return true;
     });
-  }, [search, typeFilter, statusFilter, dateFrom, dateTo]);
+  }, [transactions, search, typeFilter, statusFilter, dateFrom, dateTo]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -420,7 +294,9 @@ function TransactionsPageContent() {
       </p>
 
       {/* Transaction list */}
-      {paginated.length === 0 ? (
+      {loadingTx ? (
+        <TransactionsSkeleton />
+      ) : paginated.length === 0 ? (
         <EmptyState
           icon="transaction"
           iconTone="muted"
@@ -512,11 +388,54 @@ function TransactionsPageContent() {
   );
 }
 
+/* ── TransactionsSkeleton ───────────────────────────────────────────────── */
+
+function TransactionsSkeleton() {
+  return (
+    <ul
+      className="flex flex-col gap-3"
+      aria-label="Loading transactions"
+      aria-busy="true"
+    >
+      {[1, 2, 3, 4, 5].map((i) => (
+        <li
+          key={i}
+          className="h-20 animate-pulse rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-raised)]"
+        />
+      ))}
+    </ul>
+  );
+}
+
 /* ── TransactionRow ─────────────────────────────────────────────────────── */
 
 import { CopyButton } from '@/components/CopyButton';
 
+const STELLAR_EXPERT_BASE = 'https://stellar.expert/explorer/testnet/tx';
+
+function ExternalLinkIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="size-3"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+      />
+    </svg>
+  );
+}
+
 function TransactionRow({ tx }: { tx: Transaction }) {
+  const explorerUrl = `${STELLAR_EXPERT_BASE}/${tx.txHash}`;
+
   return (
     <li className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 transition-shadow hover:shadow-sm">
       <div className="flex items-start gap-4">
@@ -552,7 +471,7 @@ function TransactionRow({ tx }: { tx: Transaction }) {
             <time dateTime={tx.date}>
               {formatDate(tx.date)} · {formatTime(tx.date)}
             </time>
-            <span className="inline-flex items-center gap-1">
+            <span className="inline-flex items-center gap-1.5">
               <span className="font-mono truncate max-w-32" title={tx.txHash}>
                 {tx.txHash.slice(0, 8)}…
               </span>
@@ -561,6 +480,16 @@ function TransactionRow({ tx }: { tx: Transaction }) {
                 iconOnly
                 aria-label={`Copy transaction hash ${tx.txHash}`}
               />
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 text-brand-600 hover:text-brand-700 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600 rounded"
+                aria-label={`View transaction ${tx.txHash.slice(0, 8)} on Stellar Expert blockchain explorer (opens in new tab)`}
+              >
+                Explorer
+                <ExternalLinkIcon />
+              </a>
             </span>
           </div>
         </div>

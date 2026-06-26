@@ -5,28 +5,39 @@ import { getAccountBalances, AccountBalances } from '@/lib/stellar';
 
 interface WalletState {
   publicKey: string | null;
+  accessToken: string | null;
   balances: AccountBalances | null;
   loading: boolean;
+  isAuthenticated: boolean;
   connectWallet: (onSuccess?: () => void) => Promise<void>;
   disconnectWallet: () => Promise<void>;
   refreshBalances: () => Promise<void>;
   initialize: () => Promise<void>;
+  setAccessToken: (token: string) => void;
 }
 
 export const useWalletStore = create<WalletState>()(
   persist(
     (set, get) => ({
       publicKey: null,
+      accessToken: null,
       balances: null,
       loading: true,
+      isAuthenticated: false,
 
       initialize: async () => {
         const key = await getPublicKey();
         if (key) {
           const balances = await getAccountBalances(key);
-          set({ publicKey: key, balances, loading: false });
+          const accessToken = get().accessToken;
+          set({
+            publicKey: key,
+            balances,
+            loading: false,
+            isAuthenticated: !!accessToken,
+          });
         } else {
-          set({ loading: false });
+          set({ loading: false, isAuthenticated: false });
         }
       },
 
@@ -35,7 +46,12 @@ export const useWalletStore = create<WalletState>()(
           const key = await getPublicKey();
           if (key) {
             const balances = await getAccountBalances(key);
-            set({ publicKey: key, balances });
+            const accessToken = get().accessToken;
+            set({
+              publicKey: key,
+              balances,
+              isAuthenticated: !!accessToken,
+            });
             onSuccess?.();
           }
         });
@@ -43,7 +59,12 @@ export const useWalletStore = create<WalletState>()(
 
       disconnectWallet: async () => {
         await disconnect();
-        set({ publicKey: null, balances: null });
+        set({
+          publicKey: null,
+          accessToken: null,
+          balances: null,
+          isAuthenticated: false,
+        });
       },
 
       refreshBalances: async () => {
@@ -52,10 +73,21 @@ export const useWalletStore = create<WalletState>()(
         const balances = await getAccountBalances(publicKey);
         set({ balances });
       },
+
+      setAccessToken: (token: string) => {
+        set({
+          accessToken: token,
+          isAuthenticated: !!get().publicKey && !!token,
+        });
+      },
     }),
     {
       name: 'nevo-wallet',
-      partialize: (state) => ({ publicKey: state.publicKey }),
+      partialize: (state) => ({
+        publicKey: state.publicKey,
+        accessToken: state.accessToken,
+        isAuthenticated: state.isAuthenticated,
+      }),
     }
   )
 );

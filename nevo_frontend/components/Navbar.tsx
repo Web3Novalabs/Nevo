@@ -9,6 +9,7 @@ import {
   NAV_LINKS,
 } from '@/components/MobileMenu';
 import ThemeToggle from '@/components/ThemeToggle';
+import { NotificationCenter } from '@/components/NotificationCenter';
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -45,11 +46,15 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
+            <NotificationCenter />
             <ThemeToggle />
             <ConnectWallet />
           </div>
 
-          <MobileMenuButton open={menuOpen} onOpen={openMenu} />
+          <div className="flex items-center gap-2 lg:hidden">
+            <NotificationCenter />
+            <MobileMenuButton open={menuOpen} onOpen={openMenu} />
+          </div>
         </div>
       </nav>
 

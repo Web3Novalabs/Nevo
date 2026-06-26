@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import type { StringValue } from 'ms';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from '../users/users.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { JwtStrategy } from './jwt.strategy';
 import { NonceService } from './nonce.service';
 import { Nonce } from './nonce.entity';
 
@@ -14,19 +15,16 @@ import { Nonce } from './nonce.entity';
     ConfigModule,
     PassportModule,
     TypeOrmModule.forFeature([Nonce]),
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET', 'dev-secret'),
-        signOptions: {
-          expiresIn: config.get<string>('JWT_EXPIRY', '7d') as unknown as any,
-        },
-      }),
+    PassportModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET ?? 'dev-secret',
+      signOptions: {
+        expiresIn: (process.env.JWT_EXPIRY ?? '7d') as StringValue,
+      },
     }),
     UsersModule,
   ],
-  providers: [AuthService, NonceService],
+  providers: [AuthService, NonceService, JwtStrategy],
   controllers: [AuthController],
 })
 export class AuthModule {}
