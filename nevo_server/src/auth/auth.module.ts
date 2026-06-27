@@ -24,5 +24,6 @@ import { Nonce } from './nonce.entity';
   ],
   providers: [AuthService, NonceService, JwtStrategy],
   controllers: [AuthController],
+  exports: [JwtStrategy],
 })
 export class AuthModule {}

@@ -122,4 +122,14 @@ export class PoolsService {
     // TODO: replace with real Stellar transaction build calling contract.withdraw (#657)
     return { unsignedXdr: 'placeholder_xdr', poolId: pool.contractPoolId };
   }
+
+  buildClosePoolTx(pool: Pool): { unsignedXdr: string } {
+    const poolIdNum = parseInt(pool.contractPoolId, 10);
+    const unsignedXdr = this.contractService.buildClosePoolTransaction(
+      pool.creatorWallet,
+      poolIdNum,
+    );
+    return { unsignedXdr };
+  }
+}
 }

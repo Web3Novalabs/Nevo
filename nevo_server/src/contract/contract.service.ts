@@ -124,6 +124,31 @@ export class ContractService {
     }
   }
 
+  buildClosePoolTransaction(
+    sourcePublicKey: string,
+    poolId: number,
+  ): string {
+    try {
+      const source = new Account(sourcePublicKey, '0');
+      const tx = new TransactionBuilder(source, {
+        fee: BASE_FEE,
+        networkPassphrase: NETWORK_PASSPHRASE,
+      })
+        .addOperation(
+          this.contract.call(
+            'close_pool',
+            nativeToScVal(poolId, { type: 'u32' }),
+            nativeToScVal(sourcePublicKey, { type: 'address' }),
+          ),
+        )
+        .setTimeout(30)
+        .build();
+      return tx.toXDR();
+    } catch (err: unknown) {
+      throw this.mapError(err);
+    }
+  }
+
   async submitSignedXdr(signedXdr: string): Promise<string> {
     try {
       const tx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
