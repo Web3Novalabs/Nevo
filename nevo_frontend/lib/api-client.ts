@@ -10,7 +10,7 @@ import {
 } from './rate-limit';
 import { getStoredAccessToken } from './jwt-storage';
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 export interface RequestConfig extends Omit<RequestInit, 'method' | 'body'> {
   params?: Record<string, string | number | boolean | undefined>;
@@ -391,6 +391,11 @@ export class ApiClient {
             } catch {
               errorData = await response.text();
             }
+            if (response.status >= 500 && response.status < 600) {
+              if (typeof window !== 'undefined') {
+                toast('Something went wrong. Please try again.', 'error');
+              }
+            }
             throw new ApiError(response.status, response.statusText, errorData);
           }
 
@@ -499,6 +504,13 @@ export function fetchMyDonations(): Promise<ApiDonation[]> {
 
 export function fetchMyProfile(): Promise<ApiProfile> {
   return apiClient.get<ApiProfile>('/users/me');
+}
+
+export function updateProfile(displayName: string): Promise<ApiProfile> {
+  return apiClient.request<ApiProfile>('/users/me', 'PATCH', {
+    body: { displayName },
+    requireAuth: true,
+  });
 }
 
 export interface CreatePoolPayload {

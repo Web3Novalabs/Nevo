@@ -35,7 +35,7 @@ describe('UsersService', () => {
     const existing: User = {
       id: 'uuid-1',
       publicKey,
-      username: 'alice',
+      displayName: 'alice',
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -55,6 +55,6 @@ describe('UsersService', () => {
 
     const saved = savedArg();
     expect(saved?.publicKey).toBe(publicKey);
-    expect(saved?.username).toBeNull();
+    expect(saved?.displayName).toBeNull();
   });
 });

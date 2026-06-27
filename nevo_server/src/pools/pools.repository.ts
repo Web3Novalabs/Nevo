@@ -8,7 +8,8 @@ export class MockPoolRepository {
     {
       id: '1',
       title: 'Clean Water Initiative',
-      description: 'Providing clean drinking water to rural communities in need.',
+      description:
+        'Providing clean drinking water to rural communities in need.',
       category: 'Humanitarian',
       status: 'Active',
       target: 10000,
@@ -56,7 +57,8 @@ export class MockPoolRepository {
     {
       id: '5',
       title: 'Blockchain Education for Youth',
-      description: 'Providing free workshops on Web3 and blockchain development to high school students.',
+      description:
+        'Providing free workshops on Web3 and blockchain development to high school students.',
       category: 'Education',
       status: 'Active',
       target: 15000,
@@ -68,7 +70,8 @@ export class MockPoolRepository {
     {
       id: '6',
       title: 'Reforestation Campaign',
-      description: 'Planting trees to restore local forests and fight climate change.',
+      description:
+        'Planting trees to restore local forests and fight climate change.',
       category: 'Environment',
       status: 'Active',
       target: 20000,
@@ -80,7 +83,8 @@ export class MockPoolRepository {
     {
       id: '7',
       title: 'Disaster Relief Fund',
-      description: 'Emergency supply packages and medical assistance for flood victims.',
+      description:
+        'Emergency supply packages and medical assistance for flood victims.',
       category: 'Humanitarian',
       status: 'Completed',
       target: 50000,
@@ -92,7 +96,8 @@ export class MockPoolRepository {
     {
       id: '8',
       title: 'Stellar Smart Contract Auditing',
-      description: 'Funding auditing services for open-source Soroban smart contracts.',
+      description:
+        'Funding auditing services for open-source Soroban smart contracts.',
       category: 'Technology',
       status: 'Active',
       target: 12000,
@@ -104,7 +109,8 @@ export class MockPoolRepository {
     {
       id: '9',
       title: 'Stray Cat Rescue Program',
-      description: 'Trap-neuter-return and shelter rehabilitation for stray cats.',
+      description:
+        'Trap-neuter-return and shelter rehabilitation for stray cats.',
       category: 'Animal Welfare',
       status: 'Completed',
       target: 4000,
@@ -128,7 +134,8 @@ export class MockPoolRepository {
     {
       id: '11',
       title: 'Medical Aid for Orphans',
-      description: 'Providing essential vaccines, medicine, and healthcare checkups to children.',
+      description:
+        'Providing essential vaccines, medicine, and healthcare checkups to children.',
       category: 'Healthcare',
       status: 'Active',
       target: 15000,
@@ -140,7 +147,8 @@ export class MockPoolRepository {
     {
       id: '12',
       title: 'Veterinary Clinic Support',
-      description: 'Renovating operations theatre and purchasing diagnostic tools for rescue clinic.',
+      description:
+        'Renovating operations theatre and purchasing diagnostic tools for rescue clinic.',
       category: 'Animal Welfare',
       status: 'Active',
       target: 9000,
@@ -152,7 +160,8 @@ export class MockPoolRepository {
     {
       id: '13',
       title: 'Scholarships for STEM Girls',
-      description: 'Supporting high school girls from lower-income backgrounds to enter STEM.',
+      description:
+        'Supporting high school girls from lower-income backgrounds to enter STEM.',
       category: 'Education',
       status: 'Completed',
       target: 6000,
@@ -164,7 +173,8 @@ export class MockPoolRepository {
     {
       id: '14',
       title: 'Solar Power Installation',
-      description: 'Installing solar panels at community center to lower utility costs.',
+      description:
+        'Installing solar panels at community center to lower utility costs.',
       category: 'Environment',
       status: 'Active',
       target: 7500,
@@ -176,7 +186,8 @@ export class MockPoolRepository {
     {
       id: '15',
       title: 'Indigenous Community Support',
-      description: 'Fostering trade opportunities and providing education on heritage conservation.',
+      description:
+        'Fostering trade opportunities and providing education on heritage conservation.',
       category: 'Humanitarian',
       status: 'Active',
       target: 10000,

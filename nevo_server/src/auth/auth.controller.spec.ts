@@ -35,7 +35,7 @@ describe('AuthController (challenge/verify)', () => {
             findOrCreate: jest.fn().mockResolvedValue({
               id: 'user-id',
               publicKey,
-              username: null,
+              displayName: null,
               createdAt: new Date(),
               updatedAt: new Date(),
             }),
@@ -77,9 +77,7 @@ describe('AuthController (challenge/verify)', () => {
   });
 
   it('GET /auth/challenge without publicKey returns 400', async () => {
-    await request(app.getHttpServer())
-      .get('/auth/challenge')
-      .expect(400);
+    await request(app.getHttpServer()).get('/auth/challenge').expect(400);
   });
 
   it('POST /auth/verify with valid signature returns accessToken', async () => {
@@ -94,7 +92,7 @@ describe('AuthController (challenge/verify)', () => {
       createdAt: new Date(),
       expiresAt: new Date(Date.now() + 10000),
       used: false,
-    } as any);
+    });
     jest.spyOn(nonceService, 'markNonceAsUsed').mockResolvedValue();
 
     await request(app.getHttpServer())

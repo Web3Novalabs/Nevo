@@ -3,11 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { createPool } from '@/lib/api-client';
+import { createPool, submitSignedXdr } from '@/lib/api-client';
 import { signTransaction } from '@stellar/freighter-api';
 import { contractService } from '@/lib/contract-service';
-import { createPool, submitSignedXdr } from '@/lib/api-client';
 import { useWalletStore } from '@/src/store/walletStore';
+
 import {
   validateFormData,
   validateImageFile,

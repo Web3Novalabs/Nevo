@@ -27,6 +27,12 @@ interface TimelineEvent {
   amount?: number;
 }
 
+interface Contributor {
+  address: string;
+  amount: number;
+  donatedAt: string;
+}
+
 // ── Comments ────────────────────────────────────────────────────────────────
 
 interface Comment {
@@ -39,49 +45,6 @@ interface Comment {
   parentId: string | null;
   replies: Comment[];
 }
-
-// TODO: Replace with real API call to GET /pools/:id/comments
-const MOCK_COMMENTS: Record<string, Comment[]> = {
-  '1': [
-    {
-      id: 'c1',
-      poolId: '1',
-      authorAddress:
-        'GXYZ1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890AB',
-      text: 'Amazing initiative! How are the funds being allocated?',
-      createdAt: '2025-03-06T10:00:00Z',
-      parentId: null,
-      replies: [
-        {
-          id: 'c1r1',
-          poolId: '1',
-          authorAddress:
-            'GABC9876543210ZYXWV9876543210ZYXWV9876543210ZYXWV9876543210ZY',
-          text: 'Funds go directly to vetted local partners. You can track every withdrawal on-chain!',
-          createdAt: '2025-03-06T11:30:00Z',
-          parentId: 'c1',
-          replies: [],
-        },
-      ],
-    },
-    {
-      id: 'c2',
-      poolId: '1',
-      authorAddress:
-        'GABC9876543210ZYXWV9876543210ZYXWV9876543210ZYXWV9876543210ZY',
-      text: 'Love that everything is transparent on-chain. Keep up the great work!',
-      createdAt: '2025-03-10T14:20:00Z',
-      parentId: null,
-      replies: [],
-    },
-  ],
-};
-
-const MOCK_LAST_UPDATED: Record<string, string> = {
-  '1': '2025-04-15',
-  '2': '2025-02-01',
-  '3': '2024-12-31',
-};
 
 export default function PoolDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -96,6 +59,11 @@ export default function PoolDetailPage() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [donateOpen, setDonateOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [withdrawStep, setWithdrawStep] = useState<
+    'idle' | 'creating' | 'signing' | 'submitting'
+  >('idle');
+  const handleWithdraw = () => {};
+  const withdrawLabel = () => 'Withdraw Funds';
 
   const handleClosePool = async () => {
     if (!pool || !publicKey) return;
@@ -137,9 +105,9 @@ export default function PoolDetailPage() {
       if (!p) {
         router.replace('/pools');
       } else {
-        setContributors(MOCK_CONTRIBUTORS[id] ?? []);
+        setContributors([]);
         // TODO: replace with real API call: apiClient.get(`/pools/${id}/comments`)
-        setComments(MOCK_COMMENTS[id] ?? []);
+        setComments([]);
       }
     };
     loadPool();
@@ -168,7 +136,7 @@ export default function PoolDetailPage() {
   const isOwner = publicKey !== null && publicKey === pool.creator;
   const isCompleted = pool.status === 'Completed';
   const isActive = pool.status === 'Active';
-  const lastUpdated = MOCK_LAST_UPDATED[pool.id] ?? pool.createdAt;
+  const lastUpdated = pool.createdAt;
 
   // Impact Dashboard Calculations
   const averageDonation =

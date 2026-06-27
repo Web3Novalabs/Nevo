@@ -13,11 +13,14 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { PoolsService } from './pools.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetPoolsDto } from './dto/get-pools.dto';
-import { DonationsService } from '../donations/donations.service';
+import {
+  DonationSortBy,
+  DonationsService,
+} from '../donations/donations.service';
 import { ContractService } from '../contract/contract.service';
 import { StellarAuthGuard } from '../auth/stellar-auth.guard';
 
@@ -43,6 +46,8 @@ export interface WithdrawDto {
 
 export interface ClosePoolDto {
   requesterWallet: string;
+}
+
 export interface DonateDto {
   amount: number;
   tokenAddress: string;
@@ -98,7 +103,7 @@ export class PoolsController {
   @Post(':id/close')
   async close(
     @Param('id') id: string,
-    @Request() req: { user: { publicKey: string } },
+    @Req() req: { user: { publicKey: string } },
   ) {
     const pool = await this.poolsService.findByContractId(id);
     if (!pool) throw new NotFoundException('Pool not found');
@@ -106,18 +111,11 @@ export class PoolsController {
       throw new ForbiddenException('Only the pool creator may close this pool');
     return this.poolsService.buildClosePoolTx(pool);
   }
-}
+
   @Get(':id/donations')
-  getDonations(
-    @Param('id', ParseIntPipe) id: number,
-    @Query('page') page = '1',
-    @Query('limit') limit = '20',
-  ) {
-    return this.donationsService.findByPool(
-      id,
-      Math.max(1, parseInt(page, 10) || 1),
-      Math.min(100, Math.max(1, parseInt(limit, 10) || 20)),
-    );
+  getDonations(@Param('id') id: string, @Query('sortBy') sortBy?: string) {
+    const sort: DonationSortBy = sortBy === 'largest' ? 'largest' : 'newest';
+    return this.donationsService.findByPool(id, sort);
   }
 
   @UseGuards(StellarAuthGuard)
@@ -141,3 +139,4 @@ export class PoolsController {
     return { unsignedXdr };
   }
 }
+

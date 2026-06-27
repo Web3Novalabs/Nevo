@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Pool, PoolStatus } from './pool.entity';
 import type { CreatePoolDto, UpdatePoolDto } from './pools.controller';
+import { GetPoolsDto } from './dto/get-pools.dto';
 import { ContractService } from '../contract/contract.service.js';
 
 export interface ChainPoolData {
@@ -42,6 +43,52 @@ export class PoolsService {
         raised: '0',
       }),
     );
+  }
+
+  async findAll(query: GetPoolsDto): Promise<{
+    data: Pool[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const page = query.page ? Math.max(1, parseInt(query.page, 10)) : 1;
+    const limit = query.limit ? Math.max(1, parseInt(query.limit, 10)) : 10;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.poolRepo.createQueryBuilder('pool');
+
+    if (query.category) {
+      queryBuilder.andWhere('LOWER(pool.category) = LOWER(:category)', {
+        category: query.category,
+      });
+    }
+
+    if (query.status) {
+      const normalizedStatus =
+        query.status.charAt(0).toUpperCase() +
+        query.status.slice(1).toLowerCase();
+      queryBuilder.andWhere('pool.status = :status', {
+        status: normalizedStatus as PoolStatus,
+      });
+    }
+
+    if (query.search) {
+      queryBuilder.andWhere(
+        '(LOWER(pool.title) LIKE LOWER(:search) OR LOWER(pool.description) LIKE LOWER(:search))',
+        { search: `%${query.search}%` },
+      );
+    }
+
+    queryBuilder.orderBy('pool.createdAt', 'DESC').skip(skip).take(limit);
+
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 
   async create(dto: CreatePoolDto): Promise<Pool> {
@@ -85,11 +132,12 @@ export class PoolsService {
     let donorCount = 0;
 
     if (!isNaN(poolIdNum)) {
-      const [poolOnChain, totalRaisedOnChain, donorCountOnChain] = await Promise.all([
-        this.contractService.getPoolOnChain(poolIdNum),
-        this.contractService.getTotalRaisedOnChain(poolIdNum),
-        this.contractService.getDonorCountOnChain(poolIdNum),
-      ]);
+      const [poolOnChain, totalRaisedOnChain, donorCountOnChain] =
+        await Promise.all([
+          this.contractService.getPoolOnChain(poolIdNum),
+          this.contractService.getTotalRaisedOnChain(poolIdNum),
+          this.contractService.getDonorCountOnChain(poolIdNum),
+        ]);
 
       if (poolOnChain) {
         raisedOnChain = poolOnChain.collected.toString();
@@ -132,4 +180,4 @@ export class PoolsService {
     return { unsignedXdr };
   }
 }
-}
+

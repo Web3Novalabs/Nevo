@@ -22,32 +22,10 @@ interface NotificationsState {
   clearAll: () => void;
 }
 
-const MOCK_NOTIFICATIONS: AppNotification[] = [
-  {
-    id: 'n1',
-    type: 'donation',
-    title: 'New Donation Received',
-    message: 'Someone donated 500 XLM to your pool "Clean Water Initiative".',
-    isRead: false,
-    timestamp: new Date().toISOString(),
-    link: '/pools/1',
-  },
-  {
-    id: 'n2',
-    type: 'pool_update',
-    title: 'Goal Reached!',
-    message:
-      'Congratulations! "Open Source Dev Fund" has reached its funding goal.',
-    isRead: false,
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-    link: '/pools/2',
-  },
-];
-
 export const useNotificationsStore = create<NotificationsState>()(
   persist(
     (set) => ({
-      notifications: MOCK_NOTIFICATIONS,
+      notifications: [],
 
       addNotification: (notification) =>
         set((state) => ({

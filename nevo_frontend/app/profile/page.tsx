@@ -5,7 +5,12 @@ import { useWalletStore } from '@/src/store/walletStore';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { WalletAddress } from '@/components/WalletAddress';
-import { fetchMyProfile, type ApiProfile } from '@/lib/api-client';
+import {
+  fetchMyProfile,
+  updateProfile,
+  type ApiProfile,
+} from '@/lib/api-client';
+import { toast } from '@/components/Toast';
 
 interface UserPreferences {
   email: string;
@@ -37,8 +42,10 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     fetchMyProfile()
       .then((data) => {
+        if (!active) return;
         setProfile(data);
         setPreferences((p) => ({
           ...p,
@@ -49,29 +56,14 @@ export default function ProfilePage() {
               : ''),
         }));
       })
-      .catch(() => {
-        // API unavailable — keep defaults
-      });
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    async function loadProfile() {
-      setIsLoading(true);
-      try {
-        const data = await fetchMyProfile();
-        if (active) {
-          setPreferences(data);
-        }
-      } catch (err) {
+      .catch((err) => {
         console.error('Failed to load profile:', err);
-      } finally {
+      })
+      .finally(() => {
         if (active) {
           setIsLoading(false);
         }
-      }
-    }
-    loadProfile();
+      });
     return () => {
       active = false;
     };
@@ -92,10 +84,18 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSaveProfile = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // TODO: Save to backend
-    setIsEditingProfile(false);
+    try {
+      const updated = await updateProfile(preferences.displayName);
+      setProfile(updated);
+      toast('Profile updated successfully');
+      setIsEditingProfile(false);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : 'Failed to update profile';
+      toast(msg, 'error');
+    }
   };
 
   const toggleNotification = (key: keyof UserPreferences['notifications']) => {
