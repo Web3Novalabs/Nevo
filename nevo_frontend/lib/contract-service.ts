@@ -4,6 +4,7 @@ import {
   Keypair,
   Networks,
   TransactionBuilder,
+  scValToNative,
   nativeToScVal,
 } from '@stellar/stellar-sdk';
 import { Server } from '@stellar/stellar-sdk/rpc';
@@ -30,6 +31,29 @@ function addressScVal(publicKey: string) {
 
 class ContractService {
   private readonly server = new Server(RPC_URL);
+
+  async getPoolCount(): Promise<number> {
+    try {
+      const contract = new Contract(getContractId());
+      const source = Keypair.random();
+      const account = await this.server.getAccount(source.publicKey());
+      const tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: NETWORK_PASSPHRASE,
+      })
+        .addOperation(contract.call('get_pool_count'))
+        .setTimeout(TX_TIMEOUT)
+        .build();
+
+      const result = await this.server.simulateTransaction(tx);
+      if ('error' in result) return -1;
+      const retVal = result.result?.retval;
+      if (!retVal) return -1;
+      return Number(scValToNative(retVal));
+    } catch {
+      return -1;
+    }
+  }
 
   async buildCreatePoolTransaction(
     creator: string,

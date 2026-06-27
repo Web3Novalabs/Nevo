@@ -6,10 +6,14 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { createPool } from '@/lib/api-client';
 import { signTransaction } from '@stellar/freighter-api';
 import { contractService } from '@/lib/contract-service';
-import { submitSignedXdr } from '@/lib/api-client';
+import { createPool, submitSignedXdr } from '@/lib/api-client';
 import { useWalletStore } from '@/src/store/walletStore';
+import {
+  validateFormData,
+  validateImageFile,
+} from '@/lib/pool-creation-validation';
+import type { FormData, FormErrors } from '@/lib/pool-creation-validation';
 
-// TODO: Replace with real pool creation API call once backend is implemented
 const CATEGORIES = [
   'Humanitarian',
   'Technology',
@@ -28,19 +32,6 @@ const DURATION_OPTIONS = [
   { label: '60 days', value: 60 },
   { label: '90 days', value: 90 },
 ];
-
-const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
-const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-
-function validateImageFile(file: File): string | undefined {
-  if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
-    return 'Unsupported format. Use JPG, PNG, or WebP.';
-  }
-  if (file.size > MAX_IMAGE_SIZE_BYTES) {
-    return 'Image is too large. Max size is 5MB.';
-  }
-  return undefined;
-}
 
 function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -115,25 +106,6 @@ async function optimizeImage(
   await new Promise((resolve) => setTimeout(resolve, 120));
   if (onProgress) onProgress(100);
   return dataUrl;
-}
-
-interface FormData {
-  title: string;
-  description: string;
-  category: string;
-  goalAmount: string;
-  duration: number;
-  imageUrl: string;
-  tags: string;
-}
-
-interface FormErrors {
-  title?: string;
-  description?: string;
-  category?: string;
-  goalAmount?: string;
-  duration?: string;
-  submit?: string;
 }
 
 const INITIAL_FORM: FormData = {
@@ -265,27 +237,22 @@ function CreatePoolPageContent() {
   }
 
   function validateStep1(): boolean {
-    const errs: FormErrors = {};
-    if (!form.title.trim()) errs.title = 'Title is required.';
-    else if (form.title.trim().length < 5)
-      errs.title = 'Title must be at least 5 characters.';
-    if (!form.description.trim()) errs.description = 'Description is required.';
-    else if (form.description.trim().length < 20)
-      errs.description = 'Description must be at least 20 characters.';
-    if (!form.category) errs.category = 'Please select a category.';
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+    const all = validateFormData(form);
+    const stepErr: FormErrors = {};
+    if (all.title) stepErr.title = all.title;
+    if (all.description) stepErr.description = all.description;
+    if (all.category) stepErr.category = all.category;
+    setErrors(stepErr);
+    return Object.keys(stepErr).length === 0;
   }
 
   function validateStep2(): boolean {
-    const errs: FormErrors = {};
-    const goal = parseFloat(form.goalAmount);
-    if (!form.goalAmount) errs.goalAmount = 'Goal amount is required.';
-    else if (isNaN(goal) || goal <= 0)
-      errs.goalAmount = 'Enter a valid amount greater than 0.';
-    if (!form.duration) errs.duration = 'Please select a duration.';
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+    const all = validateFormData(form);
+    const stepErr: FormErrors = {};
+    if (all.goalAmount) stepErr.goalAmount = all.goalAmount;
+    if (all.duration) stepErr.duration = all.duration;
+    setErrors(stepErr);
+    return Object.keys(stepErr).length === 0;
   }
 
   function handleNext() {
@@ -299,7 +266,15 @@ function CreatePoolPageContent() {
     else if (step === 3) setStep(2);
   }
 
+  function validateAllRequiredFields(): boolean {
+    const errs = validateFormData(form);
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
   async function handleSubmit() {
+    if (!validateAllRequiredFields()) return;
+
     setSubmitting(true);
     setSubmitStep('creating');
     setErrors({});
@@ -333,6 +308,24 @@ function CreatePoolPageContent() {
       }
       setSubmitStep('submitting');
       await submitSignedXdr(signedResult.signedTxXdr);
+
+      // Save pool metadata to the backend database
+      // New pool ID = current pool count + 1 (contract auto-increments)
+      const poolCount = await contractService.getPoolCount();
+      // Fall back to a unique prefixed ID if RPC is unavailable;
+      // the backend sync service will reconcile on-chain data later.
+      const contractPoolId =
+        poolCount >= 0 ? String(poolCount + 1) : `local-${Date.now()}`;
+      await createPool({
+        contractPoolId,
+        creatorWallet: publicKey,
+        goal: goalInStroops.toString(),
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        imageUrl: form.imageUrl || undefined,
+      });
+
       setSubmitted(true);
     } catch (error) {
       const err = error as Error;
@@ -603,7 +596,7 @@ function Step2({
         >
           <div className="relative">
             <input
-              id="goalAmount"
+              id="goal-amount-(xlm)"
               type="number"
               min="1"
               step="any"
@@ -611,7 +604,7 @@ function Step2({
               onChange={(e) => onChange('goalAmount', e.target.value)}
               placeholder="e.g. 5000"
               aria-describedby={
-                errors.goalAmount ? 'goalAmount-error' : undefined
+                errors.goalAmount ? 'goal-amount-(xlm)-error' : undefined
               }
               className={`${inputClass(!!errors.goalAmount)} pr-14`}
             />
@@ -623,6 +616,7 @@ function Step2({
 
         <Field label="Duration" required error={errors.duration}>
           <div
+            id="duration"
             role="radiogroup"
             aria-label="Campaign duration"
             className="flex flex-wrap gap-2"
@@ -654,6 +648,7 @@ function Step2({
             <label className="block rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-text)] transition-colors hover:border-brand-400">
               <span className="font-medium">Select image</span>
               <input
+                id="banner-image"
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 onChange={(e) => onSelectFile(e.target.files)}
@@ -745,20 +740,25 @@ function Step2({
 
         <Field
           label="Banner Image URL"
+          error={errors.imageUrl}
           hint="Optional. Provide a URL for your pool's banner image if you do not want to upload a file."
         >
           <input
-            id="imageUrl"
+            id="banner-image-url"
             type="url"
             value={form.imageUrl}
             onChange={(e) => onChange('imageUrl', e.target.value)}
             placeholder="https://example.com/image.jpg"
-            className={inputClass(false)}
+            aria-describedby={
+              errors.imageUrl ? 'banner-image-url-error' : undefined
+            }
+            className={inputClass(!!errors.imageUrl)}
           />
         </Field>
 
         <Field
           label="Tags"
+          error={errors.tags}
           hint="Optional. Comma-separated tags to help people find your pool."
         >
           <input
@@ -767,7 +767,8 @@ function Step2({
             value={form.tags}
             onChange={(e) => onChange('tags', e.target.value)}
             placeholder="e.g. water, africa, community"
-            className={inputClass(false)}
+            aria-describedby={errors.tags ? 'tags-error' : undefined}
+            className={inputClass(!!errors.tags)}
           />
         </Field>
       </div>
