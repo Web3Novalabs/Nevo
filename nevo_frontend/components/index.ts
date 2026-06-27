@@ -16,3 +16,4 @@ export * from './EmptyState';
 export * from './Card';
 export * from './PoolCard';
 export * from './Pagination';
+export * from './form';
