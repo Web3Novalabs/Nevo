@@ -692,18 +692,34 @@ export default function BrowsePoolsPage() {
               variant="bordered"
               icon="search"
               iconTone="muted"
-              title="No results found"
-              description="No pools match the current filter combination."
-              action={{
-                label: 'Clear all filters',
-                onClick: clearAllFilters,
-                variant: 'primary',
-              }}
-              secondaryAction={{
-                label: 'Create a Pool',
-                href: '/pools/new',
-                variant: 'link',
-              }}
+              title="No pools found"
+              description={
+                activeFilters.length > 0
+                  ? 'No pools match the current filter combination.'
+                  : 'There are no donation pools yet. Be the first to create one.'
+              }
+              action={
+                activeFilters.length > 0
+                  ? {
+                      label: 'Clear filters',
+                      onClick: clearAllFilters,
+                      variant: 'primary',
+                    }
+                  : {
+                      label: 'Create a Pool',
+                      href: '/pools/new',
+                      variant: 'primary',
+                    }
+              }
+              secondaryAction={
+                activeFilters.length > 0
+                  ? {
+                      label: 'Create a Pool',
+                      href: '/pools/new',
+                      variant: 'link',
+                    }
+                  : undefined
+              }
             />
           ) : (
             <div className="space-y-8">
