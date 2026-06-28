@@ -89,13 +89,11 @@ describe('NonceService', () => {
   describe('findAndValidateNonce', () => {
     it('should return the nonce if valid and not expired', async () => {
       const nonce = 'test-nonce-12345';
-      jest
-        .spyOn(repository, 'findOne')
-        .mockResolvedValue({
-          ...mockNonce,
-          used: false,
-          expiresAt: new Date(Date.now() + 1000), // Not expired
-        });
+      jest.spyOn(repository, 'findOne').mockResolvedValue({
+        ...mockNonce,
+        used: false,
+        expiresAt: new Date(Date.now() + 1000), // Not expired
+      });
 
       const result = await service.findAndValidateNonce(nonce);
 
@@ -163,9 +161,7 @@ describe('NonceService', () => {
 
       jest.spyOn(repository, 'findOne').mockResolvedValue(almostExpiredNonce);
 
-      const result = await service.findAndValidateNonce(
-        'almost-expired-nonce',
-      );
+      const result = await service.findAndValidateNonce('almost-expired-nonce');
 
       expect(result).toBeDefined();
       expect(result?.nonce).toBe(almostExpiredNonce.nonce);
@@ -195,7 +191,9 @@ describe('NonceService', () => {
 
       expect(repository.delete).toHaveBeenCalled();
       const deleteCall = jest.spyOn(repository, 'delete').mock.calls[0][0];
-      expect((deleteCall as FindOptionsWhere<Nonce>).expiresAt).toEqual(expect.any(Date));
+      expect((deleteCall as FindOptionsWhere<Nonce>).expiresAt).toEqual(
+        expect.any(Date),
+      );
     });
   });
 });

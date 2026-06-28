@@ -12,7 +12,10 @@ export class DonationsService {
     private readonly donationRepo: Repository<Donation>,
   ) {}
 
-  async findByPool(poolId: string, sortBy: DonationSortBy = 'newest'): Promise<Donation[]> {
+  async findByPool(
+    poolId: string,
+    sortBy: DonationSortBy = 'newest',
+  ): Promise<Donation[]> {
     if (sortBy === 'largest') {
       return this.donationRepo
         .createQueryBuilder('d')
@@ -20,10 +23,16 @@ export class DonationsService {
         .orderBy('CAST(d.amount AS NUMERIC)', 'DESC')
         .getMany();
     }
-    return this.donationRepo.find({ where: { poolId }, order: { createdAt: 'DESC' } });
+    return this.donationRepo.find({
+      where: { poolId },
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  async findByDonor(donorWallet: string, sortBy: DonationSortBy = 'newest'): Promise<Donation[]> {
+  async findByDonor(
+    donorWallet: string,
+    sortBy: DonationSortBy = 'newest',
+  ): Promise<Donation[]> {
     if (sortBy === 'largest') {
       return this.donationRepo
         .createQueryBuilder('d')
@@ -31,6 +40,9 @@ export class DonationsService {
         .orderBy('CAST(d.amount AS NUMERIC)', 'DESC')
         .getMany();
     }
-    return this.donationRepo.find({ where: { donorWallet }, order: { createdAt: 'DESC' } });
+    return this.donationRepo.find({
+      where: { donorWallet },
+      order: { createdAt: 'DESC' },
+    });
   }
 }

@@ -6,6 +6,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Keypair, StrKey } from '@stellar/stellar-sdk';
 import { UsersService } from '../users/users.service';
+import { User } from '../users/user.entity';
 import { randomBytes } from 'crypto';
 import { NonceService } from './nonce.service';
 
@@ -17,6 +18,7 @@ export interface VerifyDto {
 
 export interface AuthResult {
   accessToken: string;
+  user: User;
 }
 
 export interface ChallengeResult {
@@ -74,11 +76,13 @@ export class AuthService {
     // Mark nonce as used
     await this.nonceService.markNonceAsUsed(nonce.id);
 
+    const user = await this.usersService.findOrCreate(dto.publicKey);
     const accessToken = this.jwtService.sign({
-      sub: dto.publicKey,
+      sub: user.id,
+      publicKey: user.publicKey,
     });
 
-    return { accessToken };
+    return { accessToken, user };
   }
 
   private verifySignature(
@@ -89,7 +93,10 @@ export class AuthService {
     try {
       // Verify the Stellar Ed25519 signature
       const keypair = Keypair.fromPublicKey(publicKey);
-      return keypair.verify(Buffer.from(message), Buffer.from(signature, 'hex'));
+      return keypair.verify(
+        Buffer.from(message),
+        Buffer.from(signature, 'hex'),
+      );
     } catch {
       return false;
     }

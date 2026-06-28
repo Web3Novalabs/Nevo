@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SyncService, HorizonContractEvent } from './sync.service';
 import { PoolsService } from '../pools/pools.service';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { SyncState } from './sync-state.entity';
 
 describe('SyncService', () => {
   let service: SyncService;
@@ -12,6 +14,7 @@ describe('SyncService', () => {
       providers: [
         SyncService,
         { provide: PoolsService, useValue: { upsertFromChain, markCompleted } },
+        { provide: getRepositoryToken(SyncState), useValue: { findOne: jest.fn(), save: jest.fn() } },
       ],
     }).compile();
 

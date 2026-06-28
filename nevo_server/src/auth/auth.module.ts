@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import type { StringValue } from 'ms';
@@ -12,6 +13,8 @@ import { Nonce } from './nonce.entity';
 
 @Module({
   imports: [
+    ConfigModule,
+    PassportModule,
     TypeOrmModule.forFeature([Nonce]),
     PassportModule,
     JwtModule.register({
@@ -24,5 +27,6 @@ import { Nonce } from './nonce.entity';
   ],
   providers: [AuthService, NonceService, JwtStrategy],
   controllers: [AuthController],
+  exports: [JwtStrategy],
 })
 export class AuthModule {}

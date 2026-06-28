@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getPublicKey, connect, disconnect } from '@/app/stellar-wallets-kit';
+import { clearJwt } from '@/lib/jwt-storage';
 import { getAccountBalances, AccountBalances } from '@/lib/stellar';
 
 interface WalletState {
@@ -65,6 +66,7 @@ export const useWalletStore = create<WalletState>()(
           balances: null,
           isAuthenticated: false,
         });
+        clearJwt();
       },
 
       refreshBalances: async () => {

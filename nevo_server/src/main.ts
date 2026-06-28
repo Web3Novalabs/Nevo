@@ -4,6 +4,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  //global validation pipe to validate incoming requests
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

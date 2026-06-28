@@ -1,6 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { PoolsService } from '../pools/pools.service.js';
+import { SyncState } from './sync-state.entity.js';
 
 /** Minimal shape of a Stellar Horizon Soroban contract event. */
 export interface HorizonContractEvent {
@@ -14,8 +17,30 @@ export interface HorizonContractEvent {
 }
 
 @Injectable()
-export class SyncService {
-  constructor(private readonly poolsService: PoolsService) {}
+export class SyncService implements OnModuleInit {
+  private currentCursor: string | null = null;
+
+  constructor(
+    private readonly poolsService: PoolsService,
+    @InjectRepository(SyncState)
+    private readonly syncStateRepo: Repository<SyncState>,
+  ) {}
+
+  async onModuleInit() {
+    const state = await this.syncStateRepo.findOne({ where: { key: 'horizon_cursor' } });
+    if (state) {
+      this.currentCursor = state.value;
+    }
+  }
+
+  getCursor(): string | null {
+    return this.currentCursor;
+  }
+
+  async saveCursor(cursor: string): Promise<void> {
+    this.currentCursor = cursor;
+    await this.syncStateRepo.save({ key: 'horizon_cursor', value: cursor });
+  }
 
   // TODO: replace with real implementation once HorizonService (#46) is available
   @Cron(CronExpression.EVERY_MINUTE)

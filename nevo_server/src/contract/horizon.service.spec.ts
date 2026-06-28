@@ -70,7 +70,10 @@ describe('HorizonService', () => {
 
       global.fetch = jest.fn().mockResolvedValue(mockResponse);
 
-      const result = await service.getTransactions('contract_123', 'cursor_xyz');
+      const result = await service.getTransactions(
+        'contract_123',
+        'cursor_xyz',
+      );
 
       expect(result).toEqual(mockRecords);
       expect(global.fetch).toHaveBeenCalledWith(

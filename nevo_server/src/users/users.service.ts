@@ -10,7 +10,10 @@ export class UsersService {
     private readonly userRepo: Repository<User>,
   ) {}
 
-  async updateDisplayName(publicKey: string, displayName: string): Promise<User | null> {
+  async updateDisplayName(
+    publicKey: string,
+    displayName: string,
+  ): Promise<User | null> {
     const user = await this.userRepo.findOne({ where: { publicKey } });
     if (!user) return null;
     user.displayName = displayName;

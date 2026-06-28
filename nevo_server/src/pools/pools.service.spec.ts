@@ -59,6 +59,9 @@ describe('PoolsService', () => {
         contractPoolId: '1',
         creatorWallet: 'GOLD',
         goal: '5000',
+        raised: '0',
+        status: PoolStatus.Active,
+        category: '',
         title: 'Existing Title',
         description: 'Existing description',
         imageUrl: 'https://example.com/img.png',
@@ -66,13 +69,13 @@ describe('PoolsService', () => {
         updatedAt: new Date(),
       };
       const { service, contractService } = await buildService(existing);
-      
+
       contractService.getPoolOnChain.mockResolvedValue({
-        sponsor: 'GOLD',
+        id: 1,
+        creator: 'GOLD',
         goal: 5000n,
         collected: 2500n,
-        isClosed: true,
-        applicationDeadline: 1735689600n,
+        closed: true,
       });
       contractService.getDonorCountOnChain.mockResolvedValue(10);
 
@@ -91,6 +94,9 @@ describe('PoolsService', () => {
         contractPoolId: '1',
         creatorWallet: 'GOLD',
         goal: '5000',
+        raised: '0',
+        status: PoolStatus.Active,
+        category: '',
         title: 'Existing Title',
         description: 'Existing description',
         imageUrl: 'https://example.com/img.png',

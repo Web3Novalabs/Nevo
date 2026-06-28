@@ -1,4 +1,9 @@
-import { ApiClient, RateLimitError } from '@/lib/api-client';
+import {
+  ApiClient,
+  RateLimitError,
+  verifyAuthSignature,
+  UnauthorizedError,
+} from '@/lib/api-client';
 
 function jsonResponse(data: unknown, init: ResponseInit = {}) {
   const status = init.status ?? 200;
@@ -115,6 +120,61 @@ describe('ApiClient rate limiting', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it('does not include Authorization header when no JWT is stored', async () => {
+    const client = new ApiClient('https://api.test', 1000, {
+      maxRequests: 10,
+      windowMs: 60_000,
+    });
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse({ ok: true }));
+
+    await client.get('/public', {
+      requireAuth: undefined,
+      cacheResponse: false,
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(fetchInit.headers.get('Authorization')).toBeNull();
+  });
+
+  it('attaches Authorization header when JWT is stored', async () => {
+    window.localStorage.setItem(
+      'nevo-wallet',
+      JSON.stringify({ state: { accessToken: 'jwt-token-123' } })
+    );
+
+    const client = new ApiClient('https://api.test', 1000, {
+      maxRequests: 10,
+      windowMs: 60_000,
+    });
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse({ ok: true }));
+
+    await client.post('/protected', { foo: 'bar' }, { cacheResponse: false });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(fetchInit.headers.get('Authorization')).toBe('Bearer jwt-token-123');
+  });
+
+  it('omits Authorization header when requireAuth is false even if JWT is stored', async () => {
+    window.localStorage.setItem(
+      'nevo-wallet',
+      JSON.stringify({ state: { accessToken: 'jwt-token-123' } })
+    );
+
+    const client = new ApiClient('https://api.test', 1000, {
+      maxRequests: 10,
+      windowMs: 60_000,
+    });
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse({ ok: true }));
+
+    await client.get('/public', { requireAuth: false, cacheResponse: false });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(fetchInit.headers.get('Authorization')).toBeNull();
+  });
+
   it('converts server 429 responses into retry-aware rate limit errors', async () => {
     const client = new ApiClient('https://api.test', 1000, {
       maxRequests: 10,
@@ -138,6 +198,59 @@ describe('ApiClient rate limiting', () => {
       retryAfterMs: 5_000,
       status: 429,
     });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('verifyAuthSignature', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'Headers', {
+      value: TestHeaders,
+      configurable: true,
+    });
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('calls POST /auth/verify with JSON body and returns accessToken', async () => {
+    const mockTokenResponse = { accessToken: 'mock-access-token' };
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse(mockTokenResponse)
+    );
+
+    const result = await verifyAuthSignature('publicKey', 'nonce', 'signature');
+
+    expect(result).toEqual(mockTokenResponse);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/auth/verify');
+    expect(fetchInit.method).toBe('POST');
+    expect(JSON.parse(fetchInit.body)).toEqual({
+      publicKey: 'publicKey',
+      signature: 'signature',
+      message: 'nonce',
+    });
+  });
+
+  it('throws UnauthorizedError when API returns 401', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse(
+        { error: 'Unauthorized' },
+        {
+          status: 401,
+          statusText: 'Unauthorized',
+        }
+      )
+    );
+
+    await expect(
+      verifyAuthSignature('publicKey', 'nonce', 'signature')
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 });

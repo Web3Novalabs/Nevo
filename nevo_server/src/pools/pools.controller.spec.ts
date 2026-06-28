@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PoolsController } from './pools.controller';
 import { PoolsService } from './pools.service';
-import { MockPoolRepository } from './pools.repository';
+import { JwtService } from '@nestjs/jwt';
+import { DonationsService } from '../donations/donations.service';
+import { ContractService } from '../contract/contract.service';
+import { GetPoolsDto } from './dto/get-pools.dto';
 
 describe('PoolsController', () => {
   let controller: PoolsController;
@@ -11,8 +14,31 @@ describe('PoolsController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PoolsController],
       providers: [
-        PoolsService,
-        MockPoolRepository,
+        {
+          provide: PoolsService,
+          useValue: {
+            findAll: jest.fn().mockImplementation((query: GetPoolsDto) =>
+              Promise.resolve({
+                data: [],
+                total: 0,
+                page: parseInt(query.page || '1', 10),
+                limit: parseInt(query.limit || '10', 10),
+              }),
+            ),
+          },
+        },
+        {
+          provide: DonationsService,
+          useValue: {},
+        },
+        {
+          provide: ContractService,
+          useValue: {},
+        },
+        {
+          provide: JwtService,
+          useValue: {},
+        },
       ],
     }).compile();
 

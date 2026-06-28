@@ -144,9 +144,15 @@ export default function DonationsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16" aria-busy="true">
-          <div className="size-8 animate-spin rounded-full border-4 border-[var(--color-border)] border-t-brand-600" />
-        </div>
+        <ul
+          className="flex flex-col gap-3"
+          aria-busy="true"
+          aria-label="Loading donations"
+        >
+          {Array.from({ length: 5 }).map((_, i) => (
+            <DonationSkeletonRow key={i} />
+          ))}
+        </ul>
       ) : (
         <>
           <section
@@ -239,7 +245,9 @@ export default function DonationsPage() {
               icon="history"
               iconTone="muted"
               title={
-                hasActiveFilters ? 'No matching donations' : 'No donations yet'
+                hasActiveFilters
+                  ? 'No matching donations'
+                  : "You haven't donated to any pools yet"
               }
               description={
                 hasActiveFilters
@@ -379,6 +387,29 @@ function DonationRow({ d }: { d: Donation }) {
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">
             Status: <span className="font-medium capitalize">{d.status}</span>
           </p>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function DonationSkeletonRow() {
+  return (
+    <li className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 animate-pulse">
+      <div className="flex items-start gap-4">
+        <div className="flex size-9 flex-shrink-0 rounded-full bg-[var(--color-border)]" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="h-4 w-32 rounded bg-[var(--color-border)]" />
+              <div className="h-3 w-16 rounded bg-[var(--color-border)]" />
+            </div>
+            <div className="text-right">
+              <div className="h-4 w-20 rounded bg-[var(--color-border)] mb-1" />
+              <div className="h-3 w-24 rounded bg-[var(--color-border)]" />
+            </div>
+          </div>
+          <div className="mt-2 h-3 w-32 rounded bg-[var(--color-border)]" />
         </div>
       </div>
     </li>

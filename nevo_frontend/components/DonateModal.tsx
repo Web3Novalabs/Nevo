@@ -90,6 +90,7 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
     if (!amountValid || !publicKey) return;
 
     setStep('loading');
+    setErrorMsg('');
 
     try {
       // Build the unsigned XDR from the contract service
@@ -107,7 +108,7 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
       });
 
       if (signResult.error) {
-        setErrorMsg('Donation cancelled.');
+        setErrorMsg(signResult.error || 'Donation cancelled.');
         setStep('error');
         return;
       }
@@ -125,23 +126,32 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
         timestamp: new Date().toISOString(),
         status: 'confirmed' as const,
       };
+
       addDonation(donation);
       setTxHash(hash);
       setLastTxHash(hash);
       setStep('success');
     } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : 'Transaction rejected by the network. Please try again.';
+      console.error(err);
+      const msg = err instanceof Error ? err.message : 'Transaction failed.';
       if (
         msg.toLowerCase().includes('cancel') ||
         msg.toLowerCase().includes('reject') ||
         msg.toLowerCase().includes('declined')
       ) {
         setErrorMsg('Donation cancelled.');
+      } else if (msg.toLowerCase().includes('closed')) {
+        setErrorMsg('Pool is closed.');
+      } else if (
+        msg.toLowerCase().includes('insufficient') ||
+        msg.toLowerCase().includes('balance') ||
+        msg.toLowerCase().includes('underfunded')
+      ) {
+        setErrorMsg('Insufficient balance.');
       } else {
-        setErrorMsg(msg);
+        setErrorMsg(
+          msg || 'Transaction rejected by the network. Please try again.'
+        );
       }
       setStep('error');
     }

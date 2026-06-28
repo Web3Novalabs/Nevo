@@ -6,10 +6,9 @@ export class HorizonService {
   private readonly horizonUrl: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.horizonUrl = this.configService.get<string>(
-      'HORIZON_URL',
-      'https://horizon-testnet.stellar.org',
-    ).replace(/\/$/, '');
+    this.horizonUrl = this.configService
+      .get<string>('HORIZON_URL', 'https://horizon-testnet.stellar.org')
+      .replace(/\/$/, '');
   }
 
   /**
@@ -20,7 +19,9 @@ export class HorizonService {
    */
   async getTransactions(contractId: string, cursor?: string): Promise<any[]> {
     try {
-      const url = new URL(`${this.horizonUrl}/accounts/${contractId}/transactions`);
+      const url = new URL(
+        `${this.horizonUrl}/accounts/${contractId}/transactions`,
+      );
       url.searchParams.append('order', 'asc');
       if (cursor) {
         url.searchParams.append('cursor', cursor);
@@ -34,7 +35,7 @@ export class HorizonService {
         );
       }
 
-      const data = (await response.json()) as any;
+      const data = await response.json();
       return data?._embedded?.records ?? [];
     } catch (error: any) {
       if (error instanceof HttpException) {

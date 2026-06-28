@@ -2,6 +2,15 @@
 
 import { isConnected, requestAccess, getAddress, signMessage } from '@stellar/freighter-api';
 
+/**
+ * Returns true if the Freighter browser extension is present.
+ * Freighter injects `window.freighter` when installed; this check is
+ * synchronous and safe to call in a useEffect (client-only).
+ */
+export function isFreighterInstalled(): boolean {
+  return typeof window !== 'undefined' && 'freighter' in window;
+}
+
 /** Returns the connected public key, or null if not connected/allowed. */
 export async function getPublicKey(): Promise<string | null> {
   try {
