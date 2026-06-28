@@ -492,15 +492,41 @@ export {
   isRateLimitError,
 } from './rate-limit';
 
+// Add default auth interceptor for wallet signature and JWT
+apiClient.addRequestInterceptor((config) => {
+  if (config.requireAuth !== false) {
+    const headers = new Headers(config.headers);
+
+    // Get access token from wallet store (via localStorage since we can't import zustand here)
+    if (typeof window !== 'undefined') {
+      const walletStoreData = localStorage.getItem('nevo-wallet');
+      if (walletStoreData) {
+        try {
+          const parsed = JSON.parse(walletStoreData);
+          const state = parsed.state || parsed;
+          if (state.accessToken) {
+            headers.set('Authorization', `Bearer ${state.accessToken}`);
+          }
+        } catch {
+          // Ignore parsing errors
+        }
+      }
+    }
+
+    config.headers = headers;
+  }
+  return config;
+});
+
 export interface ApiDonation {
   id: string;
-  poolId: string;
-  poolName: string;
+  type: 'donation' | 'pool_creation' | 'withdrawal';
   amount: string;
-  asset: 'XLM' | 'USDC';
+  asset: string;
+  recipient: string;
+  date: string;
+  status: 'completed' | 'pending' | 'failed';
   txHash: string;
-  timestamp: string;
-  status: 'pending' | 'confirmed' | 'failed';
 }
 
 export interface ApiProfile {
@@ -542,7 +568,7 @@ export interface CreatePoolResponse {
   unsignedXdr: string;
 }
 
-export function createPool(
+export async function createPool(
   payload: CreatePoolPayload
 ): Promise<CreatePoolResponse> {
   return apiClient.post<CreatePoolResponse>('/pools', payload);

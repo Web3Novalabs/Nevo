@@ -125,6 +125,7 @@ function CreatePoolPageContent() {
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [submitErrorDismissed, setSubmitErrorDismissed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitStep, setSubmitStep] = useState<
     'idle' | 'creating' | 'signing' | 'submitting'
@@ -278,6 +279,7 @@ function CreatePoolPageContent() {
     setSubmitting(true);
     setSubmitStep('creating');
     setErrors({});
+    setSubmitErrorDismissed(false);
     try {
       if (imageFile && !form.imageUrl) {
         await applyCropAndOptimize();
@@ -288,6 +290,48 @@ function CreatePoolPageContent() {
           'Wallet not connected. Please connect your wallet first.'
         );
       }
+
+      // First call createPool API (handle validation errors here)
+      try {
+        await createPool({
+          title: form.title,
+          description: form.description,
+          category: form.category,
+          goalAmount: form.goalAmount,
+          duration: form.duration,
+          imageUrl: form.imageUrl,
+          tags: form.tags,
+        });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 400) {
+          // Handle validation errors
+          const errorData = err.data as Record<string, string[]>;
+          const validationErrors: FormErrors = {};
+
+          // Map API error fields to form fields
+          Object.entries(errorData).forEach(([key, messages]) => {
+            const fieldKey = key as keyof FormErrors;
+            validationErrors[fieldKey] = messages[0];
+          });
+
+          setErrors(validationErrors);
+          // If it's a validation error, go back to the appropriate step
+          if (
+            validationErrors.title ||
+            validationErrors.description ||
+            validationErrors.category
+          ) {
+            setStep(1);
+          } else if (validationErrors.goalAmount || validationErrors.duration) {
+            setStep(2);
+          }
+          setSubmitting(false);
+          setSubmitStep('idle');
+          return;
+        }
+        throw err;
+      }
+
       const goalInStroops = BigInt(
         Math.round(parseFloat(form.goalAmount) * 1e7)
       );
@@ -304,6 +348,13 @@ function CreatePoolPageContent() {
           'Test SDF Network ; September 2015',
       });
       if (signedResult.error) {
+        // Check if it's a rejection
+        if (
+          signedResult.error.toLowerCase().includes('cancelled') ||
+          signedResult.error.toLowerCase().includes('denied')
+        ) {
+          throw new Error('Transaction cancelled');
+        }
         throw new Error(signedResult.error);
       }
       setSubmitStep('submitting');
@@ -392,6 +443,8 @@ function CreatePoolPageContent() {
             submitting={submitting}
             submitStep={submitStep}
             errors={errors}
+            submitErrorDismissed={submitErrorDismissed}
+            onDismissSubmitError={() => setSubmitErrorDismissed(true)}
             onBack={handleBack}
             onSubmit={handleSubmit}
           />
@@ -778,6 +831,8 @@ interface Step3Props {
   submitting: boolean;
   submitStep: 'idle' | 'creating' | 'signing' | 'submitting';
   errors?: FormErrors;
+  submitErrorDismissed: boolean;
+  onDismissSubmitError: () => void;
   onBack: () => void;
   onSubmit: () => void;
 }
@@ -788,6 +843,8 @@ function Step3({
   submitting,
   submitStep,
   errors,
+  submitErrorDismissed,
+  onDismissSubmitError,
   onBack,
   onSubmit,
 }: Step3Props) {
@@ -886,9 +943,31 @@ function Step3({
           )}
         </button>
       </div>
-      {errors?.submit && (
-        <div className="mt-4 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-sm text-center">
-          {errors.submit}
+      {errors?.submit && !submitErrorDismissed && (
+        <div className="mt-4 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-sm flex items-center justify-between gap-2">
+          <span>{errors.submit}</span>
+          <button
+            type="button"
+            onClick={onDismissSubmitError}
+            className="hover:opacity-80 transition-opacity"
+            aria-label="Dismiss error"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              className="size-4"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
         </div>
       )}
     </div>

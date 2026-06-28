@@ -59,11 +59,25 @@ export default function PoolDetailPage() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [donateOpen, setDonateOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [withdrawStep, setWithdrawStep] = useState<
-    'idle' | 'creating' | 'signing' | 'submitting'
-  >('idle');
-  const handleWithdraw = () => {};
-  const withdrawLabel = () => 'Withdraw Funds';
+  const [withdrawStep, setWithdrawStep] = useState<WithdrawStep>('idle');
+
+  const handleWithdraw = async () => {
+    // TODO: Implement withdrawal
+    toast('Withdrawal not implemented yet', 'info');
+  };
+
+  const withdrawLabel = () => {
+    switch (withdrawStep) {
+      case 'creating':
+        return 'Preparing...';
+      case 'signing':
+        return 'Signing...';
+      case 'submitting':
+        return 'Submitting...';
+      default:
+        return 'Withdraw Funds';
+    }
+  };
 
   const handleClosePool = async () => {
     if (!pool || !publicKey) return;

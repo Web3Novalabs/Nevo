@@ -41,7 +41,6 @@ export default function ProfilePage() {
     useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profile, setProfile] = useState<ApiProfile | null>(null);
-  const [recentDonations, setRecentDonations] = useState<ApiDonation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -59,6 +58,7 @@ export default function ProfilePage() {
               ? `${data.publicKey.slice(0, 6)}…${data.publicKey.slice(-4)}`
               : ''),
         }));
+        setIsLoading(false);
       })
       .catch((err) => {
         console.error('Failed to load profile:', err);
@@ -372,28 +372,50 @@ export default function ProfilePage() {
                         stroke="currentColor"
                         className="size-4"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"
-                        />
+                        {tx.type === 'donation' ? (
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"
+                          />
+                        ) : tx.type === 'pool_creation' ? (
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                          />
+                        ) : (
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+                          />
+                        )}
                       </svg>
                     </div>
-                    <div className="min-w-0 flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Donation</span>
-                        <span className="text-sm font-semibold tabular-nums">
-                          {tx.amount} {tx.asset}
+                        <span className="text-sm font-medium">
+                          {tx.type === 'donation'
+                            ? 'Donation'
+                            : tx.type === 'pool_creation'
+                              ? 'Pool Created'
+                              : 'Withdrawal'}
                         </span>
+                        {tx.amount !== '0' && (
+                          <span className="text-sm font-semibold tabular-nums">
+                            {tx.amount} {tx.asset}
+                          </span>
+                        )}
                       </div>
-                      <p className="truncate text-xs text-[var(--color-text-muted)]">
-                        {tx.poolName}
+                      <p className="text-xs text-[var(--color-text-muted)] truncate">
+                        {tx.recipient}
                       </p>
                       <time
                         className="text-xs text-[var(--color-text-muted)]"
-                        dateTime={tx.timestamp}
+                        dateTime={tx.date}
                       >
-                        {new Date(tx.timestamp).toLocaleDateString('en-US', {
+                        {new Date(tx.date).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
                         })}
