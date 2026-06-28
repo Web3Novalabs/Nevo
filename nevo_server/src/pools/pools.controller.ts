@@ -1,7 +1,7 @@
 import {
-  BadRequestException,
   Body,
   Controller,
+  BadRequestException,
   ForbiddenException,
   Get,
   NotFoundException,
@@ -14,15 +14,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { PoolsService } from './pools.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { GetPoolsDto } from './dto/get-pools.dto';
-import {
-  DonationSortBy,
-  DonationsService,
-} from '../donations/donations.service';
-import { ContractService } from '../contract/contract.service';
-import { StellarAuthGuard } from '../auth/stellar-auth.guard';
+import { PoolsService } from './pools.service.js';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import { GetPoolsDto } from './dto/get-pools.dto.js';
+import { DonationsService } from '../donations/donations.service.js';
+import { ContractService } from '../contract/contract.service.js';
+import { StellarAuthGuard } from '../auth/stellar-auth.guard.js';
 
 export interface CreatePoolDto {
   contractPoolId: string;
@@ -78,6 +75,15 @@ export class PoolsController {
     return this.poolsService.findAll(query);
   }
 
+  @Get(':id/donations')
+  getDonations(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('page') page = '1',
+    @Query('limit') limit = '20',
+  ) {
+    return this.donationsService.findByPool(String(id));
+  }
+
   @Post()
   create(@Body() dto: CreatePoolDto) {
     return this.poolsService.create(dto);
@@ -94,8 +100,9 @@ export class PoolsController {
   async withdraw(@Param('id') id: string, @Body() dto: WithdrawDto) {
     const pool = await this.poolsService.findByContractId(id);
     if (!pool) throw new NotFoundException('Pool not found');
-    if (pool.creatorWallet !== dto.requesterWallet)
+    if (pool.creatorWallet !== dto.requesterWallet) {
       throw new ForbiddenException('Only the pool creator may withdraw');
+    }
     return this.poolsService.buildWithdrawTx(pool);
   }
 
@@ -107,15 +114,10 @@ export class PoolsController {
   ) {
     const pool = await this.poolsService.findByContractId(id);
     if (!pool) throw new NotFoundException('Pool not found');
-    if (pool.creatorWallet !== req.user.publicKey)
+    if (pool.creatorWallet !== req.user.publicKey) {
       throw new ForbiddenException('Only the pool creator may close this pool');
+    }
     return this.poolsService.buildClosePoolTx(pool);
-  }
-
-  @Get(':id/donations')
-  getDonations(@Param('id') id: string, @Query('sortBy') sortBy?: string) {
-    const sort: DonationSortBy = sortBy === 'largest' ? 'largest' : 'newest';
-    return this.donationsService.findByPool(id, sort);
   }
 
   @UseGuards(StellarAuthGuard)
@@ -128,6 +130,7 @@ export class PoolsController {
     if (!Number.isInteger(dto.amount) || dto.amount <= 0) {
       throw new BadRequestException('amount must be a positive integer');
     }
+
     const pool = await this.poolsService.findByContractId(String(id));
     if (!pool) throw new NotFoundException('Pool not found');
 
@@ -139,4 +142,3 @@ export class PoolsController {
     return { unsignedXdr };
   }
 }
-

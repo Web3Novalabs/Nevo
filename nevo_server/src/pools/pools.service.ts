@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Pool, PoolStatus } from './pool.entity';
-import type { CreatePoolDto, UpdatePoolDto } from './pools.controller';
-import { GetPoolsDto } from './dto/get-pools.dto';
+import { Pool, PoolStatus } from './pool.entity.js';
+import type { CreatePoolDto, UpdatePoolDto } from './pools.controller.js';
+import type { GetPoolsDto } from './dto/get-pools.dto.js';
 import { ContractService } from '../contract/contract.service.js';
 
 export interface ChainPoolData {
@@ -41,6 +41,7 @@ export class PoolsService {
         category: '',
         status: PoolStatus.Active,
         raised: '0',
+        imageUrl: null,
       }),
     );
   }
@@ -115,6 +116,7 @@ export class PoolsService {
     if (!pool) return null;
     if (dto.description !== undefined) pool.description = dto.description;
     if (dto.imageUrl !== undefined) pool.imageUrl = dto.imageUrl;
+    if (dto.category !== undefined) pool.category = dto.category;
     return this.poolRepo.save(pool);
   }
 
@@ -131,7 +133,7 @@ export class PoolsService {
     let closedOnChain = false;
     let donorCount = 0;
 
-    if (!isNaN(poolIdNum)) {
+    if (!Number.isNaN(poolIdNum)) {
       const [poolOnChain, totalRaisedOnChain, donorCountOnChain] =
         await Promise.all([
           this.contractService.getPoolOnChain(poolIdNum),
@@ -180,4 +182,3 @@ export class PoolsService {
     return { unsignedXdr };
   }
 }
-

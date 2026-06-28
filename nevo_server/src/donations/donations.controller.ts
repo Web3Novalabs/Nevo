@@ -1,11 +1,5 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  Request,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { StellarAuthGuard } from '../auth/stellar-auth.guard.js';
 import { DonationSortBy, DonationsService } from './donations.service.js';
 
@@ -22,7 +16,7 @@ export class DonationsController {
   @UseGuards(StellarAuthGuard)
   @Get('users/me/donations')
   findMyDonations(
-    @Request() req: { user: { publicKey: string } },
+    @Req() req: Request & { user: { publicKey: string } },
     @Query('sortBy') sortBy?: string,
   ) {
     const sort: DonationSortBy = sortBy === 'largest' ? 'largest' : 'newest';
