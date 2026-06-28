@@ -551,7 +551,11 @@ export default function PoolDetailPage() {
       </div>
 
       {donateOpen && (
-        <DonateModal pool={pool} onClose={() => setDonateOpen(false)} />
+        <DonateModal
+          pool={pool}
+          onClose={() => setDonateOpen(false)}
+          onDonationSuccess={() => fetchPool(Number(id))}
+        />
       )}
     </main>
   );

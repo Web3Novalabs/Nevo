@@ -43,9 +43,14 @@ const TX_FEE_XLM = '0.00001';
 interface DonateModalProps {
   pool: Pool;
   onClose: () => void;
+  onDonationSuccess?: () => void;
 }
 
-export function DonateModal({ pool, onClose }: DonateModalProps) {
+export function DonateModal({
+  pool,
+  onClose,
+  onDonationSuccess,
+}: DonateModalProps) {
   const { publicKey, balances } = useWalletStore();
   const { addDonation } = useDonationsStore();
 
@@ -131,6 +136,7 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
       setTxHash(hash);
       setLastTxHash(hash);
       setStep('success');
+      onDonationSuccess?.();
     } catch (err) {
       console.error(err);
       const msg = err instanceof Error ? err.message : 'Transaction failed.';
