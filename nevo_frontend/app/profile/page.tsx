@@ -7,8 +7,10 @@ import { Button } from '@/components/Button';
 import { WalletAddress } from '@/components/WalletAddress';
 import {
   fetchMyProfile,
+  fetchMyDonations,
   updateProfile,
   type ApiProfile,
+  type ApiDonation,
 } from '@/lib/api-client';
 import { toast } from '@/components/Toast';
 
@@ -39,14 +41,16 @@ export default function ProfilePage() {
     useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profile, setProfile] = useState<ApiProfile | null>(null);
+  const [recentDonations, setRecentDonations] = useState<ApiDonation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    fetchMyProfile()
-      .then((data) => {
+    Promise.all([fetchMyProfile(), fetchMyDonations(5).catch(() => [])])
+      .then(([data, donations]) => {
         if (!active) return;
         setProfile(data);
+        setRecentDonations(donations);
         setPreferences((p) => ({
           ...p,
           displayName:
@@ -349,30 +353,12 @@ export default function ProfilePage() {
               </a>
             </div>
             <div className="space-y-3">
-              {(
-                [] as Array<{
-                  id: string;
-                  type: string;
-                  amount: string;
-                  asset: string;
-                  recipient: string;
-                  date: string;
-                }>
-              ).length === 0 ? (
+              {recentDonations.length === 0 ? (
                 <p className="text-sm text-[var(--color-text-muted)]">
-                  No recent activity yet.
+                  No activity yet.
                 </p>
               ) : (
-                (
-                  [] as Array<{
-                    id: string;
-                    type: string;
-                    amount: string;
-                    asset: string;
-                    recipient: string;
-                    date: string;
-                  }>
-                ).map((tx) => (
+                recentDonations.map((tx) => (
                   <div
                     key={tx.id}
                     className="flex items-center gap-4 rounded-xl p-3 transition-colors hover:bg-[var(--color-surface-raised)]"
@@ -401,13 +387,13 @@ export default function ProfilePage() {
                         </span>
                       </div>
                       <p className="truncate text-xs text-[var(--color-text-muted)]">
-                        {tx.recipient}
+                        {tx.poolName}
                       </p>
                       <time
                         className="text-xs text-[var(--color-text-muted)]"
-                        dateTime={tx.date}
+                        dateTime={tx.timestamp}
                       >
-                        {new Date(tx.date).toLocaleDateString('en-US', {
+                        {new Date(tx.timestamp).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
                         })}

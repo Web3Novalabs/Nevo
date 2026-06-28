@@ -498,8 +498,11 @@ export interface ApiProfile {
   createdAt: string;
 }
 
-export function fetchMyDonations(): Promise<ApiDonation[]> {
-  return apiClient.get<ApiDonation[]>('/users/me/donations');
+export function fetchMyDonations(limit?: number): Promise<ApiDonation[]> {
+  return apiClient.get<ApiDonation[]>(
+    '/users/me/donations',
+    limit ? { params: { limit } } : undefined
+  );
 }
 
 export function fetchMyProfile(): Promise<ApiProfile> {
