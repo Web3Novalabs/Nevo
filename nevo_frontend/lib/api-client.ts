@@ -592,6 +592,18 @@ export async function closePool(
   );
 }
 
+export async function withdrawPool(
+  poolId: string | number
+): Promise<{ unsignedXdr: string }> {
+  return apiClient.post<{ unsignedXdr: string }>(
+    `/pools/${poolId}/withdraw`,
+    undefined,
+    {
+      requireAuth: true,
+    }
+  );
+}
+
 export function verifyAuthSignature(
   publicKey: string,
   nonce: string,
