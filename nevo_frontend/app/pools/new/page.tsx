@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { createPool, submitSignedXdr } from '@/lib/api-client';
+import { ApiError, createPool, submitSignedXdr } from '@/lib/api-client';
+import { parseApiError } from '@/lib/errors';
 import { signTransaction } from '@stellar/freighter-api';
 import { contractService } from '@/lib/contract-service';
 import { useWalletStore } from '@/src/store/walletStore';
@@ -379,8 +380,7 @@ function CreatePoolPageContent() {
 
       setSubmitted(true);
     } catch (error) {
-      const err = error as Error;
-      setErrors({ submit: err?.message || 'Failed to submit transaction.' });
+      setErrors({ submit: parseApiError(error) });
     } finally {
       setSubmitting(false);
       setSubmitStep('idle');

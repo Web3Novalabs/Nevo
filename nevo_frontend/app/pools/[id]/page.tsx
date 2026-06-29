@@ -12,6 +12,7 @@ import { usePoolsStore } from '@/src/store/poolsStore';
 import type { Pool } from '@/src/store/poolsStore';
 import { useWalletStore } from '@/src/store/walletStore';
 import { closePool, submitSignedXdr } from '@/lib/api-client';
+import { parseApiError } from '@/lib/errors';
 import { signTransaction } from '@stellar/freighter-api';
 
 // Testnet XLM native contract address (same as api-client)
@@ -100,9 +101,8 @@ export default function PoolDetailPage() {
 
       await fetchPool(Number(pool.id));
     } catch (err: unknown) {
-      const error = err as Error;
-      toast(error.message || 'Failed to close pool', 'error');
-      console.error(error);
+      toast(parseApiError(err), 'error');
+      console.error(err);
     } finally {
       setIsClosing(false);
     }

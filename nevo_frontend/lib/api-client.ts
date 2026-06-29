@@ -76,7 +76,7 @@ export class ApiClient {
 
   constructor(
     baseURL: string = '',
-    defaultTimeout: number = 15000,
+    defaultTimeout: number = 10_000,
     rateLimit: Partial<RateLimitOptions> = DEFAULT_RATE_LIMIT_OPTIONS
   ) {
     this.baseURL =
