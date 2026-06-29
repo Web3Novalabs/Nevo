@@ -26,6 +26,9 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:3000
+          NEXT_PUBLIC_STELLAR_NETWORK: testnet
         run: npm run build
 
   server:
