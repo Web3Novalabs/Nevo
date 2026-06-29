@@ -592,6 +592,20 @@ export async function closePool(
   );
 }
 
+export async function donate(
+  poolId: number,
+  amount: number,
+  tokenAddress: string
+): Promise<{ unsignedXdr: string }> {
+  return apiClient.post<{ unsignedXdr: string }>(
+    `/pools/${poolId}/donate`,
+    { amount, tokenAddress },
+    {
+      requireAuth: true,
+    }
+  );
+}
+
 export function verifyAuthSignature(
   publicKey: string,
   nonce: string,
