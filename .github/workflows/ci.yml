@@ -28,6 +28,16 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check for remaining mock data
+        working-directory: ./nevo_frontend
+        run: |
+          if grep -r "MOCK_" app/ src/store/ \
+            --include="*.ts" \
+            --include="*.tsx" -l; then
+            echo "ERROR: MOCK_ constants found. Remove all mock data before merging to main."
+            exit 1
+          fi
+
   server:
     name: Server — Build
     runs-on: ubuntu-latest
