@@ -41,6 +41,7 @@ export default function ProfilePage() {
     useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profile, setProfile] = useState<ApiProfile | null>(null);
+  const [recentDonations, setRecentDonations] = useState<ApiDonation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
