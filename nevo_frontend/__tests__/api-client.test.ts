@@ -2,6 +2,8 @@ import {
   ApiClient,
   RateLimitError,
   verifyAuthSignature,
+  fetchAuthChallenge,
+  ApiError,
   UnauthorizedError,
 } from '@/lib/api-client';
 
@@ -251,6 +253,47 @@ describe('verifyAuthSignature', () => {
       verifyAuthSignature('publicKey', 'nonce', 'signature')
     ).rejects.toBeInstanceOf(UnauthorizedError);
 
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('fetchAuthChallenge', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'Headers', {
+      value: TestHeaders,
+      configurable: true,
+    });
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('calls GET /auth/challenge with publicKey query param and returns nonce and expiresAt', async () => {
+    const mockChallenge = { nonce: 'abc123', expiresAt: 1700000000 };
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse(mockChallenge));
+
+    const result = await fetchAuthChallenge('GABC123PUBLIC');
+
+    expect(result).toEqual(mockChallenge);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/auth/challenge');
+    expect(url).toContain('publicKey=GABC123PUBLIC');
+    expect(fetchInit.method).toBe('GET');
+  });
+
+  it('throws ApiError when the response is not ok', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse(
+        { error: 'Bad Request' },
+        { status: 400, statusText: 'Bad Request' }
+      )
+    );
+
+    await expect(fetchAuthChallenge('INVALID')).rejects.toBeInstanceOf(ApiError);
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 });

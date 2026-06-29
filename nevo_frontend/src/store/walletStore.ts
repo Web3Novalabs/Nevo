@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { getPublicKey, connect, disconnect } from '@/app/stellar-wallets-kit';
+import { getPublicKey, connect, disconnect, signWithWallet } from '@/app/stellar-wallets-kit';
 import { clearJwt } from '@/lib/jwt-storage';
 import { getAccountBalances, AccountBalances } from '@/lib/stellar';
+import { fetchAuthChallenge, verifyAuthSignature } from '@/lib/api-client';
 
 interface WalletState {
   publicKey: string | null;
@@ -47,11 +48,14 @@ export const useWalletStore = create<WalletState>()(
           const key = await getPublicKey();
           if (key) {
             const balances = await getAccountBalances(key);
-            const accessToken = get().accessToken;
+            const { nonce } = await fetchAuthChallenge(key);
+            const signature = await signWithWallet(nonce);
+            const { accessToken } = await verifyAuthSignature(key, nonce, signature);
             set({
               publicKey: key,
               balances,
-              isAuthenticated: !!accessToken,
+              accessToken,
+              isAuthenticated: true,
             });
             onSuccess?.();
           }

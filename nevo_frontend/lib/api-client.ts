@@ -603,3 +603,16 @@ export function verifyAuthSignature(
     message: nonce,
   });
 }
+
+export interface AuthChallenge {
+  nonce: string;
+  expiresAt: number;
+}
+
+export function fetchAuthChallenge(publicKey: string): Promise<AuthChallenge> {
+  return apiClient.get<AuthChallenge>('/auth/challenge', {
+    params: { publicKey },
+    requireAuth: false,
+    cacheResponse: false,
+  });
+}
