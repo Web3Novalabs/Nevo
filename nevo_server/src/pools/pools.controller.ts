@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -59,6 +60,7 @@ export class PoolsController {
   constructor(
     private readonly poolsService: PoolsService,
     private readonly contractService: ContractService,
+    private readonly donationsService: DonationsService,
   ) {}
 
   @Get(':id')
