@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { createPool, submitSignedXdr } from '@/lib/api-client';
+import { createPool, submitSignedXdr, ApiError } from '@/lib/api-client';
 import { signTransaction } from '@stellar/freighter-api';
 import { contractService } from '@/lib/contract-service';
 import { useWalletStore } from '@/src/store/walletStore';
@@ -291,9 +291,10 @@ function CreatePoolPageContent() {
         );
       }
 
-      // First call createPool API (handle validation errors here)
+      // First call createPool API to get poolId and unsignedXdr (handle validation errors here)
+      let createPoolResult;
       try {
-        await createPool({
+        createPoolResult = await createPool({
           title: form.title,
           description: form.description,
           category: form.category,
@@ -332,17 +333,9 @@ function CreatePoolPageContent() {
         throw err;
       }
 
-      const goalInStroops = BigInt(
-        Math.round(parseFloat(form.goalAmount) * 1e7)
-      );
-      const xdr = await contractService.buildCreatePoolTransaction(
-        publicKey,
-        form.title,
-        form.description,
-        goalInStroops
-      );
+      // Call Freighter's signTransaction with unsignedXdr
       setSubmitStep('signing');
-      const signedResult = await signTransaction(xdr, {
+      const signedResult = await signTransaction(createPoolResult.unsignedXdr, {
         networkPassphrase:
           process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
           'Test SDF Network ; September 2015',
@@ -357,30 +350,14 @@ function CreatePoolPageContent() {
         }
         throw new Error(signedResult.error);
       }
+
+      // Submit signed XDR
       setSubmitStep('submitting');
       await submitSignedXdr(signedResult.signedTxXdr);
 
-      // Save pool metadata to the backend database
-      // New pool ID = current pool count + 1 (contract auto-increments)
-      const poolCount = await contractService.getPoolCount();
-      // Fall back to a unique prefixed ID if RPC is unavailable;
-      // the backend sync service will reconcile on-chain data later.
-      const contractPoolId =
-        poolCount >= 0 ? String(poolCount + 1) : `local-${Date.now()}`;
-      await createPool({
-        contractPoolId,
-        creatorWallet: publicKey,
-        goal: goalInStroops.toString(),
-        title: form.title,
-        description: form.description,
-        category: form.category,
-        imageUrl: form.imageUrl || undefined,
-      });
-
       setSubmitted(true);
     } catch (error) {
-      const err = error as Error;
-      setErrors({ submit: err?.message || 'Failed to submit transaction.' });
+      setErrors({ submit: parseApiError(error) });
     } finally {
       setSubmitting(false);
       setSubmitStep('idle');

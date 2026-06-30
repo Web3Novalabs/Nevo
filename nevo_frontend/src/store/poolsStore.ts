@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { apiClient } from '@/lib/api-client';
+import { parseApiError } from '@/lib/errors';
 
 export type PoolStatus = 'Active' | 'Completed';
 export type SortOption = 'newest' | 'most_raised' | 'goal_low';
@@ -80,25 +81,28 @@ export const usePoolsStore = create<PoolsState>()(
           // Merge provided filters with current store filters
           const currentFilters = get().filters;
           const mergedFilters = { ...currentFilters, ...filters };
-          
+
           // Build params object
           const params: Record<string, unknown> = {};
           if (mergedFilters.search) params.search = mergedFilters.search;
-          if (mergedFilters.categories.length > 0) params.categories = mergedFilters.categories;
-          if (mergedFilters.statuses.length > 0) params.statuses = mergedFilters.statuses;
-          if (mergedFilters.minTarget != null) params.minTarget = mergedFilters.minTarget;
-          if (mergedFilters.maxTarget != null) params.maxTarget = mergedFilters.maxTarget;
+          if (mergedFilters.categories.length > 0)
+            params.categories = mergedFilters.categories;
+          if (mergedFilters.statuses.length > 0)
+            params.statuses = mergedFilters.statuses;
+          if (mergedFilters.minTarget != null)
+            params.minTarget = mergedFilters.minTarget;
+          if (mergedFilters.maxTarget != null)
+            params.maxTarget = mergedFilters.maxTarget;
           if (mergedFilters.dateFrom) params.dateFrom = mergedFilters.dateFrom;
           if (mergedFilters.dateTo) params.dateTo = mergedFilters.dateTo;
           if (get().sortBy) params.sortBy = get().sortBy;
-          
+
           const data = await apiClient.get<Pool[]>('/pools', { params });
           get().setPools(data);
           set({ loading: false });
         } catch (error) {
-          const err = error as Error;
           set({
-            error: err?.message || 'Failed to fetch pools',
+            error: parseApiError(error) || 'Failed to fetch pools',
             loading: false,
           });
         }
@@ -111,9 +115,8 @@ export const usePoolsStore = create<PoolsState>()(
           set({ currentPool: data, poolLoading: false });
           return data;
         } catch (error) {
-          const err = error as Error;
           set({
-            error: err?.message || 'Failed to fetch pool',
+            error: parseApiError(error) || 'Failed to fetch pool',
             poolLoading: false,
           });
           return null;

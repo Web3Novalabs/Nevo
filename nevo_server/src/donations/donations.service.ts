@@ -1,4 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Donation } from './donation.entity.js';
+
+export type DonationSortBy = 'newest' | 'largest';
 
 @Injectable()
 export class DonationsService {
@@ -39,5 +44,10 @@ export class DonationsService {
       where: { donorWallet },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  async isTxProcessed(txHash: string): Promise<boolean> {
+    const count = await this.donationRepo.countBy({ txHash });
+    return count > 0;
   }
 }

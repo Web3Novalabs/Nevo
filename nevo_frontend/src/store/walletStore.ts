@@ -1,8 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { getPublicKey, connect, disconnect } from '@/app/stellar-wallets-kit';
-import { clearJwt } from '@/lib/jwt-storage';
+import {
+  getPublicKey,
+  connect,
+  disconnect,
+  signWithWallet,
+} from '@/app/stellar-wallets-kit';
+import { clearToken, getToken, setToken } from '@/lib/auth-storage';
 import { getAccountBalances, AccountBalances } from '@/lib/stellar';
+import { fetchAuthChallenge, verifyAuthSignature } from '@/lib/api-client';
 
 interface WalletState {
   publicKey: string | null;
@@ -30,10 +36,11 @@ export const useWalletStore = create<WalletState>()(
         const key = await getPublicKey();
         if (key) {
           const balances = await getAccountBalances(key);
-          const accessToken = get().accessToken;
+          const accessToken = get().accessToken ?? getToken();
           set({
             publicKey: key,
             balances,
+            accessToken,
             loading: false,
             isAuthenticated: !!accessToken,
           });
@@ -47,11 +54,19 @@ export const useWalletStore = create<WalletState>()(
           const key = await getPublicKey();
           if (key) {
             const balances = await getAccountBalances(key);
-            const accessToken = get().accessToken;
+            const { nonce } = await fetchAuthChallenge(key);
+            const signature = await signWithWallet(nonce);
+            const { accessToken } = await verifyAuthSignature(
+              key,
+              nonce,
+              signature
+            );
+            setToken(accessToken);
             set({
               publicKey: key,
               balances,
-              isAuthenticated: !!accessToken,
+              accessToken,
+              isAuthenticated: true,
             });
             onSuccess?.();
           }
@@ -66,7 +81,7 @@ export const useWalletStore = create<WalletState>()(
           balances: null,
           isAuthenticated: false,
         });
-        clearJwt();
+        clearToken();
       },
 
       refreshBalances: async () => {
@@ -77,6 +92,7 @@ export const useWalletStore = create<WalletState>()(
       },
 
       setAccessToken: (token: string) => {
+        setToken(token);
         set({
           accessToken: token,
           isAuthenticated: !!get().publicKey && !!token,

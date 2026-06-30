@@ -1,34 +1,38 @@
-import { Type } from 'class-transformer';
 import {
-  IsNumber,
+  IsNotEmpty,
+  IsNumberString,
   IsOptional,
   IsString,
-  IsUrl,
   MaxLength,
-  Min,
-  MinLength,
 } from 'class-validator';
 
 export class CreatePoolDto {
   @IsString()
-  @MinLength(3)
+  @IsNotEmpty()
+  contractPoolId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  creatorWallet: string;
+
+  @IsString()
+  @IsNotEmpty()
   @MaxLength(100)
   title: string;
 
   @IsString()
-  @MinLength(10)
-  @MaxLength(2000)
+  @IsNotEmpty()
+  @MaxLength(1000)
   description: string;
 
-  @IsString()
-  category: string;
-
-  @Type(() => Number)
-  @IsNumber()
-  @Min(1)
-  goal: number;
+  @IsNumberString()
+  goal: string;
 
   @IsOptional()
-  @IsUrl()
-  imageUrl?: string;
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string | null;
 }

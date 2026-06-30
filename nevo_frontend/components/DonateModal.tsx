@@ -11,6 +11,7 @@ import { Server } from '@stellar/stellar-sdk/rpc';
 import { useWalletStore } from '@/src/store/walletStore';
 import { useDonationsStore } from '@/src/store/donationsStore';
 import { contractService } from '@/lib/contract-service';
+import { parseApiError } from '@/lib/errors';
 import type { Pool } from '@/src/store/poolsStore';
 import { WalletAddress } from './WalletAddress';
 
@@ -43,9 +44,14 @@ const TX_FEE_XLM = '0.00001';
 interface DonateModalProps {
   pool: Pool;
   onClose: () => void;
+  onDonationSuccess?: () => void;
 }
 
-export function DonateModal({ pool, onClose }: DonateModalProps) {
+export function DonateModal({
+  pool,
+  onClose,
+  onDonationSuccess,
+}: DonateModalProps) {
   const { publicKey, balances } = useWalletStore();
   const { addDonation } = useDonationsStore();
 
@@ -131,9 +137,10 @@ export function DonateModal({ pool, onClose }: DonateModalProps) {
       setTxHash(hash);
       setLastTxHash(hash);
       setStep('success');
+      onDonationSuccess?.();
     } catch (err) {
       console.error(err);
-      const msg = err instanceof Error ? err.message : 'Transaction failed.';
+      const msg = parseApiError(err);
       if (
         msg.toLowerCase().includes('cancel') ||
         msg.toLowerCase().includes('reject') ||

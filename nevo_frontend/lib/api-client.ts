@@ -8,8 +8,11 @@ import {
   parseRetryAfterHeader,
   resolveRateLimitOptions,
 } from './rate-limit';
-import { getStoredAccessToken } from './jwt-storage';
+import { env, validatePublicEnv } from './env';
+import { getToken } from './auth-storage';
 import { toast } from '../components/Toast';
+
+validatePublicEnv();
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
@@ -76,13 +79,10 @@ export class ApiClient {
 
   constructor(
     baseURL: string = '',
-    defaultTimeout: number = 15000,
+    defaultTimeout: number = 10_000,
     rateLimit: Partial<RateLimitOptions> = DEFAULT_RATE_LIMIT_OPTIONS
   ) {
-    this.baseURL =
-      baseURL ||
-      process.env.NEXT_PUBLIC_API_BASE_URL ||
-      'http://localhost:3000';
+    this.baseURL = baseURL || env.NEXT_PUBLIC_API_BASE_URL;
     this.defaultTimeout = defaultTimeout;
     this.defaultRateLimit = resolveRateLimitOptions(rateLimit);
     this.rateLimiter = new ClientRateLimiter();
@@ -99,7 +99,7 @@ export class ApiClient {
     }
 
     const headers = new Headers(config.headers);
-    const accessToken = getStoredAccessToken();
+    const accessToken = getToken();
 
     if (accessToken) {
       headers.set('Authorization', `Bearer ${accessToken}`);
@@ -492,32 +492,6 @@ export {
   isRateLimitError,
 } from './rate-limit';
 
-// Add default auth interceptor for wallet signature and JWT
-apiClient.addRequestInterceptor((config) => {
-  if (config.requireAuth !== false) {
-    const headers = new Headers(config.headers);
-
-    // Get access token from wallet store (via localStorage since we can't import zustand here)
-    if (typeof window !== 'undefined') {
-      const walletStoreData = localStorage.getItem('nevo-wallet');
-      if (walletStoreData) {
-        try {
-          const parsed = JSON.parse(walletStoreData);
-          const state = parsed.state || parsed;
-          if (state.accessToken) {
-            headers.set('Authorization', `Bearer ${state.accessToken}`);
-          }
-        } catch {
-          // Ignore parsing errors
-        }
-      }
-    }
-
-    config.headers = headers;
-  }
-  return config;
-});
-
 export interface ApiDonation {
   id: string;
   type: 'donation' | 'pool_creation' | 'withdrawal';
@@ -592,14 +566,12 @@ export async function closePool(
   );
 }
 
-export async function donate(
-  poolId: number,
-  amount: number,
-  tokenAddress: string
+export async function withdrawPool(
+  poolId: string | number
 ): Promise<{ unsignedXdr: string }> {
   return apiClient.post<{ unsignedXdr: string }>(
-    `/pools/${poolId}/donate`,
-    { amount, tokenAddress },
+    `/pools/${poolId}/withdraw`,
+    undefined,
     {
       requireAuth: true,
     }
@@ -615,5 +587,18 @@ export function verifyAuthSignature(
     publicKey,
     signature,
     message: nonce,
+  });
+}
+
+export interface AuthChallenge {
+  nonce: string;
+  expiresAt: number;
+}
+
+export function fetchAuthChallenge(publicKey: string): Promise<AuthChallenge> {
+  return apiClient.get<AuthChallenge>('/auth/challenge', {
+    params: { publicKey },
+    requireAuth: false,
+    cacheResponse: false,
   });
 }

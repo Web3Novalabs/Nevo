@@ -12,6 +12,7 @@ import {
   type ApiProfile,
   type ApiDonation,
 } from '@/lib/api-client';
+import { parseApiError } from '@/lib/errors';
 import { toast } from '@/components/Toast';
 
 interface UserPreferences {
@@ -41,6 +42,7 @@ export default function ProfilePage() {
     useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profile, setProfile] = useState<ApiProfile | null>(null);
+  const [recentDonations, setRecentDonations] = useState<ApiDonation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -96,9 +98,7 @@ export default function ProfilePage() {
       toast('Profile updated successfully');
       setIsEditingProfile(false);
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Failed to update profile';
-      toast(msg, 'error');
+      toast(parseApiError(err), 'error');
     }
   };
 
