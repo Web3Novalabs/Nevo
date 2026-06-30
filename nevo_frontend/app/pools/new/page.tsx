@@ -7,6 +7,7 @@ import { createPool, submitSignedXdr, ApiError } from '@/lib/api-client';
 import { signTransaction } from '@stellar/freighter-api';
 import { contractService } from '@/lib/contract-service';
 import { useWalletStore } from '@/src/store/walletStore';
+import { parseApiError } from '@/lib/errors';
 
 import {
   validateFormData,
@@ -130,7 +131,6 @@ function CreatePoolPageContent() {
   const [submitStep, setSubmitStep] = useState<
     'idle' | 'creating' | 'signing' | 'submitting'
   >('idle');
-  const [submitted, setSubmitted] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
   const [cropPreviewUrl, setCropPreviewUrl] = useState('');
@@ -355,17 +355,14 @@ function CreatePoolPageContent() {
       setSubmitStep('submitting');
       await submitSignedXdr(signedResult.signedTxXdr);
 
-      setSubmitted(true);
+      // Redirect to the newly created pool's page after successful submission
+      router.push(`/pools/${createPoolResult.id}`);
     } catch (error) {
       setErrors({ submit: parseApiError(error) });
     } finally {
       setSubmitting(false);
       setSubmitStep('idle');
     }
-  }
-
-  if (submitted) {
-    return <SuccessScreen onGoToDashboard={() => router.push('/dashboard')} />;
   }
 
   const tagList = form.tags
@@ -948,28 +945,6 @@ function Step3({
         </div>
       )}
     </div>
-  );
-}
-
-/* ── Success screen ───────────────────────────────────────────────────────── */
-
-function SuccessScreen({ onGoToDashboard }: { onGoToDashboard: () => void }) {
-  return (
-    <main className="mx-auto max-w-2xl px-6 py-24 text-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="flex size-16 items-center justify-center rounded-full bg-success-light text-success">
-          <CheckCircleIcon />
-        </div>
-        <h1 className="text-2xl font-bold">Pool Created!</h1>
-        <p className="text-[var(--color-text-muted)] max-w-sm">
-          Your donation pool has been created successfully. Share it with your
-          community to start receiving contributions.
-        </p>
-        <button onClick={onGoToDashboard} className={`mt-4 ${primaryBtn}`}>
-          Go to Dashboard
-        </button>
-      </div>
-    </main>
   );
 }
 

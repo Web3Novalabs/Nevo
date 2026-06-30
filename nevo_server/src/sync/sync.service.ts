@@ -98,4 +98,30 @@ export class SyncService implements OnModuleInit {
     const contractPoolId = event.topic[1];
     await this.poolsService.markCompleted(contractPoolId);
   }
+
+  async processDonationEvent(event: HorizonContractEvent): Promise<void> {
+    if (!event.txHash) {
+      this.logger.warn('Donation event missing txHash — skipping');
+      return;
+    }
+
+    if (await this.isTxDuplicate(event.txHash)) {
+      return;
+    }
+
+    const contractPoolId = event.topic[1];
+    const donorWallet = event.value[0];
+    const amount = event.value[1];
+    const asset = event.value[2] || 'XLM';
+
+    await this.donationsService.recordDonation({
+      poolId: contractPoolId,
+      donorWallet,
+      amount,
+      asset,
+      txHash: event.txHash,
+    });
+
+    await this.poolsService.incrementRaised(contractPoolId, amount);
+  }
 }

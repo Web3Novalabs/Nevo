@@ -50,4 +50,24 @@ export class DonationsService {
     const count = await this.donationRepo.countBy({ txHash });
     return count > 0;
   }
+
+  async recordDonation(data: {
+    poolId: string;
+    donorWallet: string;
+    amount: string;
+    asset: string;
+    txHash: string;
+    memo?: string;
+  }): Promise<Donation> {
+    return this.donationRepo.save(
+      this.donationRepo.create({
+        poolId: data.poolId,
+        donorWallet: data.donorWallet,
+        amount: data.amount,
+        asset: data.asset,
+        txHash: data.txHash,
+        memo: data.memo || null,
+      }),
+    );
+  }
 }
