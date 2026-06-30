@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Pool, PoolStatus } from './pool.entity.js';
-import type { CreatePoolDto, UpdatePoolDto } from './pools.controller.js';
+import type { UpdatePoolDto } from './pools.controller.js';
+import type { CreatePoolDto } from './dto/create-pool.dto.js';
 import type { GetPoolsDto } from './dto/get-pools.dto.js';
 import { ContractService } from '../contract/contract.service.js';
 
