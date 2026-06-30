@@ -11,7 +11,7 @@ import { toast } from '@/components/Toast';
 import { usePoolsStore } from '@/src/store/poolsStore';
 import type { Pool } from '@/src/store/poolsStore';
 import { useWalletStore } from '@/src/store/walletStore';
-import { closePool, submitSignedXdr } from '@/lib/api-client';
+import { closePool, submitSignedXdr, withdrawPool } from '@/lib/api-client';
 import { signTransaction } from '@stellar/freighter-api';
 
 // Testnet XLM native contract address (same as api-client)
@@ -62,8 +62,34 @@ export default function PoolDetailPage() {
   const [withdrawStep, setWithdrawStep] = useState<WithdrawStep>('idle');
 
   const handleWithdraw = async () => {
-    // TODO: Implement withdrawal
-    toast('Withdrawal not implemented yet', 'info');
+    if (!pool || !publicKey) return;
+    try {
+      setWithdrawStep('creating');
+      const { unsignedXdr } = await withdrawPool(pool.id);
+
+      setWithdrawStep('signing');
+      const signedResult = await signTransaction(unsignedXdr, {
+        networkPassphrase:
+          process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
+          'Test SDF Network ; September 2015',
+      });
+
+      if (signedResult.error) {
+        throw new Error(signedResult.error);
+      }
+
+      setWithdrawStep('submitting');
+      await submitSignedXdr(signedResult.signedTxXdr);
+      toast('Withdrawal successful');
+
+      await fetchPool(Number(pool.id));
+    } catch (err: unknown) {
+      const error = err as Error;
+      toast(error.message || 'Failed to withdraw funds', 'error');
+      console.error(error);
+    } finally {
+      setWithdrawStep('idle');
+    }
   };
 
   const withdrawLabel = () => {
