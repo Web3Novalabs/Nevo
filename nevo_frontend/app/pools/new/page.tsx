@@ -357,8 +357,7 @@ function CreatePoolPageContent() {
 
       setSubmitted(true);
     } catch (error) {
-      const err = error as Error;
-      setErrors({ submit: err?.message || 'Failed to submit transaction.' });
+      setErrors({ submit: parseApiError(error) });
     } finally {
       setSubmitting(false);
       setSubmitStep('idle');

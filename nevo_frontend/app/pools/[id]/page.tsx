@@ -126,9 +126,8 @@ export default function PoolDetailPage() {
 
       await fetchPool(Number(pool.id));
     } catch (err: unknown) {
-      const error = err as Error;
-      toast(error.message || 'Failed to close pool', 'error');
-      console.error(error);
+      toast(parseApiError(err), 'error');
+      console.error(err);
     } finally {
       setIsClosing(false);
     }
