@@ -5,6 +5,8 @@ import {
   parseRetryAfterHeader,
   resolveRateLimitOptions,
 } from './rate-limit';
+import { signTransaction as freighterSignTransaction } from '@stellar/freighter-api';
+import { Networks } from '@stellar/stellar-sdk';
 
 export interface AccountBalances {
   xlm: string;
@@ -12,6 +14,8 @@ export interface AccountBalances {
 }
 
 const HORIZON = 'https://horizon.stellar.org';
+const NETWORK_PASSPHRASE =
+  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ?? Networks.TESTNET;
 const ZERO_BALANCES: AccountBalances = { xlm: '0', usdc: '0' };
 const HORIZON_RATE_LIMIT = resolveRateLimitOptions({
   maxRequests: 60,
@@ -77,4 +81,16 @@ export async function getAccountBalances(
   } catch {
     return ZERO_BALANCES;
   }
+}
+
+export async function signTransaction(xdr: string): Promise<string> {
+  const result = await freighterSignTransaction(xdr, {
+    networkPassphrase: NETWORK_PASSPHRASE,
+  });
+
+  if (result.error) {
+    throw new Error(result.error);
+  }
+
+  return result.signedTxXdr;
 }

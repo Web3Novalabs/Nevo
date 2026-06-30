@@ -12,6 +12,14 @@ export class AppController {
     return this.appService.getHello();
   }
 
+  @Get('health')
+  getHealth() {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   @UseGuards(StellarAuthGuard)
   @Get('profile')
   getProfile(@Req() req: Request & { user?: { publicKey?: string } }) {

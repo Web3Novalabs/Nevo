@@ -45,4 +45,9 @@ export class DonationsService {
       order: { createdAt: 'DESC' },
     });
   }
+
+  async isTxProcessed(txHash: string): Promise<boolean> {
+    const count = await this.donationRepo.countBy({ txHash });
+    return count > 0;
+  }
 }

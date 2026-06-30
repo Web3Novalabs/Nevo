@@ -1,8 +1,9 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PoolsService } from '../pools/pools.service.js';
+import { DonationsService } from '../donations/donations.service.js';
 import { SyncState } from './sync-state.entity.js';
 
 /** Minimal shape of a Stellar Horizon Soroban contract event. */
@@ -14,14 +15,20 @@ export interface HorizonContractEvent {
    * For pool_crtd: [creatorWallet, goal, title, description]
    */
   value: string[];
+  /** Transaction hash for idempotency — may be undefined for non-donation events. */
+  txHash?: string;
 }
 
 @Injectable()
 export class SyncService implements OnModuleInit {
+  private readonly logger = new Logger(SyncService.name);
   private currentCursor: string | null = null;
+  /** Tracks tx hashes seen in the current poll run to detect within-run duplicates. */
+  private seenInRun = new Set<string>();
 
   constructor(
     private readonly poolsService: PoolsService,
+    private readonly donationsService: DonationsService,
     @InjectRepository(SyncState)
     private readonly syncStateRepo: Repository<SyncState>,
   ) {}
@@ -45,10 +52,33 @@ export class SyncService implements OnModuleInit {
   // TODO: replace with real implementation once HorizonService (#46) is available
   @Cron(CronExpression.EVERY_MINUTE)
   async pollHorizonEvents(): Promise<void> {
+    this.seenInRun.clear();
     // stub — will call HorizonService.fetchContractEvents() when implemented
   }
 
+  /**
+   * Returns true if the tx should be skipped (already processed or duplicate in this run).
+   * Logs a warning when the same hash appears more than once in a single run.
+   */
+  async isTxDuplicate(txHash: string): Promise<boolean> {
+    if (this.seenInRun.has(txHash)) {
+      this.logger.warn(`Duplicate tx hash in current run: ${txHash}`);
+      return true;
+    }
+    this.seenInRun.add(txHash);
+
+    const alreadyProcessed = await this.donationsService.isTxProcessed(txHash);
+    if (alreadyProcessed) {
+      return true;
+    }
+    return false;
+  }
+
   async processPoolCreatedEvent(event: HorizonContractEvent): Promise<void> {
+    if (event.txHash && (await this.isTxDuplicate(event.txHash))) {
+      return;
+    }
+
     const contractPoolId = event.topic[1];
     const creatorWallet = event.value[0];
     const goal = event.value[1];
@@ -61,6 +91,10 @@ export class SyncService implements OnModuleInit {
   }
 
   async processPoolClosedEvent(event: HorizonContractEvent): Promise<void> {
+    if (event.txHash && (await this.isTxDuplicate(event.txHash))) {
+      return;
+    }
+
     const contractPoolId = event.topic[1];
     await this.poolsService.markCompleted(contractPoolId);
   }

@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  BadRequestException,
   ForbiddenException,
   Get,
   NotFoundException,
@@ -20,16 +19,8 @@ import { GetPoolsDto } from './dto/get-pools.dto.js';
 import { DonationsService } from '../donations/donations.service.js';
 import { ContractService } from '../contract/contract.service.js';
 import { StellarAuthGuard } from '../auth/stellar-auth.guard.js';
-
-export interface CreatePoolDto {
-  contractPoolId: string;
-  creatorWallet: string;
-  goal: string;
-  title?: string;
-  description?: string;
-  category?: string;
-  imageUrl?: string;
-}
+import { CreatePoolDto } from './dto/create-pool.dto.js';
+import { DonatePoolDto } from './dto/donate-pool.dto.js';
 
 export interface UpdatePoolDto {
   description?: string;
@@ -43,11 +34,6 @@ export interface WithdrawDto {
 
 export interface ClosePoolDto {
   requesterWallet: string;
-}
-
-export interface DonateDto {
-  amount: number;
-  tokenAddress: string;
 }
 
 interface JwtPayload {
@@ -76,11 +62,7 @@ export class PoolsController {
   }
 
   @Get(':id/donations')
-  getDonations(
-    @Param('id', ParseIntPipe) id: number,
-    @Query('page') page = '1',
-    @Query('limit') limit = '20',
-  ) {
+  getDonations(@Param('id', ParseIntPipe) id: number) {
     return this.donationsService.findByPool(String(id));
   }
 
@@ -124,13 +106,9 @@ export class PoolsController {
   @Post(':id/donate')
   async donate(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: DonateDto,
+    @Body() dto: DonatePoolDto,
     @Req() req: Request & { user: JwtPayload },
   ) {
-    if (!Number.isInteger(dto.amount) || dto.amount <= 0) {
-      throw new BadRequestException('amount must be a positive integer');
-    }
-
     const pool = await this.poolsService.findByContractId(String(id));
     if (!pool) throw new NotFoundException('Pool not found');
 
