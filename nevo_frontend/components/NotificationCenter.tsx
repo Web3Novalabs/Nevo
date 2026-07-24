@@ -14,8 +14,14 @@ export function NotificationCenter() {
   } = useNotificationsStore();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  const closeAndReturnFocus = () => {
+    setIsOpen(false);
+    triggerRef.current?.focus();
+  };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -26,13 +32,23 @@ export function NotificationCenter() {
         setIsOpen(false);
       }
     }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && isOpen) {
+        closeAndReturnFocus();
+      }
+    }
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
 
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        ref={triggerRef}
         type="button"
         className="relative flex items-center justify-center size-10 rounded-full hover:bg-[var(--color-surface-raised)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
         onClick={() => setIsOpen(!isOpen)}
@@ -76,6 +92,26 @@ export function NotificationCenter() {
               >
                 Clear all
               </button>
+              <button
+                onClick={closeAndReturnFocus}
+                className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                aria-label="Close notifications"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="size-4"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18 18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -101,7 +137,7 @@ export function NotificationCenter() {
                         <button
                           onClick={() => deleteNotification(n.id)}
                           className="text-[var(--color-text-muted)] hover:text-error transition-colors"
-                          aria-label="Delete notification"
+                          aria-label={`Delete notification: ${(n.title || n.message || '').trim().slice(0, 60) || 'Untitled'}`}
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
