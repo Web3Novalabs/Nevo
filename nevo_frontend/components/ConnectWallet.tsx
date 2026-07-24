@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useWalletStore } from '@/src/store/walletStore';
 import { Spinner } from '@/components/Spinner';
 import { isFreighterInstalled } from '@/app/stellar-wallets-kit';
 
-const FREIGHTER_INSTALL_URL =
-  'https://www.freighter.app/';
+const FREIGHTER_INSTALL_URL = 'https://www.freighter.app/';
 
 function shortKey(key: string) {
   return `${key.slice(0, 4)}…${key.slice(-4)}`;
@@ -28,11 +27,41 @@ export default function ConnectWallet() {
   const [freighterInstalled, setFreighterInstalled] = useState<
     boolean | undefined
   >(undefined);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFreighterInstalled(isFreighterInstalled());
     initialize();
   }, [initialize]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
 
   async function handleConnect() {
     // Guard: do not attempt the flow if the extension is missing
@@ -120,8 +149,9 @@ export default function ConnectWallet() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
+        ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
         aria-haspopup="dialog"

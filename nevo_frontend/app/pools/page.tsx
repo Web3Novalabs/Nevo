@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { EmptyState } from '@/components/EmptyState';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Pagination, PoolCard, Skeleton } from '@/components';
 import {
   usePoolsStore,
@@ -267,7 +268,7 @@ function buildDefaultFilters(pools: Pool[]): FilterState {
   };
 }
 
-export default function BrowsePoolsPage() {
+function BrowsePoolsPageContent() {
   const { pools, loading, error, fetchPools } = usePoolsStore();
   useEffect(() => {
     fetchPools();
@@ -739,6 +740,14 @@ export default function BrowsePoolsPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+export default function BrowsePoolsPage() {
+  return (
+    <ErrorBoundary>
+      <BrowsePoolsPageContent />
+    </ErrorBoundary>
   );
 }
 

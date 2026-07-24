@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { DonateModal } from '@/components/DonateModal';
 import { EmptyState } from '@/components/EmptyState';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { WalletAddress } from '@/components/WalletAddress';
 import { CopyButton } from '@/components/CopyButton';
 import { toast } from '@/components/Toast';
@@ -46,7 +47,7 @@ interface Comment {
   replies: Comment[];
 }
 
-export default function PoolDetailPage() {
+function PoolDetailPageContent() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { publicKey, initialize } = useWalletStore();
@@ -583,6 +584,14 @@ export default function PoolDetailPage() {
         />
       )}
     </main>
+  );
+}
+
+export default function PoolDetailPage() {
+  return (
+    <ErrorBoundary>
+      <PoolDetailPageContent />
+    </ErrorBoundary>
   );
 }
 
