@@ -57,4 +57,33 @@ describe('UsersService', () => {
     expect(saved?.publicKey).toBe(publicKey);
     expect(saved?.displayName).toBeNull();
   });
+
+  it('updates the display name for an existing user', async () => {
+    const existing: User = {
+      id: 'uuid-1',
+      publicKey,
+      displayName: 'alice',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const { service, repo, savedArg } = await buildService(existing);
+
+    const result = await service.updateDisplayName(publicKey, 'Alice Cooper');
+
+    expect(repo.findOne).toHaveBeenCalledWith({ where: { publicKey } });
+    expect(savedArg()).toBe(existing);
+    expect(repo.save).toHaveBeenCalledWith(existing);
+    expect(result).toEqual({ ...existing, id: 'new-uuid' });
+    expect(existing.displayName).toBe('Alice Cooper');
+  });
+
+  it('returns null when updating display name for a missing user', async () => {
+    const { service, repo } = await buildService(null);
+
+    const result = await service.updateDisplayName(publicKey, 'Alice Cooper');
+
+    expect(repo.findOne).toHaveBeenCalledWith({ where: { publicKey } });
+    expect(result).toBeNull();
+    expect(repo.save).not.toHaveBeenCalled();
+  });
 });
