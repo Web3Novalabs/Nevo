@@ -9,6 +9,7 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { NonceService } from './nonce.service';
 import { Nonce } from './nonce.entity';
+import { getJwtSecret } from './jwt.config';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { Nonce } from './nonce.entity';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET', 'dev-secret'),
+        secret: getJwtSecret(),
         signOptions: {
           expiresIn: config.get<string>('JWT_EXPIRY', '7d') as unknown as any,
         },

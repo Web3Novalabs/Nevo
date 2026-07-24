@@ -1,9 +1,10 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class HorizonService {
   private readonly horizonUrl: string;
+  private readonly logger = new Logger(HorizonService.name);
 
   constructor(private readonly configService: ConfigService) {
     this.horizonUrl = this.configService
@@ -41,8 +42,12 @@ export class HorizonService {
       if (error instanceof HttpException) {
         throw error;
       }
+      this.logger.error(
+        'Unexpected error fetching transactions from Horizon',
+        error instanceof Error ? error.stack : String(error),
+      );
       throw new HttpException(
-        error.message || 'Internal server error while fetching transactions',
+        'An unexpected error occurred while fetching transactions',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
