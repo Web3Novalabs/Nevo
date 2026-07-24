@@ -71,8 +71,20 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-md focus:bg-brand-600 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+        >
+          Skip to main content
+        </a>
         <Navbar />
-        {children}
+        <div
+          id="main-content"
+          tabIndex={-1}
+          className="flex flex-1 flex-col outline-none"
+        >
+          {children}
+        </div>
         <ToastContainer />
       </body>
     </html>
