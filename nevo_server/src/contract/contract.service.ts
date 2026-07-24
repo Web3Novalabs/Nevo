@@ -195,7 +195,11 @@ export class ContractService {
         );
       }
       return 0n;
-    } catch {
+    } catch (err: unknown) {
+      this.logger.error(
+        `Failed to fetch contribution on-chain for poolId ${poolId}, donor ${donor}`,
+        err instanceof Error ? err.stack : String(err),
+      );
       return 0n;
     }
   }
@@ -242,7 +246,11 @@ export class ContractService {
         };
       }
       return null;
-    } catch {
+    } catch (err: unknown) {
+      this.logger.error(
+        `Failed to fetch pool on-chain for poolId ${poolId}`,
+        err instanceof Error ? err.stack : String(err),
+      );
       return null;
     }
   }
@@ -274,7 +282,11 @@ export class ContractService {
 
       const native = scValToNative(retVal);
       return typeof native === 'bigint' ? native : BigInt(String(native));
-    } catch {
+    } catch (err: unknown) {
+      this.logger.error(
+        `Failed to fetch total raised on-chain for poolId ${poolId}`,
+        err instanceof Error ? err.stack : String(err),
+      );
       return 0n;
     }
   }
@@ -305,7 +317,11 @@ export class ContractService {
       if (!retVal) return 0;
 
       return Number(scValToNative(retVal));
-    } catch {
+    } catch (err: unknown) {
+      this.logger.error(
+        `Failed to fetch donor count on-chain for poolId ${poolId}`,
+        err instanceof Error ? err.stack : String(err),
+      );
       return 0;
     }
   }

@@ -2,11 +2,14 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
+import { APP_FILTER } from '@nestjs/core';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
+import { Nonce } from './auth/nonce.entity.js';
 import { ContractModule } from './contract/contract.module.js';
 import { LoggingMiddleware } from './common/logging.middleware.js';
+import { GlobalExceptionFilter } from './common/global-exception.filter.js';
 import { Donation } from './donations/donation.entity.js';
 import { DonationsModule } from './donations/donations.module.js';
 import { Pool } from './pools/pool.entity.js';
@@ -28,7 +31,7 @@ import { UsersModule } from './users/users.module.js';
       username: process.env.DB_USER ?? 'postgres',
       password: process.env.DB_PASSWORD ?? 'postgres',
       database: process.env.DB_NAME ?? 'nevo',
-      entities: [User, Pool, Donation, SyncState],
+      entities: [User, Pool, Donation, SyncState, Nonce],
       migrations: ['dist/migrations/*.js'],
       synchronize: false,
     }),
@@ -42,7 +45,13 @@ import { UsersModule } from './users/users.module.js';
     UsersModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
