@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useWalletStore } from '@/src/store/walletStore';
 import { EmptyState } from '@/components/EmptyState';
@@ -328,6 +328,9 @@ function StatusBadge({ status }: { status: Pool['status'] }) {
 
 /* ── ConfirmModal ─────────────────────────────────────────────────────────── */
 
+const FOCUSABLE =
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
 function ConfirmModal({
   modal,
   onClose,
@@ -338,6 +341,57 @@ function ConfirmModal({
   onConfirm: () => void;
 }) {
   const isWithdraw = modal.type === 'withdraw';
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  const handleKeyDown = useCallback(
+    (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    },
+    [onClose]
+  );
+
+  useEffect(() => {
+    triggerRef.current = document.activeElement as HTMLElement | null;
+
+    const id = requestAnimationFrame(() => {
+      const el = dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE);
+      el?.focus();
+    });
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      cancelAnimationFrame(id);
+      document.removeEventListener('keydown', handleKeyDown);
+      triggerRef.current?.focus();
+    };
+  }, [handleKeyDown]);
 
   return (
     <div
@@ -353,7 +407,10 @@ function ConfirmModal({
         aria-hidden="true"
       />
 
-      <div className="relative w-full max-w-sm rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl">
+      <div
+        ref={dialogRef}
+        className="relative w-full max-w-sm rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl"
+      >
         <h2 id="modal-title" className="text-base font-semibold">
           {isWithdraw ? 'Withdraw funds' : 'Archive pool'}
         </h2>
