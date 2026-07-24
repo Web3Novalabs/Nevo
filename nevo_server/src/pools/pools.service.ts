@@ -169,6 +169,17 @@ export class PoolsService {
     return this.poolRepo.save(pool);
   }
 
+  async incrementRaised(contractPoolId: string, amount: string): Promise<Pool | null> {
+    const pool = await this.poolRepo.findOne({ where: { contractPoolId } });
+    if (!pool) return null;
+    
+    const currentRaised = BigInt(pool.raised || '0');
+    const additionalAmount = BigInt(amount);
+    pool.raised = (currentRaised + additionalAmount).toString();
+    
+    return this.poolRepo.save(pool);
+  }
+
   buildWithdrawTx(pool: Pool): { unsignedXdr: string; poolId: string } {
     // TODO: replace with real Stellar transaction build calling contract.withdraw (#657)
     return { unsignedXdr: 'placeholder_xdr', poolId: pool.contractPoolId };
