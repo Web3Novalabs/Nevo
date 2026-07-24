@@ -3,7 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Donation } from './donation.entity.js';
 
-export type DonationSortBy = 'newest' | 'largest';
+export enum DonationSortBy {
+  newest = 'newest',
+  largest = 'largest',
+}
 
 @Injectable()
 export class DonationsService {
@@ -14,9 +17,9 @@ export class DonationsService {
 
   async findByPool(
     poolId: string,
-    sortBy: DonationSortBy = 'newest',
+    sortBy: DonationSortBy = DonationSortBy.newest,
   ): Promise<Donation[]> {
-    if (sortBy === 'largest') {
+    if (sortBy === DonationSortBy.largest) {
       return this.donationRepo
         .createQueryBuilder('d')
         .where('d.poolId = :poolId', { poolId })
@@ -31,9 +34,9 @@ export class DonationsService {
 
   async findByDonor(
     donorWallet: string,
-    sortBy: DonationSortBy = 'newest',
+    sortBy: DonationSortBy = DonationSortBy.newest,
   ): Promise<Donation[]> {
-    if (sortBy === 'largest') {
+    if (sortBy === DonationSortBy.largest) {
       return this.donationRepo
         .createQueryBuilder('d')
         .where('d.donorWallet = :donorWallet', { donorWallet })

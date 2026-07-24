@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
+import { getJwtSecret } from './jwt.config.js';
 
 @Injectable()
 export class StellarAuthGuard implements CanActivate {
@@ -21,7 +22,7 @@ export class StellarAuthGuard implements CanActivate {
         sub: string;
         publicKey: string;
       }>(token, {
-        secret: process.env.JWT_SECRET ?? 'dev-secret',
+        secret: getJwtSecret(),
       });
       (req as Request & { user: unknown }).user = payload;
       return true;
