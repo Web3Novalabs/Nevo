@@ -95,6 +95,7 @@ Nevo aims to redefine how donations are managed by making them:
 ## Documentation
 
 - [Pools page details](./docs/pools-page.md) — browse pools, search, filter categories, and review campaign progress.
+- [Backend server (nevo_server)](./nevo_server/README.md) — env vars (see `.env.example`), local PostgreSQL setup, and `migration:generate`/`migration:run`/`migration:revert` scripts.
 
 ---
 
