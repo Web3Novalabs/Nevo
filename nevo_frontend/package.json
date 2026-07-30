@@ -32,7 +32,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-i18next": "^12.3.1",
-    "zustand": "^5.0.12"
+    "zustand": "^5.0.14"
   },
   "browserslist": [
     "last 2 Chrome versions",
