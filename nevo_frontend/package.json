@@ -68,6 +68,6 @@
     "prettier": "^3.9.6",
     "tailwindcss": "^4",
     "ts-jest": "^29.4.11",
-    "typescript": "^5"
+    "typescript": "^7"
   }
 }
