@@ -1760,3 +1760,4 @@ mod test_campaign_lifecycle;
 mod test_withdraw;
 mod test_issue_1287_pool_multisig;
 mod test_issue_1348_donate_boundary_amounts;
+mod test_issue_1349_donate_with_token;
