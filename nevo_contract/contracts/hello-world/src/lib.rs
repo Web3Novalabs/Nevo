@@ -66,7 +66,6 @@ const MAX_DESCRIPTION_LENGTH: usize = 500;
 const POOL_METADATA_PREFIX: &str = "metadata";
 const MAX_URL_LENGTH: usize = 256;
 const MAX_IMAGE_HASH_LENGTH: usize = 64;
-const POOL_METADATA_PREFIX: &str = "metadata";
 
 // ─── Event Topics ────────────────────────────────────────────────────────
 
@@ -549,7 +548,17 @@ impl Contract {
             env.panic_with_error(ContractError::InvalidPoolState);
         }
 
-        let new_collected = pool.collected + amount;
+        // A zero contribution would mark the caller as a donor without
+        // contributing anything. Rejected for the same reason
+        // `donate_with_token` rejects it.
+        if amount == 0 {
+            panic!("InvalidAmount");
+        }
+
+        let new_collected = pool
+            .collected
+            .checked_add(amount)
+            .expect("Collected amount overflow");
         let updated_pool = Pool {
             collected: new_collected,
             last_donation_at: env.ledger().timestamp(),
@@ -708,6 +717,17 @@ impl Contract {
         );
     }
 
+    /// Check if a pool is closed.
+    pub fn is_closed(env: Env, pool_id: u32) -> bool {
+        let pool: Pool = env
+            .storage()
+            .persistent()
+            .get::<_, Pool>(&pool_id)
+            .unwrap_or_else(|| env.panic_with_error(ContractError::PoolNotFound));
+
+        pool.is_closed
+    }
+
     /// Return campaign ids in creation order.
     pub fn get_all_campaigns(env: Env) -> Vec<u32> {
         let count = Self::get_pool_count(env.clone());
@@ -729,20 +749,6 @@ impl Contract {
             .persistent()
             .get::<_, u32>(&pool_count_key)
             .unwrap_or(0)
-    }
-
-    /// Get all campaign (pool) IDs.
-    pub fn get_all_campaigns(env: Env) -> Vec<u32> {
-        let count = Self::get_pool_count(env.clone());
-        let mut list = Vec::new(&env);
-        let mut id = 1u32;
-        while id <= count {
-            if env.storage().persistent().has(&id) {
-                list.push_back(id);
-            }
-            id += 1;
-        }
-        list
     }
 
     /// Get the number of unique donors for a pool.
@@ -1753,3 +1759,4 @@ mod test_pool_retrieval;
 mod test_campaign_lifecycle;
 mod test_withdraw;
 mod test_issue_1287_pool_multisig;
+mod test_issue_1348_donate_boundary_amounts;
