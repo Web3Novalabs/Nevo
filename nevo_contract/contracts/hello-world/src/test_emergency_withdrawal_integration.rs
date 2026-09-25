@@ -2,9 +2,10 @@
 
 use super::*;
 use soroban_sdk::{
-    testutils::{Address as _, Ledger},
+    symbol_short,
+    testutils::{Address as _, Events, Ledger},
     token::StellarAssetClient,
-    Address, Env, String, Symbol,
+    Address, Env, String, Symbol, TryIntoVal,
 };
 
 fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
@@ -15,7 +16,7 @@ fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
     token.address()
 }
 
-// ============= ISSUE #1092: INTEGRATION TESTS FOR EMERGENCY WITHDRAWAL FLOW =============
+// ============= ISSUE #1300: INTEGRATION TESTS FOR EMERGENCY WITHDRAWAL FLOW =============
 
 /// Test 1: Admin requests emergency withdrawal, grace period enforced, successful execution
 #[test]
@@ -41,6 +42,18 @@ fn test_emergency_withdrawal_complete_flow() {
 
     client.request_emergency_withdraw(&admin, &pool_id, &token, &withdrawal_amount);
 
+    let request_event = env.events().all().last().unwrap();
+    let request_topic: Symbol = request_event.1.get(0).unwrap().try_into_val(&env).unwrap();
+    let request_pool: u32 = request_event.1.get(1).unwrap().try_into_val(&env).unwrap();
+    let (event_token, event_amount, event_admin, _) = request_event.2
+        .try_into_val::<(Address, i128, Address, u64)>(&env)
+        .unwrap();
+    assert_eq!(request_topic, symbol_short!("emerg_req"));
+    assert_eq!(request_pool, pool_id);
+    assert_eq!(event_token, token);
+    assert_eq!(event_amount, withdrawal_amount);
+    assert_eq!(event_admin, admin);
+
     let withdrawal_key = (Symbol::new(&env, "emergency_withdraw"), pool_id);
     let has_request = env.as_contract(&contract_id, || {
         env.storage().persistent().has(&withdrawal_key)
@@ -51,6 +64,18 @@ fn test_emergency_withdrawal_complete_flow() {
     env.ledger().set_timestamp(GRACE_PERIOD_SECS + 1);
 
     client.execute_emergency_withdraw(&pool_id);
+
+    let execute_event = env.events().all().last().unwrap();
+    let execute_topic: Symbol = execute_event.1.get(0).unwrap().try_into_val(&env).unwrap();
+    let execute_pool: u32 = execute_event.1.get(1).unwrap().try_into_val(&env).unwrap();
+    let (executed_token, executed_amount, executed_admin) = execute_event.2
+        .try_into_val::<(Address, i128, Address)>(&env)
+        .unwrap();
+    assert_eq!(execute_topic, symbol_short!("emerg_exe"));
+    assert_eq!(execute_pool, pool_id);
+    assert_eq!(executed_token, token);
+    assert_eq!(executed_amount, withdrawal_amount);
+    assert_eq!(executed_admin, admin);
 
     let has_request_after = env.as_contract(&contract_id, || {
         env.storage().persistent().has(&withdrawal_key)

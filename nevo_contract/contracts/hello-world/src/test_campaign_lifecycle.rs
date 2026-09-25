@@ -156,7 +156,7 @@ fn test_get_all_campaigns_updates_with_new_campaigns() {
     assert_eq!(campaigns.get(1).unwrap(), id2);
 }
 
-// ============= ISSUE #1090: INTEGRATION TESTS FOR CAMPAIGN LIFECYCLE =============
+// ============= ISSUE #1298: INTEGRATION TESTS FOR CAMPAIGN LIFECYCLE =============
 
 /// Test 1: Create campaign (pool) with a creation fee
 #[test]
@@ -167,23 +167,29 @@ fn test_campaign_create_with_fee() {
     let client = ContractClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
     client.set_admin(&admin);
+    let fee_token = create_token(&env, 500_000i128, &creator);
     client.set_creation_fee(&admin, &500_000i128);
 
     assert_eq!(client.get_creation_fee(), 500_000i128);
 
-    let creator = Address::generate(&env);
-    let pool_id = client.create_pool(
+    let pool_id = client.create_pool_with_fee(
         &creator,
         &String::from_str(&env, "Campaign with Fee"),
         &String::from_str(&env, "Testing fee integration"),
         &10_000_000_000u128,
         &200_000u64,
+        &fee_token,
     );
 
     assert_eq!(pool_id, 1);
     let pool = client.get_pool(&pool_id);
     assert_eq!(pool.2, 10_000_000_000u128);
+    assert_eq!(
+        soroban_sdk::token::Client::new(&env, &fee_token).balance(&contract_id),
+        500_000i128
+    );
 }
 
 /// Test 2: Multiple users donate to the same campaign
@@ -244,6 +250,37 @@ fn test_campaign_reaches_goal() {
     let pool = client.get_pool(&pool_id);
     assert_eq!(pool.3, goal);
     assert_eq!(pool.4, false);
+}
+
+/// A campaign becomes completed at its goal and rejects further donations.
+#[test]
+fn test_campaign_rejects_donations_after_goal() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let goal = 500_000_000u128;
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Completed Campaign"),
+        &String::from_str(&env, "Reject donations after goal"),
+        &goal,
+        &200_000u64,
+    );
+
+    client.donate(&pool_id, &donor, &goal);
+
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.3, goal);
+    assert!(!pool.4);
+    assert!(
+        client
+            .try_donate(&pool_id, &Address::generate(&env), &1u128)
+            .is_err()
+    );
 }
 
 /// Test 4: Donations to a closed campaign fail
