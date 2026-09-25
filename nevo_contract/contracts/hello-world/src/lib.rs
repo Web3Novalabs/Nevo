@@ -1755,3 +1755,4 @@ mod test_withdraw;
 mod test_issue_1287_pool_multisig;
 mod test_issue_1293_donation_completion;
 mod test_issue_1264_emergency_withdrawal_grace_period;
+mod test_issue_1370_fee_calculation_across_changes;
