@@ -1031,6 +1031,121 @@ fn test_claim_funds_cancelled_pool_panics() {
     client.claim_funds(&student, &pool_id, &100_000_000i128, &token);
 }
 
+// ============= EMERGENCY WITHDRAWAL AUTHORIZATION TESTS (#1263) =============
+
+#[test]
+fn test_request_emergency_withdraw_valid_admin_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Emergency Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let token = create_token(&env, 500_000_000i128, &contract_id);
+    client.request_emergency_withdraw(&admin, &pool_id, &token, &500_000_000i128);
+
+    // A second request for the same pool is now rejected, proving the
+    // first request was stored with the admin's token and amount.
+    let other_token = create_token(&env, 0i128, &contract_id);
+    let res = client.try_request_emergency_withdraw(&admin, &pool_id, &other_token, &1i128);
+    assert!(res.is_err(), "A duplicate request must be rejected");
+
+    // Executing after the grace period transfers exactly what the valid
+    // admin's request stored.
+    env.ledger().set_timestamp(GRACE_PERIOD_SECS + 1);
+    client.execute_emergency_withdraw(&pool_id);
+    let token_client = token::Client::new(&env, &token);
+    assert_eq!(token_client.balance(&admin), 500_000_000i128);
+}
+
+#[test]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
+fn test_request_emergency_withdraw_non_admin_fails_with_auth_error() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Emergency Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let attacker = Address::generate(&env);
+    let token = create_token(&env, 500_000_000i128, &contract_id);
+    client.request_emergency_withdraw(&attacker, &pool_id, &token, &500_000_000i128);
+}
+
+#[test]
+#[should_panic(expected = "EmergencyWithdrawalAlreadyRequested")]
+fn test_request_emergency_withdraw_duplicate_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Emergency Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let token = create_token(&env, 500_000_000i128, &contract_id);
+    client.request_emergency_withdraw(&admin, &pool_id, &token, &200_000_000i128);
+    client.request_emergency_withdraw(&admin, &pool_id, &token, &300_000_000i128);
+}
+
+#[test]
+#[should_panic(expected = "Grace period not elapsed")]
+fn test_execute_emergency_withdraw_before_grace_period_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Emergency Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let token = create_token(&env, 500_000_000i128, &contract_id);
+    client.request_emergency_withdraw(&admin, &pool_id, &token, &500_000_000i128);
+
+    env.ledger().set_timestamp(GRACE_PERIOD_SECS - 1);
+    client.execute_emergency_withdraw(&pool_id);
+}
+
 #[test]
 #[should_panic(expected = "Error(Contract, #15)")]
 fn test_close_pool_twice_panics() {
