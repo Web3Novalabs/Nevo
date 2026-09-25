@@ -1753,3 +1753,4 @@ mod test_pool_retrieval;
 mod test_campaign_lifecycle;
 mod test_withdraw;
 mod test_issue_1287_pool_multisig;
+mod test_issue_1293_donation_completion;
