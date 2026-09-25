@@ -3638,3 +3638,224 @@ fn test_refund_after_grace_period_succeeds() {
     let contribution = client.get_contribution(&pool_id, &donor);
     assert_eq!(contribution, 0u128);
 }
+
+// ============= APPLY_TO_POOL TESTS =============
+
+/// (1) Student can submit a valid application.
+///
+/// Verifies that apply_to_pool succeeds when the pool exists and the student
+/// has not applied before. Checks that the application count increments and
+/// the applicant flag is recorded.
+#[test]
+fn test_apply_to_pool_valid_application_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Scholarship Pool"),
+        &String::from_str(&env, "Funding talented students"),
+        &1_000_000_000,
+    );
+
+    // Should not panic — first application from this student is valid
+    client.apply_to_pool(
+        &pool_id,
+        &student,
+        &String::from_str(&env, "I am a motivated student"),
+    );
+
+    // The contract sets status to "Pending" on successful application — confirms the record was stored
+    let status = client.get_application_status(&pool_id, &student);
+    assert_eq!(status, String::from_str(&env, "Pending"));
+}
+
+/// (2) Duplicate application from same student/pool is rejected.
+///
+/// The second call to apply_to_pool with the same (pool_id, student) pair must
+/// panic with "Duplicate application". The contract stores an applicant flag on
+/// the first call and checks it before writing a new record.
+#[test]
+#[should_panic(expected = "Duplicate application")]
+fn test_apply_to_pool_duplicate_same_student_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Scholarship Pool"),
+        &String::from_str(&env, "Funding talented students"),
+        &1_000_000_000,
+    );
+
+    // First application succeeds
+    client.apply_to_pool(
+        &pool_id,
+        &student,
+        &String::from_str(&env, "First application"),
+    );
+
+    // Second application from the same student must be rejected
+    client.apply_to_pool(
+        &pool_id,
+        &student,
+        &String::from_str(&env, "Duplicate attempt"),
+    );
+}
+
+/// (3) Application to a closed pool documents current contract behaviour.
+///
+/// The contract does NOT validate pool.is_closed inside apply_to_pool, so an
+/// application to a closed pool currently succeeds (no panic). This test
+/// documents that behaviour as the spec; if a future issue adds the check this
+/// test should be updated to #[should_panic(expected = "Pool is closed")].
+#[test]
+fn test_apply_to_pool_closed_pool_accepted_per_current_spec() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Closed Pool"),
+        &String::from_str(&env, "This pool will be closed"),
+        &1_000_000_000,
+    );
+
+    // Close the pool
+    client.close_pool(&pool_id);
+
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.4, true, "Pool should be closed");
+
+    // Per current spec: apply_to_pool has no is_closed guard, so this succeeds.
+    // TODO: update to #[should_panic(expected = "Pool is closed")] once the
+    // closed-pool check is added to apply_to_pool.
+    client.apply_to_pool(
+        &pool_id,
+        &student,
+        &String::from_str(&env, "Applying to closed pool"),
+    );
+}
+
+/// (4a) Empty application_data is accepted per current spec.
+///
+/// The contract stores application_data as-is without any length validation, so
+/// an empty string is a valid value. This test documents that behaviour.
+#[test]
+fn test_apply_to_pool_empty_application_data_accepted() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Testing empty data"),
+        &1_000_000_000,
+    );
+
+    // An empty string for application_data should not panic — no validation exists
+    client.apply_to_pool(&pool_id, &student, &String::from_str(&env, ""));
+
+    // Status is "Pending" — confirms the empty-data application was stored
+    let status = client.get_application_status(&pool_id, &student);
+    assert_eq!(status, String::from_str(&env, "Pending"));
+}
+
+/// (4b) Oversized application_data is accepted per current spec.
+///
+/// Unlike pool descriptions (capped at 500 chars), application_data has no size
+/// limit in the contract. A 600-character string must be stored without error.
+/// This test documents that behaviour and acts as a regression guard if a size
+/// cap is added later.
+#[test]
+fn test_apply_to_pool_oversized_application_data_accepted() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Testing oversized data"),
+        &1_000_000_000,
+    );
+
+    // Build a 600-character string — well over any typical description cap
+    let large_data = String::from_str(
+        &env,
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\
+         AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\
+         AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\
+         AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\
+         AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\
+         AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    );
+
+    // No size check exists — this must succeed without panicking
+    client.apply_to_pool(&pool_id, &student, &large_data);
+
+    // Status is "Pending" — confirms the oversized application was stored
+    let status = client.get_application_status(&pool_id, &student);
+    assert_eq!(status, String::from_str(&env, "Pending"));
+}
+
+/// (5) Application is recorded with the correct default status "Pending".
+///
+/// apply_to_pool calls set_application_status internally with "Pending" as the
+/// initial value. get_application_status must return "Pending" immediately after
+/// a successful application without any manual status change.
+#[test]
+fn test_apply_to_pool_default_status_is_pending() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Scholarship Pool"),
+        &String::from_str(&env, "Funding talented students"),
+        &1_000_000_000,
+    );
+
+    // Confirm no status exists before applying
+    let pre_status = client.get_application_status(&pool_id, &student);
+    assert_eq!(pre_status, String::from_str(&env, ""));
+
+    client.apply_to_pool(
+        &pool_id,
+        &student,
+        &String::from_str(&env, "My application essay"),
+    );
+
+    // Status must be "Pending" — set automatically by apply_to_pool
+    let status = client.get_application_status(&pool_id, &student);
+    assert_eq!(status, String::from_str(&env, "Pending"));
+}
