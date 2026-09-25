@@ -66,7 +66,6 @@ const MAX_DESCRIPTION_LENGTH: usize = 500;
 const POOL_METADATA_PREFIX: &str = "metadata";
 const MAX_URL_LENGTH: usize = 256;
 const MAX_IMAGE_HASH_LENGTH: usize = 64;
-const POOL_METADATA_PREFIX: &str = "metadata";
 
 // ─── Event Topics ────────────────────────────────────────────────────────
 
@@ -731,20 +730,6 @@ impl Contract {
             .unwrap_or(0)
     }
 
-    /// Get all campaign (pool) IDs.
-    pub fn get_all_campaigns(env: Env) -> Vec<u32> {
-        let count = Self::get_pool_count(env.clone());
-        let mut list = Vec::new(&env);
-        let mut id = 1u32;
-        while id <= count {
-            if env.storage().persistent().has(&id) {
-                list.push_back(id);
-            }
-            id += 1;
-        }
-        list
-    }
-
     /// Get the number of unique donors for a pool.
     pub fn get_donor_count(env: Env, pool_id: u32) -> u32 {
         // Verify the pool exists first
@@ -857,6 +842,12 @@ impl Contract {
     }
 
     /// Set application milestones and enforce sum(amounts) == pool goal.
+    ///
+    /// # Panics
+    /// - `ContractError::PoolNotFound` if pool_id is invalid
+    /// - `ContractError::StudentHasNotApplied` if the student never applied
+    /// - `"Application is not approved"` if the application has not been
+    ///   approved via `approve_application` (Issue #1345)
     pub fn setup_application_milestones(
         env: Env,
         pool_id: u32,
@@ -878,6 +869,13 @@ impl Contract {
         );
         if !env.storage().persistent().has(&applicant_key) {
             env.panic_with_error(ContractError::StudentHasNotApplied);
+        }
+
+        // Issue #1345: milestones may only be configured for an approved
+        // application. Mirrors the same check already enforced by claim_funds.
+        let status = Self::get_application_status(env.clone(), pool_id, student.clone());
+        if status != String::from_str(&env, APPLICATION_STATUS_APPROVED) {
+            panic!("Application is not approved");
         }
 
         if milestones.is_empty() {
