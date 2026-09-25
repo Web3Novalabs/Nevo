@@ -1573,3 +1573,285 @@ fn test_get_milestones_large_list_not_truncated() {
     }
     assert_eq!(sum, goal);
 }
+
+// ============= ISSUE #1346: APPROVE_APPLICATION EDGE CASES =============
+//
+// approve_application(env, pool_id, school, student, approved: bool) --
+// confirmed by reading lib.rs directly, not assumed:
+//
+//   - Item 1 ("only admin/school can approve"): WRONG PREMISE. There is no
+//     admin bypass anywhere in this function -- only the pool's linked
+//     school (via get_pool_school) can ever approve, enforced by
+//     `school.require_auth()` + `linked_school != school` ->
+//     ContractError::OnlyLinkedSchoolCanApprove (#7). The platform admin
+//     has no special access here at all. Tested below (both "wrong school"
+//     and "admin is not a substitute for the school").
+//   - Item 2 ("cannot approve an already-approved application"): NOT
+//     guarded. `set_application_status` is called unconditionally with no
+//     prior-status check -- same missing-re-invocation-guard pattern as
+//     set_admin (#1295) and setup_application_milestones (#1345 item 5).
+//     Tested below as a characterization of actual (unguarded) behavior.
+//   - Item 3 ("cannot approve a nonexistent application"): confirmed via
+//     ContractError::StudentHasNotApplied (#6), checked after the
+//     school-authorization check. Tested below.
+//   - Item 4 ("approved amount cannot exceed pool's remaining balance"):
+//     NOT IMPLEMENTED, at this function or anywhere else in the contract.
+//     approve_application takes no amount parameter at all -- it is a bare
+//     approve/reject boolean. `Application.approved_amount` is a completely
+//     separate, unrelated concept: it does not exist in storage until a
+//     student's *first* claim_funds() call, where it is lazily initialized
+//     to pool.collected at that moment (lib.rs ~1143), with no validation
+//     against anything. There is no "approved amount" decided at approval
+//     time to check against a remaining balance. No test written for this
+//     item -- writing one would mean asserting behavior that does not
+//     exist. Flagging per instructions rather than guessing an
+//     implementation.
+//   - Item 5 ("application status updates correctly on approval"):
+//     confirmed via set_application_status / get_application_status,
+//     storing the literal strings "Pending" (set by apply_to_pool),
+//     "Approved", or "Rejected". Tested below.
+//
+// Step 2 duplication check: grepped test_issues.rs and test.rs for existing
+// approve_application coverage. test.rs has exactly one call site, used
+// only as incidental setup inside an unrelated withdraw-unallocated-funds
+// test -- it does not exercise any of these 5 edge cases itself. An
+// orphaned (not wired into lib.rs's `mod` list, so not compiled/run)
+// test_auth_bypass.rs has one similar "wrong school" test
+// (test_unlinked_school_cannot_approve_application); the equivalent case is
+// re-written self-contained below rather than depending on wiring in that
+// whole file for one test.
+
+/// Test 1 (item 1): a school that is not linked to the pool cannot approve
+/// that pool's applications, even with a valid signature for its own
+/// address.
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")]
+fn test_approve_application_unlinked_school_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
+    let rogue_school = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    client.set_admin(&admin);
+    client.register_school(&school, &BytesN::from_array(&env, &[10u8; 32]));
+    let pool_id = client.create_pool_for_school(
+        &creator,
+        &String::from_str(&env, "School Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &school,
+        &100_000u64,
+    );
+    client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
+
+    // rogue_school is a real, distinct address, not the pool's linked school.
+    client.approve_application(&pool_id, &rogue_school, &student, &true);
+}
+
+/// Test 2 (item 1): the platform admin is NOT a substitute for the linked
+/// school -- approve_application has no admin bypass at all, disproving the
+/// issue's "admin/school" framing.
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")]
+fn test_approve_application_admin_cannot_substitute_for_school() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    client.set_admin(&admin);
+    client.register_school(&school, &BytesN::from_array(&env, &[11u8; 32]));
+    let pool_id = client.create_pool_for_school(
+        &creator,
+        &String::from_str(&env, "School Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &school,
+        &100_000u64,
+    );
+    client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
+
+    // The platform admin tries to approve directly -- admin != linked school.
+    client.approve_application(&pool_id, &admin, &student, &true);
+}
+
+/// Test 3 (item 1): require_auth() is genuinely enforced for the school
+/// address, not just checked by value equality -- a valid auth entry signed
+/// by a different address must be rejected even when the `school` argument
+/// passed is the correct, linked school.
+#[test]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
+fn test_approve_application_requires_school_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
+    let impostor = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    client.set_admin(&admin);
+    client.register_school(&school, &BytesN::from_array(&env, &[12u8; 32]));
+    let pool_id = client.create_pool_for_school(
+        &creator,
+        &String::from_str(&env, "School Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &school,
+        &100_000u64,
+    );
+    client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
+
+    // Auth entry signed by `impostor`, even though the `school` argument
+    // passed is correctly the linked school.
+    client
+        .mock_auths(&[MockAuth {
+            address: &impostor,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "approve_application",
+                args: (&pool_id, &school, &student, true).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .approve_application(&pool_id, &school, &student, &true);
+}
+
+/// Test 4 (item 3): approving a student who never applied fails with
+/// StudentHasNotApplied, even though the caller IS the correctly linked and
+/// authorized school.
+#[test]
+#[should_panic(expected = "Error(Contract, #6)")]
+fn test_approve_application_nonexistent_application_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env); // never applies
+
+    client.set_admin(&admin);
+    client.register_school(&school, &BytesN::from_array(&env, &[13u8; 32]));
+    let pool_id = client.create_pool_for_school(
+        &creator,
+        &String::from_str(&env, "School Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &school,
+        &100_000u64,
+    );
+
+    client.approve_application(&pool_id, &school, &student, &true);
+}
+
+/// Test 5 (item 2): re-approving (or flipping) an already-decided
+/// application is NOT rejected -- the second call silently overwrites the
+/// status. This documents actual, current (unguarded) behavior.
+#[test]
+fn test_approve_application_reapproval_overwrites_status() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    client.set_admin(&admin);
+    client.register_school(&school, &BytesN::from_array(&env, &[14u8; 32]));
+    let pool_id = client.create_pool_for_school(
+        &creator,
+        &String::from_str(&env, "School Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &school,
+        &100_000u64,
+    );
+    client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
+
+    client.approve_application(&pool_id, &school, &student, &true);
+    assert_eq!(
+        client.get_application_status(&pool_id, &student),
+        String::from_str(&env, "Approved")
+    );
+
+    // Re-invoking with a different decision is not rejected -- it silently
+    // overwrites the previous, already-decided status.
+    client.approve_application(&pool_id, &school, &student, &false);
+    assert_eq!(
+        client.get_application_status(&pool_id, &student),
+        String::from_str(&env, "Rejected"),
+        "a second call overwrites the first decision instead of being rejected"
+    );
+}
+
+/// Test 6 (item 5): application status transitions correctly from the
+/// implicit "Pending" set by apply_to_pool to "Approved" or "Rejected".
+#[test]
+fn test_approve_application_status_updates_correctly() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let approved_student = Address::generate(&env);
+    let rejected_student = Address::generate(&env);
+
+    client.set_admin(&admin);
+    client.register_school(&school, &BytesN::from_array(&env, &[15u8; 32]));
+    let pool_id = client.create_pool_for_school(
+        &creator,
+        &String::from_str(&env, "School Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &school,
+        &100_000u64,
+    );
+
+    client.apply_to_pool(&pool_id, &approved_student, &String::from_str(&env, "App"));
+    client.apply_to_pool(&pool_id, &rejected_student, &String::from_str(&env, "App"));
+
+    // Both start out Pending immediately after applying.
+    assert_eq!(
+        client.get_application_status(&pool_id, &approved_student),
+        String::from_str(&env, "Pending")
+    );
+    assert_eq!(
+        client.get_application_status(&pool_id, &rejected_student),
+        String::from_str(&env, "Pending")
+    );
+
+    client.approve_application(&pool_id, &school, &approved_student, &true);
+    client.approve_application(&pool_id, &school, &rejected_student, &false);
+
+    assert_eq!(
+        client.get_application_status(&pool_id, &approved_student),
+        String::from_str(&env, "Approved")
+    );
+    assert_eq!(
+        client.get_application_status(&pool_id, &rejected_student),
+        String::from_str(&env, "Rejected")
+    );
+}
