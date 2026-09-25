@@ -165,3 +165,99 @@ fn test_stress_resource_usage_many_pools_donations() {
 
     assert_eq!(client.get_pool_count(), 10);
 }
+
+/// Test 6 (Issue #1302): a real resource-usage assertion, using the SDK's
+/// cost-estimate budget instead of just re-checking correctness under a
+/// "resource" label (as Test 5 above and its campaign-stress counterpart do).
+///
+/// `env.cost_estimate().budget()` resets before every *top-level* contract
+/// invocation, so it cannot report a cumulative total across 100 calls —
+/// instead this compares the cost of a single `create_pool` / `donate` call
+/// made when the contract is empty against the same call made once 99-100
+/// other pools already exist. If per-pool operations are correctly isolated
+/// by storage key (as they should be), the cost should not grow with the
+/// total pool count; a large multiplier here would indicate an accidental
+/// O(n) or worse scan somewhere in the write path.
+#[test]
+fn test_stress_budget_scaling_100_pools() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+
+    // Baseline: cost of creating the very first pool in an empty contract.
+    client.create_pool(
+        &creator,
+        &String::from_str(&env, "Pool"),
+        &String::from_str(&env, "Desc"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+    let first_create_cpu = env.cost_estimate().budget().cpu_instruction_cost();
+    let first_create_mem = env.cost_estimate().budget().memory_bytes_cost();
+
+    // Baseline: cost of the first donation to that first pool.
+    let donor1 = Address::generate(&env);
+    client.donate(&1, &donor1, &1_000_000u128);
+    let first_donate_cpu = env.cost_estimate().budget().cpu_instruction_cost();
+
+    // Fill up to 99 pools.
+    for _ in 0..98u32 {
+        client.create_pool(
+            &creator,
+            &String::from_str(&env, "Pool"),
+            &String::from_str(&env, "Desc"),
+            &1_000_000_000u128,
+            &100_000u64,
+        );
+    }
+
+    // Cost of creating the 100th pool, with 99 already stored.
+    client.create_pool(
+        &creator,
+        &String::from_str(&env, "Pool"),
+        &String::from_str(&env, "Desc"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+    let last_create_cpu = env.cost_estimate().budget().cpu_instruction_cost();
+    let last_create_mem = env.cost_estimate().budget().memory_bytes_cost();
+
+    assert_eq!(client.get_pool_count(), 100);
+
+    // Cost of donating to the brand-new 100th pool, with 100 pools total in
+    // the contract -- should cost about the same as donating to pool #1,
+    // proving per-pool storage operations don't degrade as pool count grows.
+    let donor100 = Address::generate(&env);
+    client.donate(&100, &donor100, &1_000_000u128);
+    let last_donate_cpu = env.cost_estimate().budget().cpu_instruction_cost();
+
+    assert!(first_create_cpu > 0, "budget should report nonzero CPU cost");
+    assert!(first_donate_cpu > 0, "budget should report nonzero CPU cost");
+    assert!(last_create_cpu > 0, "budget should report nonzero CPU cost");
+    assert!(last_donate_cpu > 0, "budget should report nonzero CPU cost");
+
+    assert!(
+        last_create_cpu <= first_create_cpu.saturating_mul(10),
+        "creating pool #100 cost {} CPU instructions vs {} for pool #1 -- \
+         create_pool may not scale O(1) with the existing pool count",
+        last_create_cpu,
+        first_create_cpu
+    );
+    assert!(
+        last_create_mem <= first_create_mem.saturating_mul(10),
+        "creating pool #100 cost {} bytes of memory vs {} for pool #1 -- \
+         create_pool memory usage may not scale O(1) with the existing pool count",
+        last_create_mem,
+        first_create_mem
+    );
+    assert!(
+        last_donate_cpu <= first_donate_cpu.saturating_mul(10),
+        "donating to a fresh pool with 100 pools total cost {} CPU instructions \
+         vs {} with only 1 pool total -- donate() cost may depend on total pool \
+         count instead of being isolated per pool",
+        last_donate_cpu,
+        first_donate_cpu
+    );
+}
