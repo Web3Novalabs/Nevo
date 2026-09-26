@@ -80,7 +80,7 @@ describe('DonationsController (unit)', () => {
     });
 
     it('forwards pagination params to the service', async () => {
-      await controller.findByPool('pool-123', { page: '2', limit: '5' });
+      await controller.findByPool('pool-123', { page: 2, limit: 5 });
       expect(service.findByPool).toHaveBeenCalledWith(
         'pool-123',
         DonationSortBy.newest,
@@ -133,7 +133,7 @@ describe('DonationsController (unit)', () => {
 
     it('forwards pagination params to the service', async () => {
       const req = { user: { publicKey: 'GABC123' } } as any;
-      await controller.findMyDonations(req, { page: '3', limit: '10' });
+      await controller.findMyDonations(req, { page: 3, limit: 10 });
       expect(service.findByDonor).toHaveBeenCalledWith(
         'GABC123',
         DonationSortBy.newest,
