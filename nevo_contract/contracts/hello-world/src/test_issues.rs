@@ -1573,3 +1573,136 @@ fn test_get_milestones_large_list_not_truncated() {
     }
     assert_eq!(sum, goal);
 }
+// ============= ISSUE #1309: STATE CONSISTENCY VALIDATION TESTS =============
+
+/// Test 1: After a mix of new and repeat donors, every metric agrees:
+/// collected == sum of per-donor contributions, all total getters match,
+/// and donor count equals the number of distinct donors.
+#[test]
+fn test_pool_metrics_consistent_with_individual_contributions() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor_a = Address::generate(&env);
+    let donor_b = Address::generate(&env);
+    let donor_c = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Consistency Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    client.donate(&pool_id, &donor_a, &10_000_000u128);
+    client.donate(&pool_id, &donor_b, &20_000_000u128);
+    client.donate(&pool_id, &donor_a, &5_000_000u128);
+    client.donate(&pool_id, &donor_c, &7_000_000u128);
+    client.donate(&pool_id, &donor_b, &3_000_000u128);
+
+    let contrib_a = client.get_contribution(&pool_id, &donor_a);
+    let contrib_b = client.get_contribution(&pool_id, &donor_b);
+    let contrib_c = client.get_contribution(&pool_id, &donor_c);
+    assert_eq!(contrib_a, 15_000_000u128);
+    assert_eq!(contrib_b, 23_000_000u128);
+    assert_eq!(contrib_c, 7_000_000u128);
+
+    let sum = contrib_a + contrib_b + contrib_c;
+    assert_eq!(client.get_pool(&pool_id).3, sum);
+    assert_eq!(client.get_total_raised(&pool_id), sum);
+    assert_eq!(client.get_campaign_balance(&pool_id), sum);
+    assert_eq!(client.get_donor_count(&pool_id), 3);
+}
+
+/// Test 2: Disbursing and closing a pool leaves its accounting untouched.
+#[test]
+fn test_close_pool_preserves_contribution_state() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor_a = Address::generate(&env);
+    let donor_b = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Close Invariant Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    client.donate(&pool_id, &donor_a, &40_000_000u128);
+    client.donate(&pool_id, &donor_b, &60_000_000u128);
+
+    let collected_before = client.get_total_raised(&pool_id);
+    let donors_before = client.get_donor_count(&pool_id);
+
+    client.set_pool_state(&pool_id, &PoolState::Disbursed);
+    client.close_pool(&pool_id);
+
+    let pool = client.get_pool(&pool_id);
+    assert!(pool.4);
+    assert_eq!(pool.3, collected_before);
+    assert_eq!(client.get_total_raised(&pool_id), collected_before);
+    assert_eq!(client.get_donor_count(&pool_id), donors_before);
+    assert_eq!(client.get_contribution(&pool_id, &donor_a), 40_000_000u128);
+    assert_eq!(client.get_contribution(&pool_id, &donor_b), 60_000_000u128);
+}
+
+/// Test 3: Refunding one donor removes exactly their contribution: their
+/// record is zeroed, the other donor's record is untouched, and collected
+/// still equals the sum of the remaining contribution records.
+#[test]
+fn test_refund_leaves_no_orphaned_contribution() {
+    let env = Env::default();
+    env.mock_all_auths();
+    // See test_refund_donation_after_grace_period_succeeds for why the TTL is raised.
+    env.ledger().with_mut(|li| {
+        li.min_persistent_entry_ttl = 20_000;
+    });
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor_a = Address::generate(&env);
+    let donor_b = Address::generate(&env);
+    let amount_a = 30_000_000u128;
+    let amount_b = 70_000_000u128;
+    let token = create_token(&env, (amount_a + amount_b) as i128, &contract_id);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Refund Consistency Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+    client.donate(&pool_id, &donor_a, &amount_a);
+    client.donate(&pool_id, &donor_b, &amount_b);
+
+    let deadline: u32 = 1_000;
+    client.set_pool_deadline(&pool_id, &deadline);
+    env.ledger()
+        .set_sequence_number(deadline + REFUND_GRACE_PERIOD_LEDGERS);
+
+    client.refund_donation(&pool_id, &donor_a, &token);
+
+    assert_eq!(client.get_contribution(&pool_id, &donor_a), 0u128);
+    assert_eq!(client.get_contribution(&pool_id, &donor_b), amount_b);
+
+    let remaining =
+        client.get_contribution(&pool_id, &donor_a) + client.get_contribution(&pool_id, &donor_b);
+    assert_eq!(client.get_total_raised(&pool_id), remaining);
+    assert_eq!(client.get_pool(&pool_id).3, amount_b);
+
+    let token_client = token::Client::new(&env, &token);
+    assert_eq!(token_client.balance(&donor_a), amount_a as i128);
+    assert_eq!(token_client.balance(&contract_id), amount_b as i128);
+}
