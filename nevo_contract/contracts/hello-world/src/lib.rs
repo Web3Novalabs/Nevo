@@ -811,7 +811,12 @@ impl Contract {
         env.storage().persistent().set(&count_key, &app_count);
 
         let pending = String::from_str(&env, "Pending");
-        Self::set_application_status(env.clone(), pool_id, student.clone(), pending);
+        let status_key = (
+            Symbol::new(&env, APPLICATION_STATUS_PREFIX),
+            pool_id,
+            student.clone(),
+        );
+        env.storage().persistent().set(&status_key, &pending);
 
         // Emit application/contribution event with privacy flag (default: false for public)
         env.events().publish(
@@ -849,7 +854,7 @@ impl Contract {
         } else {
             String::from_str(&env, APPLICATION_STATUS_REJECTED)
         };
-        Self::set_application_status(env.clone(), pool_id, student.clone(), status);
+        Self::set_application_status(env.clone(), school.clone(), pool_id, student.clone(), status);
 
         // Issue #954: emit application-approved event
         env.events()
@@ -913,7 +918,26 @@ impl Contract {
     }
 
     /// Set application status for a student in a pool.
-    pub fn set_application_status(env: Env, pool_id: u32, student: Address, status: String) {
+    pub fn set_application_status(
+        env: Env,
+        caller: Address,
+        pool_id: u32,
+        student: Address,
+        status: String,
+    ) {
+        caller.require_auth();
+        let linked_school = Self::get_pool_school(env.clone(), pool_id);
+        let admin_key = Symbol::new(&env, ADMIN_KEY);
+        let is_admin = env
+            .storage()
+            .persistent()
+            .get::<_, Address>(&admin_key)
+            .map(|a| a == caller)
+            .unwrap_or(false);
+
+        if caller != linked_school && !is_admin {
+            env.panic_with_error(ContractError::UnauthorizedAdmin);
+        }
         let status_key = (
             Symbol::new(&env, APPLICATION_STATUS_PREFIX),
             pool_id,
