@@ -332,7 +332,7 @@ impl Contract {
         env.storage()
             .persistent()
             .get::<_, BytesN<32>>(&school_key)
-            .expect("School not registered")
+            .unwrap_or_else(|| env.panic_with_error(ContractError::SchoolNotRegistered))
     }
 
     // ─── Pool Management ─────────────────────────────────────────────────────
