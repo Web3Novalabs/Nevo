@@ -110,7 +110,7 @@ fn test_execute_succeeds_immediately_after_grace_period_ends() {
 // ── Test 4: Only original requester/admin can execute / authorization ───────
 
 #[test]
-#[should_panic(expected = "Error(Auth, InvalidAction)")]
+#[should_panic(expected = "Error(Contract, #3)")]
 fn test_unauthorized_non_admin_cannot_request_emergency_withdraw() {
     let env = Env::default();
     env.mock_all_auths();

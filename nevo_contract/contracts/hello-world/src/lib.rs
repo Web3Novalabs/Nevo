@@ -135,7 +135,7 @@ pub enum ContractError {
     InvalidPoolName = 16,
     /// Pool funding goal is zero.
     InvalidPoolTarget = 17,
-    /// Pool application deadline is already in the past.
+    /// Pool application deadline is zero or already in the past.
     InvalidPoolDeadline = 18,
 }
 
@@ -308,7 +308,7 @@ impl Contract {
             .storage()
             .persistent()
             .get::<_, Address>(&admin_key)
-            .expect("Admin not set");
+            .unwrap_or_else(|| env.panic_with_error(ContractError::AdminNotSet));
 
         // Enforce root protocol admin authorization.
         admin.require_auth();
@@ -332,7 +332,7 @@ impl Contract {
         env.storage()
             .persistent()
             .get::<_, BytesN<32>>(&school_key)
-            .expect("School not registered")
+            .unwrap_or_else(|| env.panic_with_error(ContractError::SchoolNotRegistered))
     }
 
     // ─── Pool Management ─────────────────────────────────────────────────────
@@ -353,7 +353,7 @@ impl Contract {
         application_deadline: u64,
     ) -> u32 {
         if title.len() == 0 {
-            panic!("Title cannot be empty");
+            env.panic_with_error(ContractError::InvalidPoolName);
         }
         if description.len() == 0 {
             panic!("Description cannot be empty");
@@ -361,8 +361,11 @@ impl Contract {
         if description.len() as u32 > MAX_DESCRIPTION_LENGTH as u32 {
             panic!("Description exceeds maximum length");
         }
+        if goal == 0 {
+            env.panic_with_error(ContractError::InvalidPoolTarget);
+        }
         if application_deadline == 0 {
-            panic!("Duration must be greater than zero");
+            env.panic_with_error(ContractError::InvalidPoolDeadline);
         }
 
         let pool_count_key = Symbol::new(&env, POOL_COUNT);
@@ -1301,7 +1304,6 @@ impl Contract {
     /// The deadline must be in the future (greater than the current ledger).
     ///
     /// # Panics
-    /// - `"Pool not found"` if pool_id is invalid
     /// - `ContractError::PoolNotFound` if pool_id is invalid
     /// - `"Error(Auth, InvalidAction)"` if caller is not the pool sponsor
     /// - `"Deadline must be in the future"` if deadline <= current ledger
@@ -1310,7 +1312,7 @@ impl Contract {
             .storage()
             .persistent()
             .get::<_, Pool>(&pool_id)
-            .expect("Pool not found");
+            .unwrap_or_else(|| env.panic_with_error(ContractError::PoolNotFound));
 
         pool.sponsor.require_auth();
 
@@ -1507,7 +1509,7 @@ impl Contract {
     ///
     /// # Panics
     /// - `ContractError::AdminNotSet` if no admin has been configured
-    /// - `"Error(Auth, InvalidAction)"` if the caller is not the stored admin
+    /// - `ContractError::UnauthorizedAdmin` if the caller is not the stored admin
     /// - `ContractError::PoolNotFound` if the pool does not exist
     /// - `ContractError::PoolIsClosed` if the pool is closed
     /// - `ContractError::InvalidPoolState` if the pool is not `Active`
@@ -1528,7 +1530,7 @@ impl Contract {
             .get::<_, Address>(&admin_key)
             .unwrap_or_else(|| env.panic_with_error(ContractError::AdminNotSet));
         if stored_admin != admin {
-            panic!("Error(Auth, InvalidAction)");
+            env.panic_with_error(ContractError::UnauthorizedAdmin);
         }
 
         let pool: Pool = env
