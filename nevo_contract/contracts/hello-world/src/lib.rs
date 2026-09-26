@@ -1755,3 +1755,5 @@ mod test_pool_retrieval;
 mod test_campaign_lifecycle;
 mod test_withdraw;
 mod test_issue_1287_pool_multisig;
+mod test_issue_1321_business_logic_consistency;
+mod test_issue_1322_recovery_scenarios;
