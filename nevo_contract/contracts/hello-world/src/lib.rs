@@ -66,7 +66,6 @@ const MAX_DESCRIPTION_LENGTH: usize = 500;
 const POOL_METADATA_PREFIX: &str = "metadata";
 const MAX_URL_LENGTH: usize = 256;
 const MAX_IMAGE_HASH_LENGTH: usize = 64;
-const POOL_METADATA_PREFIX: &str = "metadata";
 
 // ─── Event Topics ────────────────────────────────────────────────────────
 
@@ -90,6 +89,8 @@ const ADMIN_SET: Symbol = symbol_short!("admin_set");
 const FEE_UPDATED: Symbol = symbol_short!("fee_upd");
 const CROWDFUNDING_TOKEN_SET: Symbol = symbol_short!("tok_set");
 const FEE_PAID: Symbol = symbol_short!("fee_paid");
+const EMERGENCY_WITHDRAWAL_REQUESTED: Symbol = symbol_short!("emerg_req");
+const EMERGENCY_WITHDRAWAL_EXECUTED: Symbol = symbol_short!("emerg_exe");
 
 // ─── Typed Error Enum (Issue #955) ───────────────────────────────────────
 
@@ -353,10 +354,13 @@ impl Contract {
         application_deadline: u64,
     ) -> u32 {
         if title.len() == 0 {
-            panic!("Title cannot be empty");
+            env.panic_with_error(ContractError::InvalidPoolName);
         }
         if description.len() == 0 {
             panic!("Description cannot be empty");
+        }
+        if goal == 0 {
+            env.panic_with_error(ContractError::InvalidPoolTarget);
         }
         if description.len() as u32 > MAX_DESCRIPTION_LENGTH as u32 {
             panic!("Description exceeds maximum length");
@@ -550,8 +554,14 @@ impl Contract {
         }
 
         let new_collected = pool.collected + amount;
+        let next_state = if new_collected >= pool.goal {
+            PoolState::Completed
+        } else {
+            pool.state.clone()
+        };
         let updated_pool = Pool {
             collected: new_collected,
+            state: next_state,
             last_donation_at: env.ledger().timestamp(),
             ..pool
         };
@@ -706,20 +716,6 @@ impl Contract {
             (POOL_CLOSED, pool_id),
             (updated_pool.sponsor.clone(), updated_pool.collected),
         );
-    }
-
-    /// Return campaign ids in creation order.
-    pub fn get_all_campaigns(env: Env) -> Vec<u32> {
-        let count = Self::get_pool_count(env.clone());
-        let mut campaigns = Vec::new(&env);
-        let mut id = 1u32;
-        while id <= count {
-            if env.storage().persistent().has(&id) {
-                campaigns.push_back(id);
-            }
-            id += 1;
-        }
-        campaigns
     }
 
     /// Get the total number of pools.
@@ -1558,6 +1554,15 @@ impl Contract {
             requested_by: admin,
         };
         env.storage().persistent().set(&withdrawal_key, &request);
+        env.events().publish(
+            (EMERGENCY_WITHDRAWAL_REQUESTED, pool_id),
+            (
+                request.token_address.clone(),
+                request.amount,
+                request.requested_by.clone(),
+                request.request_timestamp,
+            ),
+        );
     }
 
     /// Execute a pending emergency withdrawal after the grace period elapses.
@@ -1589,6 +1594,11 @@ impl Contract {
             &env.current_contract_address(),
             &request.requested_by,
             &request.amount,
+        );
+
+        env.events().publish(
+            (EMERGENCY_WITHDRAWAL_EXECUTED, pool_id),
+            (request.token_address.clone(), request.amount, request.requested_by.clone()),
         );
 
         env.storage().persistent().remove(&withdrawal_key);
