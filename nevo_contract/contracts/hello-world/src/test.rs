@@ -274,7 +274,7 @@ fn test_claim_funds_rejected_application() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&pool_id, &student, &String::from_str(&env, "Rejected"));
+    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Rejected"));
     let token = Address::generate(&env);
     client.claim_funds(&student, &pool_id, &100_000_000i128, &token);
 }
@@ -297,7 +297,7 @@ fn test_claim_funds_overdraw() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &100_000_000u128);
-    client.set_application_status(&pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
     let token = Address::generate(&env);
     client.claim_funds(&student, &pool_id, &500_000_000i128, &token);
 }
@@ -320,7 +320,7 @@ fn test_claim_funds_negative_amount() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
     let token = Address::generate(&env);
     client.claim_funds(&student, &pool_id, &-100_000_000i128, &token);
 }
@@ -346,6 +346,7 @@ fn test_get_claimed_amount_initial_zero() {
 #[test]
 fn test_get_application_status() {
     let env = Env::default();
+    env.mock_all_auths();
     let contract_id = env.register(Contract, ());
     let client = ContractClient::new(&env, &contract_id);
 
@@ -365,8 +366,32 @@ fn test_get_application_status() {
     );
 
     let approved = String::from_str(&env, "Approved");
-    client.set_application_status(&pool_id, &student, &approved);
+    client.set_application_status(&creator, &pool_id, &student, &approved);
     assert_eq!(client.get_application_status(&pool_id, &student), approved);
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #3)")]
+fn test_unauthorized_address_cannot_set_application_status() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let attacker = Address::generate(&env);
+
+    env.mock_all_auths();
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Test Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    client.set_application_status(&attacker, &pool_id, &student, &String::from_str(&env, "Approved"));
 }
 
 #[test]
@@ -422,7 +447,7 @@ fn test_protocol_fees_accumulation_on_claim() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
     client.claim_funds(&student, &pool_id, &claim_amount, &token);
 
     let app = client.get_application(&pool_id, &student);
@@ -482,8 +507,8 @@ fn test_claim_protocol_fees_multiple_claims_accumulate() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&pool_id, &student1, &String::from_str(&env, "Approved"));
-    client.set_application_status(&pool_id, &student2, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student1, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student2, &String::from_str(&env, "Approved"));
     client.claim_funds(&student1, &pool_id, &claim1, &token);
     client.claim_funds(&student2, &pool_id, &claim2, &token);
 
@@ -514,7 +539,7 @@ fn test_protocol_fees_reset_after_claim() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
     client.claim_funds(&student, &pool_id, &claim_amount, &token);
     client.claim_protocol_fees(&admin, &token);
     // Second claim should panic
@@ -1024,7 +1049,7 @@ fn test_claim_funds_cancelled_pool_panics() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
     client.set_pool_state(&pool_id, &PoolState::Cancelled);
 
     let token = create_token(&env, 500_000_000i128, &contract_id);

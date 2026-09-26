@@ -147,7 +147,7 @@ fn test_claim_beyond_collected_funds_fails() {
         &100_000u64,
     );
     client.donate_with_token(&pool_id, &donor, &token, &1_000i128);
-    client.set_application_status(&pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&school, &pool_id, &student, &String::from_str(&env, "Approved"));
 
     // Pool holds 1_000; claiming 5_000 must be rejected.
     client.claim_funds(&student, &pool_id, &5_000i128, &token);
