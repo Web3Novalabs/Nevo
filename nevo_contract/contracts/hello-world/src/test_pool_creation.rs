@@ -272,7 +272,7 @@ fn test_create_pool_invalid_empty_description() {
 
 /// Test 13: Invalid config with zero duration fails validation
 #[test]
-#[should_panic(expected = "Duration must be greater than zero")]
+#[should_panic(expected = "Error(Contract, #18)")]
 fn test_create_pool_invalid_zero_duration() {
     let env = Env::default();
     let contract_id = env.register(Contract, ());

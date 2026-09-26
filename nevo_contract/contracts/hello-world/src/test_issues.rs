@@ -326,9 +326,9 @@ fn test_valid_admin_requests_emergency_withdrawal() {
     assert!(has_request, "Emergency withdrawal request should be stored");
 }
 
-/// Test 2: Non-admin account calling request_emergency_withdraw gets Auth Error
+/// Test 2: Non-admin account calling request_emergency_withdraw gets UnauthorizedAdmin
 #[test]
-#[should_panic(expected = "Error(Auth, InvalidAction)")]
+#[should_panic(expected = "Error(Contract, #3)")]
 fn test_non_admin_request_emergency_withdrawal_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -349,7 +349,7 @@ fn test_non_admin_request_emergency_withdrawal_fails() {
         &100_000u64,
     );
 
-    // Non-admin should fail with Auth Error
+    // Non-admin should fail with UnauthorizedAdmin
     client.request_emergency_withdraw(&non_admin, &pool_id, &token, &100_000_000i128);
 }
 
@@ -1572,4 +1572,29 @@ fn test_get_milestones_large_list_not_truncated() {
         sum += stored.get(i).unwrap().amount;
     }
     assert_eq!(sum, goal);
+}
+// ============= ISSUE #1310: ERROR MESSAGE ACCURACY TESTS =============
+
+/// Test 1: Metadata lookup for an unregistered school returns SchoolNotRegistered.
+#[test]
+#[should_panic(expected = "Error(Contract, #14)")]
+fn test_get_school_metadata_unregistered_fails_with_school_not_registered() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    client.get_school_metadata(&Address::generate(&env));
+}
+
+/// Test 2: Setting a deadline on a missing pool returns PoolNotFound,
+/// matching every other pool lookup.
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_set_pool_deadline_missing_pool_fails_with_pool_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    client.set_pool_deadline(&999, &1_000u32);
 }

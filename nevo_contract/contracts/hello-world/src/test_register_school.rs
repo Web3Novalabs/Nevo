@@ -112,7 +112,7 @@ fn test_reregister_updates_metadata_hash() {
 
 /// Registration fails cleanly when no admin has been configured.
 #[test]
-#[should_panic(expected = "Admin not set")]
+#[should_panic(expected = "Error(Contract, #9)")]
 fn test_register_school_without_admin_panics() {
     let env = Env::default();
     env.mock_all_auths();
