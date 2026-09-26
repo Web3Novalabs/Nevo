@@ -1745,7 +1745,9 @@ impl Contract {
 }
 
 mod test;
+mod test_auth_bypass;
 mod test_issues;
+mod test_numeric_overflow;
 mod test_register_school;
 mod test_contract_initialization;
 mod test_pool_creation;
