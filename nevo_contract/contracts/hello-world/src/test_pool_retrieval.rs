@@ -263,3 +263,16 @@ fn test_get_donor_count_after_unique_donors() {
     client.donate(&pool_id, &donor1, &30_000_000u128);
     assert_eq!(client.get_donor_count(&pool_id), 2);
 }
+
+// ============= ISSUE #1297: POOL RETRIEVAL VALIDATION TESTS =============
+
+/// Nonexistent pool: the non-panicking client call returns PoolNotFound instead of a value
+#[test]
+fn test_try_get_pool_nonexistent_returns_pool_not_found() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let res = client.try_get_pool(&999);
+    assert_eq!(res, Err(Ok(ContractError::PoolNotFound.into())));
+}
