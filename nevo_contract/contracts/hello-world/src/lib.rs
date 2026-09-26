@@ -1720,6 +1720,7 @@ mod test;
 mod test_campaign_lifecycle;
 mod test_contract_initialization;
 mod test_issue_1287_pool_multisig;
+mod test_issue_1319_memory;
 mod test_issues;
 mod test_pool_creation;
 mod test_pool_retrieval;
