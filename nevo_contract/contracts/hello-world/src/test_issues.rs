@@ -1573,3 +1573,105 @@ fn test_get_milestones_large_list_not_truncated() {
     }
     assert_eq!(sum, goal);
 }
+// ============= ISSUE #1084 / #1292: DONATION DEADLINE ENFORCEMENT TESTS =============
+
+fn setup_deadline_pool(env: &Env, client: &ContractClient, deadline: u64) -> u32 {
+    let creator = Address::generate(env);
+    client.create_pool(
+        &creator,
+        &String::from_str(env, "Deadline Pool"),
+        &String::from_str(env, "Test"),
+        &1_000_000_000u128,
+        &deadline,
+    )
+}
+
+/// Test 1: Donation before the deadline succeeds.
+#[test]
+fn test_donation_before_deadline_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_deadline_pool(&env, &client, 10_000);
+    let donor = Address::generate(&env);
+
+    env.ledger().set_timestamp(9_999);
+    client.donate(&pool_id, &donor, &500u128);
+
+    assert_eq!(client.get_pool(&pool_id).3, 500u128);
+}
+
+/// Test 2: Donation at exactly the deadline fails with CampaignExpired.
+#[test]
+#[should_panic(expected = "Error(Contract, #19)")]
+fn test_donation_at_exact_deadline_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_deadline_pool(&env, &client, 10_000);
+    let donor = Address::generate(&env);
+
+    env.ledger().set_timestamp(10_000);
+    client.donate(&pool_id, &donor, &500u128);
+}
+
+/// Test 3: Donation after the deadline fails with CampaignExpired.
+#[test]
+#[should_panic(expected = "Error(Contract, #19)")]
+fn test_donation_after_deadline_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_deadline_pool(&env, &client, 10_000);
+    let donor = Address::generate(&env);
+
+    env.ledger().set_timestamp(10_001);
+    client.donate(&pool_id, &donor, &500u128);
+}
+
+/// Test 4: Multiple donations before the deadline all succeed.
+#[test]
+fn test_multiple_donations_before_deadline_succeed() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_deadline_pool(&env, &client, 10_000);
+    let donor_a = Address::generate(&env);
+    let donor_b = Address::generate(&env);
+
+    env.ledger().set_timestamp(1_000);
+    client.donate(&pool_id, &donor_a, &100u128);
+    env.ledger().set_timestamp(5_000);
+    client.donate(&pool_id, &donor_b, &200u128);
+    env.ledger().set_timestamp(9_999);
+    client.donate(&pool_id, &donor_a, &300u128);
+
+    assert_eq!(client.get_pool(&pool_id).3, 600u128);
+    assert_eq!(client.get_contribution(&pool_id, &donor_a), 400u128);
+    assert_eq!(client.get_contribution(&pool_id, &donor_b), 200u128);
+}
+
+/// Test 5: Token donation after the deadline fails with CampaignExpired.
+#[test]
+#[should_panic(expected = "Error(Contract, #19)")]
+fn test_token_donation_after_deadline_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_deadline_pool(&env, &client, 10_000);
+    let donor = Address::generate(&env);
+    let token = create_token(&env, 1_000i128, &donor);
+
+    env.ledger().set_timestamp(10_001);
+    client.donate_with_token(&pool_id, &donor, &token, &500i128);
+}

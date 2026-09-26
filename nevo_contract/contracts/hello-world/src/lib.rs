@@ -66,7 +66,6 @@ const MAX_DESCRIPTION_LENGTH: usize = 500;
 const POOL_METADATA_PREFIX: &str = "metadata";
 const MAX_URL_LENGTH: usize = 256;
 const MAX_IMAGE_HASH_LENGTH: usize = 64;
-const POOL_METADATA_PREFIX: &str = "metadata";
 
 // ─── Event Topics ────────────────────────────────────────────────────────
 
@@ -137,6 +136,8 @@ pub enum ContractError {
     InvalidPoolTarget = 17,
     /// Pool application deadline is already in the past.
     InvalidPoolDeadline = 18,
+    /// Donation attempted at or after the pool's application deadline.
+    CampaignExpired = 19,
 }
 
 // Helper functions for timestamp/deadline edge-case tests
@@ -549,6 +550,10 @@ impl Contract {
             env.panic_with_error(ContractError::InvalidPoolState);
         }
 
+        if env.ledger().timestamp() >= pool.application_deadline {
+            env.panic_with_error(ContractError::CampaignExpired);
+        }
+
         let new_collected = pool.collected + amount;
         let updated_pool = Pool {
             collected: new_collected,
@@ -729,20 +734,6 @@ impl Contract {
             .persistent()
             .get::<_, u32>(&pool_count_key)
             .unwrap_or(0)
-    }
-
-    /// Get all campaign (pool) IDs.
-    pub fn get_all_campaigns(env: Env) -> Vec<u32> {
-        let count = Self::get_pool_count(env.clone());
-        let mut list = Vec::new(&env);
-        let mut id = 1u32;
-        while id <= count {
-            if env.storage().persistent().has(&id) {
-                list.push_back(id);
-            }
-            id += 1;
-        }
-        list
     }
 
     /// Get the number of unique donors for a pool.
@@ -1440,6 +1431,10 @@ impl Contract {
         // Pool state validation
         if pool.state != PoolState::Active {
             env.panic_with_error(ContractError::InvalidPoolState);
+        }
+
+        if env.ledger().timestamp() >= pool.application_deadline {
+            env.panic_with_error(ContractError::CampaignExpired);
         }
 
         if amount <= 0 {
