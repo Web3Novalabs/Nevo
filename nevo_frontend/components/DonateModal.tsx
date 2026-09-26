@@ -182,6 +182,7 @@ export function DonateModal({
       };
 
       addDonation(donation);
+      setLastTxHash(hash);
       setTxHash(hash);
       setLastTxHash(hash);
       setStep('success');

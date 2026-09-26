@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { JwtService } from '@nestjs/jwt';
 import { DonationsController } from './donations.controller';
@@ -80,12 +80,12 @@ describe('DonationsController (unit)', () => {
     });
 
     it('forwards pagination params to the service', async () => {
-      await controller.findByPool('pool-123', { page: '2', limit: '5' });
+      await controller.findByPool('pool-123', { page: 2, limit: 5 });
       expect(service.findByPool).toHaveBeenCalledWith(
         'pool-123',
         DonationSortBy.newest,
-        '2',
-        '5',
+        2,
+        5,
       );
     });
 
@@ -133,12 +133,12 @@ describe('DonationsController (unit)', () => {
 
     it('forwards pagination params to the service', async () => {
       const req = { user: { publicKey: 'GABC123' } } as any;
-      await controller.findMyDonations(req, { page: '3', limit: '10' });
+      await controller.findMyDonations(req, { page: 3, limit: 10 });
       expect(service.findByDonor).toHaveBeenCalledWith(
         'GABC123',
         DonationSortBy.newest,
-        '3',
-        '10',
+        3,
+        10,
       );
     });
   });
@@ -298,5 +298,82 @@ describe('DonationsController (guard / HTTP)', () => {
         '10',
       );
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ValidationPipe tests – mirror the global pipe configured in main.ts
+// ---------------------------------------------------------------------------
+describe('DonationsController (ValidationPipe)', () => {
+  let app: INestApplication;
+  let donationsService: { findByPool: jest.Mock; findByDonor: jest.Mock };
+
+  beforeEach(async () => {
+    donationsService = {
+      findByPool: jest.fn().mockResolvedValue([]),
+      findByDonor: jest.fn().mockResolvedValue([]),
+    };
+
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      controllers: [DonationsController],
+      providers: [
+        { provide: DonationsService, useValue: donationsService },
+        JwtStrategy,
+      ],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+    jest.clearAllMocks();
+  });
+
+  it('accepts page, limit and sortBy and coerces pagination to numbers', async () => {
+    await request(app.getHttpServer())
+      .get('/pools/pool-1/donations')
+      .query({ page: '2', limit: '5', sortBy: 'largest' })
+      .expect(200);
+
+    expect(donationsService.findByPool).toHaveBeenCalledWith(
+      'pool-1',
+      DonationSortBy.largest,
+      2,
+      5,
+    );
+  });
+
+  it('returns 400 when limit exceeds 100', async () => {
+    await request(app.getHttpServer())
+      .get('/pools/pool-1/donations')
+      .query({ limit: '101' })
+      .expect(400);
+
+    expect(donationsService.findByPool).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for an unknown sortBy value', async () => {
+    await request(app.getHttpServer())
+      .get('/pools/pool-1/donations')
+      .query({ sortBy: 'oldest' })
+      .expect(400);
+
+    expect(donationsService.findByPool).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for an unknown query param', async () => {
+    await request(app.getHttpServer())
+      .get('/pools/pool-1/donations')
+      .query({ foo: 'bar' })
+      .expect(400);
   });
 });

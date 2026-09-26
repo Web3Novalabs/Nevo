@@ -17,7 +17,7 @@ describe('CreatePoolDto (POST /pools body contract)', () => {
   /** A minimal fully-valid payload that should always pass validation. */
   const validBody = {
     contractPoolId: 'pool-abc-123',
-    creatorWallet: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
+    creatorWallet: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCW7M',
     title: 'Clean Water Initiative',
     description: 'Providing clean drinking water to rural communities.',
     goal: '1000000000',
@@ -106,6 +106,15 @@ describe('CreatePoolDto (POST /pools body contract)', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it('rejects a malformed creatorWallet with 400', async () => {
+    await request(app.getHttpServer())
+      .post('/pools')
+      .send({ ...validBody, creatorWallet: 'not-a-stellar-key' })
+      .expect(400);
+
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it('rejects a title that exceeds 100 characters with 400', async () => {
     await request(app.getHttpServer())
       .post('/pools')
@@ -138,10 +147,53 @@ describe('CreatePoolDto (POST /pools body contract)', () => {
       .expect(201);
   });
 
+  it('rejects a category that exceeds 100 characters with 400', async () => {
+    await request(app.getHttpServer())
+      .post('/pools')
+      .send({ ...validBody, category: 'C'.repeat(101) })
+      .expect(400);
+
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('accepts a category exactly at the 100-character limit', async () => {
+    await request(app.getHttpServer())
+      .post('/pools')
+      .send({ ...validBody, category: 'C'.repeat(100) })
+      .expect(201);
+  });
+
+  it('rejects an invalid imageUrl string with 400', async () => {
+    await request(app.getHttpServer())
+      .post('/pools')
+      .send({ ...validBody, imageUrl: 'not-a-url' })
+      .expect(400);
+
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it('rejects a non-numeric goal string with 400', async () => {
     await request(app.getHttpServer())
       .post('/pools')
       .send({ ...validBody, goal: 'not-a-number' })
+      .expect(400);
+
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a zero goal with 400', async () => {
+    await request(app.getHttpServer())
+      .post('/pools')
+      .send({ ...validBody, goal: '0' })
+      .expect(400);
+
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a negative goal with 400', async () => {
+    await request(app.getHttpServer())
+      .post('/pools')
+      .send({ ...validBody, goal: '-1' })
       .expect(400);
 
     expect(create).not.toHaveBeenCalled();
@@ -154,5 +206,28 @@ describe('CreatePoolDto (POST /pools body contract)', () => {
       .expect(400);
 
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-URL imageUrl with 400', async () => {
+    await request(app.getHttpServer())
+      .post('/pools')
+      .send({ ...validBody, imageUrl: 'not a url' })
+      .expect(400);
+
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('accepts a valid https imageUrl alongside the required fields', async () => {
+    const body = { ...validBody, imageUrl: 'https://example.com/pool.png' };
+    await request(app.getHttpServer()).post('/pools').send(body).expect(201);
+
+    expect(create).toHaveBeenCalledWith(body);
+  });
+
+  it('accepts a null imageUrl (nullable optional field)', async () => {
+    const body = { ...validBody, imageUrl: null };
+    await request(app.getHttpServer()).post('/pools').send(body).expect(201);
+
+    expect(create).toHaveBeenCalledWith(body);
   });
 });

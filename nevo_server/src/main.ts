@@ -7,6 +7,12 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(helmet());
+
+  const frontendOrigin = process.env.FRONTEND_ORIGIN;
+  app.enableCors({
+    origin: frontendOrigin ? frontendOrigin.split(',') : [],
+  });
+
   //global validation pipe to validate incoming requests
   app.useGlobalPipes(
     new ValidationPipe({
@@ -15,6 +21,8 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  app.enableShutdownHooks();
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Nevo API')
@@ -29,6 +37,9 @@ async function bootstrap() {
     )
     .addTag('auth', 'Stellar wallet challenge/response authentication')
     .addTag('pools', 'Donation pools')
+    .addTag('donations', 'Donations to pools')
+    .addTag('transactions', 'Signed transaction submission')
+    .addTag('contract', 'Smart contract transaction submission')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api-docs', app, document);

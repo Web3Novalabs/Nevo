@@ -17,9 +17,18 @@ export default function GlobalError({
   return (
     <html lang="en">
       <body>
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
-          <h2>Something went wrong</h2>
-          <button onClick={reset}>Try again</button>
+        <div className="flex min-h-screen items-center justify-center p-8 text-center">
+          <div className="max-w-md">
+            <h2 className="mb-4 text-2xl font-semibold text-[var(--color-foreground)]">
+              Something went wrong
+            </h2>
+            <button
+              onClick={reset}
+              className="inline-flex items-center justify-center rounded-md bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-primary-foreground)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]"
+            >
+              Try again
+            </button>
+          </div>
         </div>
       </body>
     </html>

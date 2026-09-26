@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { PoolsService, ChainPoolData } from './pools.service';
 import { Pool, PoolStatus } from './pool.entity';
 import { ContractService } from '../contract/contract.service';
@@ -54,6 +55,16 @@ async function buildService(
     getTotalRaisedOnChain: jest.fn().mockResolvedValue(0n),
     getDonorCountOnChain: jest.fn().mockResolvedValue(0),
     buildClosePoolTransaction: jest.fn().mockReturnValue('close-xdr-string'),
+    buildWithdrawTransaction: jest
+      .fn()
+      .mockReturnValue('withdraw-xdr-string'),
+  };
+
+  const mockConfigService = {
+    getOrThrow: jest.fn().mockImplementation((key: string) => {
+      if (key === 'TOKEN_ADDRESS') return 'CTOKENADDRESS';
+      throw new Error(`Configuration key "${key}" does not exist`);
+    }),
   };
 
   const module: TestingModule = await Test.createTestingModule({
@@ -61,12 +72,14 @@ async function buildService(
       PoolsService,
       { provide: getRepositoryToken(Pool), useValue: repo },
       { provide: ContractService, useValue: mockContractService },
+      { provide: ConfigService, useValue: mockConfigService },
     ],
   }).compile();
 
   return {
     service: module.get(PoolsService),
     contractService: mockContractService,
+    config: mockConfigService,
     repo,
     qb,
     savedArg: () => lastSaved as Pool,
@@ -448,43 +461,38 @@ describe('PoolsService', () => {
   // ── buildWithdrawTx ───────────────────────────────────────────────────────
 
   describe('buildWithdrawTx', () => {
-    it('returns an object with unsignedXdr and poolId fields', async () => {
-      const pool = makePool({ contractPoolId: 'pool-7' });
-      const { service } = await buildService(pool);
-
-      const result = service.buildWithdrawTx(pool);
-
-      expect(result).toHaveProperty('unsignedXdr');
-      expect(result).toHaveProperty('poolId');
-    });
-
-    it('returns the pool contractPoolId as poolId', async () => {
-      const pool = makePool({ contractPoolId: 'pool-77' });
-      const { service } = await buildService(pool);
-
-      const result = service.buildWithdrawTx(pool);
-
-      expect(result.poolId).toBe('pool-77');
-    });
-
-    it('returns placeholder XDR string (stub implementation)', async () => {
-      const pool = makePool({ contractPoolId: 'pool-stub' });
-      const { service } = await buildService(pool);
-
-      const result = service.buildWithdrawTx(pool);
-
-      // Current implementation is a stub per TODO comment
-      expect(typeof result.unsignedXdr).toBe('string');
-      expect(result.unsignedXdr.length).toBeGreaterThan(0);
-    });
-
-    it('does not call ContractService (stub does not need it)', async () => {
-      const pool = makePool();
+    it('calls ContractService.buildWithdrawTransaction with creatorWallet, numeric poolId and TOKEN_ADDRESS', async () => {
+      const pool = makePool({ contractPoolId: '7', creatorWallet: 'GCREATOR_KEY' });
       const { service, contractService } = await buildService(pool);
 
       service.buildWithdrawTx(pool);
 
-      expect(contractService.buildClosePoolTransaction).not.toHaveBeenCalled();
+      expect(contractService.buildWithdrawTransaction).toHaveBeenCalledWith(
+        'GCREATOR_KEY',
+        7,
+        'CTOKENADDRESS',
+      );
+    });
+
+    it('returns the XDR from ContractService and the pool contractPoolId', async () => {
+      const pool = makePool({ contractPoolId: '77', creatorWallet: 'GWALLET' });
+      const { service, contractService } = await buildService(pool);
+      contractService.buildWithdrawTransaction.mockReturnValue('withdraw-xdr');
+
+      const result = service.buildWithdrawTx(pool);
+
+      expect(result).toEqual({ unsignedXdr: 'withdraw-xdr', poolId: '77' });
+    });
+
+    it('throws when TOKEN_ADDRESS is not configured', async () => {
+      const pool = makePool({ contractPoolId: '1' });
+      const { service, contractService, config } = await buildService(pool);
+      config.getOrThrow.mockImplementationOnce(() => {
+        throw new Error('Configuration key "TOKEN_ADDRESS" does not exist');
+      });
+
+      expect(() => service.buildWithdrawTx(pool)).toThrow('TOKEN_ADDRESS');
+      expect(contractService.buildWithdrawTransaction).not.toHaveBeenCalled();
     });
   });
 
@@ -615,4 +623,50 @@ describe('PoolsService', () => {
       expect(result).toBeNull();
     });
   });
+
+  // ── incrementRaised ───────────────────────────────────────────────────────
+
+  describe('incrementRaised', () => {
+    it('adds amount to an existing non-zero raised value', async () => {
+      const existing = makePool({ raised: '1000' });
+      const { service, savedArg } = await buildService(existing);
+
+      const result = await service.incrementRaised('1', '500');
+
+      expect(savedArg().raised).toBe('1500');
+      expect(result?.raised).toBe('1500');
+    });
+
+    it('adds amount when raised is "0"', async () => {
+      const existing = makePool({ raised: '0' });
+      const { service, savedArg } = await buildService(existing);
+
+      const result = await service.incrementRaised('1', '250');
+
+      expect(savedArg().raised).toBe('250');
+      expect(result?.raised).toBe('250');
+    });
+
+    it('handles pool with empty or missing raised string by defaulting to "0"', async () => {
+      const existing = makePool({ raised: '' });
+      const { service, savedArg } = await buildService(existing);
+
+      const result = await service.incrementRaised('1', '100');
+
+      expect(savedArg().raised).toBe('100');
+      expect(result?.raised).toBe('100');
+    });
+
+    it('returns null when the pool is not found', async () => {
+      const { service, repo } = await buildService(null);
+
+      const result = await service.incrementRaised('nonexistent', '100');
+
+      expect(repo.findOne).toHaveBeenCalledWith({
+        where: { contractPoolId: 'nonexistent' },
+      });
+      expect(result).toBeNull();
+    });
+  });
 });
+

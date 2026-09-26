@@ -1,7 +1,5 @@
 import { IsHexadecimal, IsNotEmpty, IsString, Matches } from 'class-validator';
-
-/** Stellar Ed25519 public keys are base32, start with `G`, and are 56 chars long. */
-const STELLAR_PUBLIC_KEY = /^G[A-Z2-7]{55}$/;
+import { STELLAR_PUBLIC_KEY } from '../../common/stellar-public-key.js';
 
 /**
  * Body of `POST /auth/verify`: the wallet's answer to the challenge issued by
@@ -24,7 +22,7 @@ export class VerifyAuthDto {
   /** Hex-encoded Ed25519 signature over `message`. */
   @IsString()
   @IsNotEmpty()
-  @IsHexadecimal({ message: 'signature must be hex-encoded' })
+  @IsHexadecimal()
   signature: string;
 
   /** The nonce previously returned by `GET /auth/challenge`. */

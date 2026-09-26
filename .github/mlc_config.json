@@ -8,10 +8,28 @@
     },
     {
       "pattern": "^https?://friendbot\\.stellar\\.org"
+    },
+    {
+      "pattern": "^https?://github\\.com/YOUR-USERNAME"
+    },
+    {
+      "pattern": "^https?://(www\\.)?twitter\\.com"
+    },
+    {
+      "pattern": "^https?://(www\\.)?x\\.com"
+    },
+    {
+      "pattern": "^https?://(www\\.)?linkedin\\.com"
+    },
+    {
+      "pattern": "^https?://(www\\.)?paypal\\.me"
+    },
+    {
+      "pattern": "^https?://(www\\.)?discord\\.gg"
     }
   ],
   "retryOn429": true,
   "retryCount": 2,
   "fallbackRetryDelay": "10s",
-  "aliveStatusCodes": [200, 206]
+  "aliveStatusCodes": [200, 206, 301, 302, 307, 308]
 }

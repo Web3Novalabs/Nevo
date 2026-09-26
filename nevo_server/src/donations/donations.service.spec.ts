@@ -12,6 +12,8 @@ describe('DonationsService', () => {
       find: jest.fn(),
       createQueryBuilder: jest.fn(),
       countBy: jest.fn(),
+      create: jest.fn((data) => data),
+      save: jest.fn((entity) => Promise.resolve({ id: 1, ...entity })),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -99,6 +101,30 @@ describe('DonationsService', () => {
         throw { status: 400 };
       };
       expect(donateWithZero).toThrow(expect.objectContaining({ status: 400 }));
+    });
+  });
+
+  describe('recordDonation', () => {
+    const data = {
+      poolId: '1',
+      donorWallet: 'GDONOR',
+      amount: '100',
+      asset: 'XLM',
+      txHash: 'tx789',
+    };
+
+    it('saves a donation with the provided memo', async () => {
+      const result = await service.recordDonation({ ...data, memo: 'thanks' });
+      expect(mockRepo.create).toHaveBeenCalledWith({ ...data, memo: 'thanks' });
+      expect(mockRepo.save).toHaveBeenCalledWith({ ...data, memo: 'thanks' });
+      expect(result).toEqual({ id: 1, ...data, memo: 'thanks' });
+    });
+
+    it('stores memo as null when it is omitted', async () => {
+      const result = await service.recordDonation(data);
+      expect(mockRepo.create).toHaveBeenCalledWith({ ...data, memo: null });
+      expect(mockRepo.save).toHaveBeenCalledWith({ ...data, memo: null });
+      expect(result).toEqual({ id: 1, ...data, memo: null });
     });
   });
 

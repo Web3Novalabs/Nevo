@@ -57,8 +57,20 @@ export class SyncService implements OnModuleInit {
   }
 
   /**
-   * Returns true if the tx should be skipped (already processed or duplicate in this run).
-   * Logs a warning when the same hash appears more than once in a single run.
+   * Determines whether a transaction should be skipped to avoid duplicate processing.
+   *
+   * Duplicate detection works on two levels:
+   * 1. **Within-run detection** — The method maintains a `Set` of tx hashes seen during
+   *    the current poll cycle (`seenInRun`). If the same hash appears more than once in
+   *    one run (e.g. Horizon delivers overlapping pages), it is flagged and skipped. A
+   *    warning is logged for observability.
+   * 2. **Persisted duplicate detection** — The method queries `DonationsService.isTxProcessed`
+   *    which checks whether the tx hash has already been recorded in the database from a
+   *    previous sync run. This protects against re-processing transactions after a
+   *    restart or cursor reset.
+   *
+   * @param txHash - The transaction hash to check (from `HorizonContractEvent.txHash`).
+   * @returns `true` if the transaction should be skipped, `false` if it is new and safe to process.
    */
   async isTxDuplicate(txHash: string): Promise<boolean> {
     if (this.seenInRun.has(txHash)) {
@@ -74,6 +86,20 @@ export class SyncService implements OnModuleInit {
     return false;
   }
 
+  /**
+   * Processes a `pool_crtd` (pool created) event emitted by the Stellar smart contract.
+   *
+   * Expected event shape:
+   * - `topic[0]` — Event symbol (e.g. `"pool_crtd"`).
+   * - `topic[1]` — The on-chain pool identifier (`contractPoolId`).
+   * - `value[0]` — Wallet address of the pool creator (`creatorWallet`).
+   * - `value[1]` — Fundraising goal amount in base units (`goal`).
+   *
+   * The method first checks for duplicate transactions (both within-run and persisted).
+   * If the transaction is not a duplicate, it upserts the pool record via `PoolsService`.
+   *
+   * @param event - The Horizon contract event to process.
+   */
   async processPoolCreatedEvent(event: HorizonContractEvent): Promise<void> {
     if (event.txHash && (await this.isTxDuplicate(event.txHash))) {
       return;
@@ -90,6 +116,19 @@ export class SyncService implements OnModuleInit {
     });
   }
 
+  /**
+   * Processes a `pool_clos` (pool closed) event emitted by the Stellar smart contract.
+   *
+   * Expected event shape:
+   * - `topic[0]` — Event symbol (e.g. `"pool_clos"`).
+   * - `topic[1]` — The on-chain pool identifier (`contractPoolId`).
+   * - `value` — Not used for this event type (empty array).
+   *
+   * The method checks for duplicate transactions, then marks the pool as completed
+   * via `PoolsService.markCompleted()`.
+   *
+   * @param event - The Horizon contract event to process.
+   */
   async processPoolClosedEvent(event: HorizonContractEvent): Promise<void> {
     if (event.txHash && (await this.isTxDuplicate(event.txHash))) {
       return;
@@ -99,6 +138,23 @@ export class SyncService implements OnModuleInit {
     await this.poolsService.markCompleted(contractPoolId);
   }
 
+  /**
+   * Processes a `donation` event emitted by the Stellar smart contract.
+   *
+   * Expected event shape:
+   * - `topic[0]` — Event symbol (e.g. `"donation"`).
+   * - `topic[1]` — The on-chain pool identifier (`contractPoolId`).
+   * - `value[0]` — Wallet address of the donor (`donorWallet`).
+   * - `value[1]` — Donation amount in base units (`amount`).
+   * - `value[2]` — Asset code; defaults to `"XLM"` if omitted (`asset`).
+   * - `txHash` — **Required** for donation events. If missing, the event is skipped with a warning.
+   *
+   * The method checks for duplicate transactions, records the donation via
+   * `DonationsService.recordDonation()`, and increments the pool's raised amount
+   * via `PoolsService.incrementRaised()`.
+   *
+   * @param event - The Horizon contract event to process.
+   */
   async processDonationEvent(event: HorizonContractEvent): Promise<void> {
     if (!event.txHash) {
       this.logger.warn('Donation event missing txHash — skipping');

@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { ScheduleModule, SchedulerRegistry } from '@nestjs/schedule';
 import { FindOptionsWhere, Repository } from 'typeorm';
 import { NonceService } from './nonce.service';
 import { Nonce } from './nonce.entity';
@@ -194,6 +195,45 @@ describe('NonceService', () => {
       expect((deleteCall as FindOptionsWhere<Nonce>).expiresAt).toEqual(
         expect.any(Date),
       );
+    });
+  });
+
+  describe('cleanupExpiredNonces cron job', () => {
+    it('should register an hourly cron job that calls deleteExpiredNonces', async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        imports: [ScheduleModule.forRoot()],
+        providers: [
+          NonceService,
+          {
+            provide: getRepositoryToken(Nonce),
+            useValue: {
+              save: jest.fn(),
+              findOne: jest.fn(),
+              update: jest.fn(),
+              delete: jest.fn(),
+              remove: jest.fn(),
+            },
+          },
+        ],
+      }).compile();
+
+      const app = module.createNestApplication();
+      await app.init();
+
+      const scheduledService = module.get(NonceService);
+      const schedulerRegistry = module.get(SchedulerRegistry);
+
+      expect(schedulerRegistry.getCronJobs().has('cleanupExpiredNonces')).toBe(true);
+
+      const deleteSpy = jest
+        .spyOn(scheduledService, 'deleteExpiredNonces')
+        .mockResolvedValue(undefined);
+
+      await scheduledService.cleanupExpiredNonces();
+
+      expect(deleteSpy).toHaveBeenCalled();
+
+      await app.close();
     });
   });
 });

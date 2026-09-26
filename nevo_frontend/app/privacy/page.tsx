@@ -12,7 +12,9 @@ export default function PrivacyPage() {
         </p>
       </div>
 
-      <p className="mb-6 text-sm text-[var(--color-text-muted)]">Last updated: {LAST_UPDATED}</p>
+      <p className="mb-6 text-sm text-[var(--color-text-muted)]">
+        Last updated: {LAST_UPDATED}
+      </p>
 
       <section className="prose max-w-none">
         <h2>1. Information We Collect</h2>
@@ -43,7 +45,7 @@ export default function PrivacyPage() {
         <h2>5. Contact</h2>
         <p>
           For privacy requests, contact us via the{' '}
-          <Link href="/contact">support page</Link>.
+          <Link href="/help">support page</Link>.
         </p>
       </section>
     </main>

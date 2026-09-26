@@ -80,4 +80,4 @@ Supported browsers are defined in `package.json` under `browserslist`:
 
 - [Next.js Documentation](https://nextjs.org/docs)
 - [Stellar Documentation](https://developers.stellar.org/)
-- [Freighter Documentation](https://www.freighter.app/docs)
+- [Freighter Documentation](https://docs.freighter.app/)

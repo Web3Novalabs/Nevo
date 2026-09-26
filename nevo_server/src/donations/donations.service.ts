@@ -31,24 +31,20 @@ export class DonationsService {
     page?: number | string,
     limit?: number | string,
   ): Promise<Donation[]> {
-    const pageNum = page !== undefined ? Math.max(1, parseInt(String(page), 10) || 1) : undefined;
+    const pageNum =
+      page !== undefined ? Math.max(1, parseInt(String(page), 10) || 1) : undefined;
     const limitNum =
       limit !== undefined
         ? Math.max(1, Math.min(100, parseInt(String(limit), 10) || 10))
         : undefined;
 
     if (sortBy === DonationSortBy.largest) {
-      const qb = this.donationRepo
-        .createQueryBuilder('d')
-        .where('d.poolId = :poolId', { poolId })
-        .orderBy('CAST(d.amount AS NUMERIC)', 'DESC');
-
-      if (pageNum !== undefined || limitNum !== undefined) {
-        const p = pageNum ?? 1;
-        const l = limitNum ?? 10;
-        qb.skip((p - 1) * l).take(l);
-      }
-      return qb.getMany();
+      return this.buildLargestDonationsQuery(
+        'poolId',
+        poolId,
+        pageNum,
+        limitNum,
+      ).getMany();
     }
 
     const findOptions: any = {
@@ -72,24 +68,20 @@ export class DonationsService {
     page?: number | string,
     limit?: number | string,
   ): Promise<Donation[]> {
-    const pageNum = page !== undefined ? Math.max(1, parseInt(String(page), 10) || 1) : undefined;
+    const pageNum =
+      page !== undefined ? Math.max(1, parseInt(String(page), 10) || 1) : undefined;
     const limitNum =
       limit !== undefined
         ? Math.max(1, Math.min(100, parseInt(String(limit), 10) || 10))
         : undefined;
 
     if (sortBy === DonationSortBy.largest) {
-      const qb = this.donationRepo
-        .createQueryBuilder('d')
-        .where('d.donorWallet = :donorWallet', { donorWallet })
-        .orderBy('CAST(d.amount AS NUMERIC)', 'DESC');
-
-      if (pageNum !== undefined || limitNum !== undefined) {
-        const p = pageNum ?? 1;
-        const l = limitNum ?? 10;
-        qb.skip((p - 1) * l).take(l);
-      }
-      return qb.getMany();
+      return this.buildLargestDonationsQuery(
+        'donorWallet',
+        donorWallet,
+        pageNum,
+        limitNum,
+      ).getMany();
     }
 
     const findOptions: any = {
@@ -105,6 +97,28 @@ export class DonationsService {
     }
 
     return this.donationRepo.find(findOptions);
+  }
+
+  private buildLargestDonationsQuery(
+    filterColumn: 'poolId' | 'donorWallet',
+    filterValue: string,
+    pageNum?: number,
+    limitNum?: number,
+  ) {
+    const qb = this.donationRepo
+      .createQueryBuilder('d')
+      .where(`d.${filterColumn} = :${filterColumn}`, {
+        [filterColumn]: filterValue,
+      })
+      .orderBy('CAST(d.amount AS NUMERIC)', 'DESC');
+
+    if (pageNum !== undefined || limitNum !== undefined) {
+      const p = pageNum ?? 1;
+      const l = limitNum ?? 10;
+      qb.skip((p - 1) * l).take(l);
+    }
+
+    return qb;
   }
 
   async isTxProcessed(txHash: string): Promise<boolean> {

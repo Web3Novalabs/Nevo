@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Nonce } from './nonce.entity';
@@ -58,5 +59,10 @@ export class NonceService {
     await this.nonceRepository.delete({
       expiresAt: new Date(),
     });
+  }
+
+  @Cron(CronExpression.EVERY_HOUR, { name: 'cleanupExpiredNonces' })
+  async cleanupExpiredNonces(): Promise<void> {
+    await this.deleteExpiredNonces();
   }
 }

@@ -35,6 +35,7 @@ These errors are encoded as numeric codes and returned via `env.panic_with_error
 | 12 | `PoolNotExpired` | 422 | Pool deadline has not passed or grace period hasn't elapsed |
 | 13 | `NoContributionToRefund` | 404 | Donor has no recorded contribution to refund |
 | 14 | `SchoolNotRegistered` | 404 | School address is not registered in the system |
+| 15 | `PoolAlreadyClosed` | 409 | Attempted to close a pool that is already closed |
 
 ### Functions by Error
 
@@ -343,6 +344,15 @@ try {
   }
 }
 ```
+
+---
+
+#### `PoolAlreadyClosed` (Code 15)
+
+**Raised by:**
+- `close_pool()` - Pool has already been closed
+
+**Meaning:** The pool's `is_closed` flag is already set, so it cannot be closed a second time.
 
 ---
 

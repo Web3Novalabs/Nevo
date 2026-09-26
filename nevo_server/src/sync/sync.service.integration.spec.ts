@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { SyncService, HorizonContractEvent } from './sync.service';
 import { PoolsService } from '../pools/pools.service';
@@ -101,6 +102,7 @@ describe('SyncService Integration Tests', () => {
           provide: getRepositoryToken(SyncState),
           useValue: mockSyncStateRepo,
         },
+        { provide: ConfigService, useValue: { getOrThrow: jest.fn() } },
         {
           provide: ContractService,
           useValue: {

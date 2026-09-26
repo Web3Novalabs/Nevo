@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Pool, PoolStatus } from './pool.entity.js';
@@ -19,6 +20,7 @@ export class PoolsService {
     @InjectRepository(Pool)
     private readonly poolRepo: Repository<Pool>,
     private readonly contractService: ContractService,
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -70,15 +72,11 @@ export class PoolsService {
     const queryBuilder = this.poolRepo.createQueryBuilder('pool');
 
     if (query.category) {
-      queryBuilder.andWhere('LOWER(pool.category) = LOWER(:category)', {
-        category: query.category,
-      });
+      queryBuilder.andWhere('LOWER(pool.category) = LOWER(:category)', { category: query.category });
     }
 
     if (query.status) {
-      queryBuilder.andWhere('pool.status = :status', {
-        status: query.status,
-      });
+      queryBuilder.andWhere('pool.status = :status', { status: query.status });
     }
 
     if (query.search) {
@@ -89,15 +87,8 @@ export class PoolsService {
     }
 
     queryBuilder.orderBy('pool.createdAt', 'DESC').skip(skip).take(limit);
-
     const [data, total] = await queryBuilder.getManyAndCount();
-
-    return {
-      data,
-      total,
-      page,
-      limit,
-    };
+    return { data, total, page, limit };
   }
 
   async create(dto: CreatePoolDto): Promise<Pool> {
@@ -198,8 +189,13 @@ export class PoolsService {
   }
 
   buildWithdrawTx(pool: Pool): { unsignedXdr: string; poolId: string } {
-    // TODO: replace with real Stellar transaction build calling contract.withdraw (#657)
-    return { unsignedXdr: 'placeholder_xdr', poolId: pool.contractPoolId };
+    const tokenAddress = this.config.getOrThrow<string>('TOKEN_ADDRESS');
+    const unsignedXdr = this.contractService.buildWithdrawTransaction(
+      pool.creatorWallet,
+      parseInt(pool.contractPoolId, 10),
+      tokenAddress,
+    );
+    return { unsignedXdr, poolId: pool.contractPoolId };
   }
 
   buildClosePoolTx(pool: Pool): { unsignedXdr: string } {

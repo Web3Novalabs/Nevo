@@ -47,29 +47,18 @@ export class ContractService {
     title: string;
     description: string;
   }): string {
-    try {
-      const { creator, goal, token, title, description } = params;
-      const source = new Account(creator, '0');
-      const tx = new TransactionBuilder(source, {
-        fee: BASE_FEE,
-        networkPassphrase: NETWORK_PASSPHRASE,
-      })
-        .addOperation(
-          this.contract.call(
-            'create_pool',
-            nativeToScVal(creator, { type: 'address' }),
-            nativeToScVal(BigInt(goal), { type: 'i128' }),
-            nativeToScVal(token, { type: 'address' }),
-            nativeToScVal(title, { type: 'string' }),
-            nativeToScVal(description, { type: 'string' }),
-          ),
-        )
-        .setTimeout(30)
-        .build();
-      return tx.toXDR();
-    } catch (err: unknown) {
-      throw this.mapError(err);
-    }
+    const { creator, goal, token, title, description } = params;
+    return this.buildTransaction(
+      creator,
+      this.contract.call(
+        'create_pool',
+        nativeToScVal(creator, { type: 'address' }),
+        nativeToScVal(BigInt(goal), { type: 'i128' }),
+        nativeToScVal(token, { type: 'address' }),
+        nativeToScVal(title, { type: 'string' }),
+        nativeToScVal(description, { type: 'string' }),
+      ),
+    );
   }
 
   buildDonateTransaction(
@@ -77,25 +66,14 @@ export class ContractService {
     poolId: number,
     amount: string,
   ): string {
-    try {
-      const source = new Account(sourcePublicKey, '0');
-      const tx = new TransactionBuilder(source, {
-        fee: BASE_FEE,
-        networkPassphrase: NETWORK_PASSPHRASE,
-      })
-        .addOperation(
-          this.contract.call(
-            'donate',
-            nativeToScVal(poolId, { type: 'u32' }),
-            nativeToScVal(BigInt(amount), { type: 'i128' }),
-          ),
-        )
-        .setTimeout(30)
-        .build();
-      return tx.toXDR();
-    } catch (err: unknown) {
-      throw this.mapError(err);
-    }
+    return this.buildTransaction(
+      sourcePublicKey,
+      this.contract.call(
+        'donate',
+        nativeToScVal(poolId, { type: 'u32' }),
+        nativeToScVal(BigInt(amount), { type: 'i128' }),
+      ),
+    );
   }
 
   buildWithdrawTransaction(
@@ -103,30 +81,33 @@ export class ContractService {
     poolId: number,
     tokenAddress: string,
   ): string {
-    try {
-      const source = new Account(sourcePublicKey, '0');
-      const tx = new TransactionBuilder(source, {
-        fee: BASE_FEE,
-        networkPassphrase: NETWORK_PASSPHRASE,
-      })
-        .addOperation(
-          this.contract.call(
-            'withdraw',
-            nativeToScVal(poolId, { type: 'u32' }),
-            nativeToScVal(tokenAddress, { type: 'address' }),
-          ),
-        )
-        .setTimeout(30)
-        .build();
-      return tx.toXDR();
-    } catch (err: unknown) {
-      throw this.mapError(err);
-    }
+    return this.buildTransaction(
+      sourcePublicKey,
+      this.contract.call(
+        'withdraw',
+        nativeToScVal(poolId, { type: 'u32' }),
+        nativeToScVal(tokenAddress, { type: 'address' }),
+      ),
+    );
   }
 
   buildClosePoolTransaction(
     sourcePublicKey: string,
     poolId: number,
+  ): string {
+    return this.buildTransaction(
+      sourcePublicKey,
+      this.contract.call(
+        'close_pool',
+        nativeToScVal(poolId, { type: 'u32' }),
+        nativeToScVal(sourcePublicKey, { type: 'address' }),
+      ),
+    );
+  }
+
+  private buildTransaction(
+    sourcePublicKey: string,
+    operation: xdr.Operation,
   ): string {
     try {
       const source = new Account(sourcePublicKey, '0');
@@ -134,13 +115,7 @@ export class ContractService {
         fee: BASE_FEE,
         networkPassphrase: NETWORK_PASSPHRASE,
       })
-        .addOperation(
-          this.contract.call(
-            'close_pool',
-            nativeToScVal(poolId, { type: 'u32' }),
-            nativeToScVal(sourcePublicKey, { type: 'address' }),
-          ),
-        )
+        .addOperation(operation)
         .setTimeout(30)
         .build();
       return tx.toXDR();

@@ -15,7 +15,7 @@ describe('VerifyAuthDto (POST /auth/verify body contract)', () => {
   let verify: jest.Mock;
 
   /** A minimal valid payload that should always pass validation. */
-  const VALID_PUBLIC_KEY = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+  const VALID_PUBLIC_KEY = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCW7M';
   const VALID_SIGNATURE = 'deadbeef01234567';
   const VALID_MESSAGE = 'some-nonce-value';
 
