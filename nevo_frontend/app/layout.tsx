@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     description:
       'Transparent, secure, and efficient fundraising pools on Stellar.',
     url: 'https://nevo.app',
-    siteName: 'Nevo',
+    siteName: 'PrediFi',
     type: 'website',
     images: [{ url: '/opengraph-image.png', width: 1200, height: 630 }],
   },
