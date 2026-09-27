@@ -1742,6 +1742,29 @@ impl Contract {
             .get::<_, Address>(&token_key)
             .expect("Crowdfunding token not set")
     }
+
+    /// Return the number of ledgers a donor must wait after a pool's deadline
+    /// before `refund_donation()` will succeed.
+    ///
+    /// This corresponds to the compile-time constant `REFUND_GRACE_PERIOD_LEDGERS`
+    /// (currently 17 280 ledgers, ≈ 24 hours at a 5-second ledger cadence).
+    /// Off-chain integrators should call this getter rather than hard-coding the
+    /// value so they remain correct if the constant is ever updated.
+    pub fn get_refund_grace_period_ledgers(_env: Env) -> u32 {
+        REFUND_GRACE_PERIOD_LEDGERS
+    }
+
+    /// Return the number of seconds an admin must wait after
+    /// `request_emergency_withdraw()` before `execute_emergency_withdraw()`
+    /// will succeed.
+    ///
+    /// This corresponds to the compile-time constant `GRACE_PERIOD_SECS`
+    /// (currently 86 400 seconds, i.e. 24 hours). Off-chain integrators
+    /// should call this getter rather than hard-coding the value so they
+    /// remain correct if the constant is ever updated.
+    pub fn get_emergency_grace_period_secs(_env: Env) -> u64 {
+        GRACE_PERIOD_SECS
+    }
 }
 
 mod test;
@@ -1754,6 +1777,8 @@ mod test_pool_creation;
 mod test_pool_retrieval;
 mod test_campaign_lifecycle;
 mod test_withdraw;
+mod test_issue_1108_refund_grace_period;
+mod test_issue_1109_emergency_grace_period;
 mod test_issue_1287_pool_multisig;
 mod test_issue_1321_business_logic_consistency;
 mod test_issue_1322_recovery_scenarios;
