@@ -64,7 +64,7 @@
     "prettier": "^3.9.6",
     "source-map-support": "^0.5.21",
     "sql.js": "^1.14.1",
-    "supertest": "^7.0.0",
+    "supertest": "^7.3.0",
     "ts-jest": "^29.4.12",
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
