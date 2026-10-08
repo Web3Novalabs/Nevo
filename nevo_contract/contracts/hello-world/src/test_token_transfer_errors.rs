@@ -60,6 +60,65 @@ fn test_failed_transfer_does_not_corrupt_pool_state() {
         100i128,
         "Donor balance must be intact after a failed transfer"
     );
+    assert_eq!(
+        token::Client::new(&env, &token).balance(&contract_id),
+        0i128,
+        "A failed transfer must not partially credit the contract"
+    );
+}
+
+/// An undeployed address or a non-token contract must fail without changing pool state.
+#[test]
+fn test_invalid_token_contract_fails_without_state_change() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let undeployed_address = Address::generate(&env);
+    let result = client.try_donate_with_token(&pool_id, &donor, &undeployed_address, &1_000i128);
+    assert!(result.is_err(), "An undeployed token address must fail");
+
+    let non_token_contract = env.register(Contract, ());
+    let result = client.try_donate_with_token(&pool_id, &donor, &non_token_contract, &1_000i128);
+    assert!(result.is_err(), "A contract without the token interface must fail");
+    assert_eq!(client.get_pool(&pool_id).3, 0u128);
+    assert_eq!(client.get_contribution(&pool_id, &donor), 0u128);
+}
+
+/// A configured token mismatch returns the contract's explicit transfer error.
+#[test]
+#[should_panic(expected = "TokenTransferFailed")]
+fn test_configured_token_mismatch_returns_clear_error() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let configured_token = create_token(&env, 1_000i128, &donor);
+    let supplied_token = create_token(&env, 1_000i128, &donor);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    client.set_pool_token(&pool_id, &configured_token);
+    client.donate_with_token(&pool_id, &donor, &supplied_token, &100i128);
 }
 
 /// A zero or negative donation is rejected before any transfer is attempted.
@@ -147,7 +206,7 @@ fn test_claim_beyond_collected_funds_fails() {
         &100_000u64,
     );
     client.donate_with_token(&pool_id, &donor, &token, &1_000i128);
-    client.set_application_status(&school, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
 
     // Pool holds 1_000; claiming 5_000 must be rejected.
     client.claim_funds(&student, &pool_id, &5_000i128, &token);
