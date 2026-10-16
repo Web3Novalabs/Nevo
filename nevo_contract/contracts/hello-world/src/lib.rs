@@ -851,6 +851,17 @@ impl Contract {
     }
 
     /// School approves or rejects a student's application.
+    ///
+    /// Requires authorization from `school` (`school.require_auth()`), and
+    /// `school` must be the school linked to the pool. Sets the application
+    /// status to approved or rejected according to `approved` and emits an
+    /// `app_aprvd` event.
+    ///
+    /// # Panics
+    /// - `ContractError::OnlyLinkedSchoolCanApprove` if `school` is not the
+    ///   school linked to the pool
+    /// - `ContractError::StudentHasNotApplied` if the student never applied
+    ///   to the pool
     pub fn approve_application(
         env: Env,
         pool_id: u32,
