@@ -1338,7 +1338,7 @@ impl Contract {
     /// Emits a `creation_fee_updated` event on success.
     ///
     /// # Panics
-    /// - `"Admin not set"` if no admin has been configured
+    /// - `ContractError::AdminNotSet` if no admin has been configured
     /// - `"Unauthorized admin"` if `admin` does not match the stored admin
     /// - `"InvalidFee"` if `fee` is negative
     /// A negative fee panics with `ContractError::InvalidFee`.
