@@ -5,15 +5,9 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
 import { ContractService } from '../contract/contract.service.js';
+import { SubmitXdrDto } from '../contract/contract.controller.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
-
-export class SubmitXdrDto {
-  @IsString()
-  @IsNotEmpty()
-  xdr!: string;
-}
 
 @ApiTags('transactions')
 @Controller('transactions')

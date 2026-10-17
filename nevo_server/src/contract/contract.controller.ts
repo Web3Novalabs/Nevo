@@ -9,6 +9,7 @@ import { IsNotEmpty, IsString } from 'class-validator';
 import { ContractService } from './contract.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 
+// Shared with TransactionsController so both XDR submit endpoints validate identically.
 export class SubmitXdrDto {
   @IsString()
   @IsNotEmpty()
