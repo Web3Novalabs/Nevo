@@ -140,6 +140,10 @@ pub enum ContractError {
     InvalidPoolDeadline = 18,
     /// Donation attempted at or after the pool's application deadline.
     CampaignExpired = 19,
+    /// No emergency withdrawal request exists for the pool.
+    EmergencyWithdrawalNotRequested = 20,
+    /// Emergency withdrawal grace period has not yet elapsed.
+    GracePeriodNotElapsed = 21,
 }
 
 // Helper functions for timestamp/deadline edge-case tests
@@ -1664,21 +1668,23 @@ impl Contract {
     /// Tokens are transferred to `requested_by` and the stored request is removed.
     ///
     /// # Panics
-    /// - `"Emergency withdrawal not requested"` if no request exists for `pool_id`
-    /// - `"Grace period not elapsed"` if fewer than `GRACE_PERIOD_SECS` have passed
+    /// - `ContractError::EmergencyWithdrawalNotRequested` if no request exists for `pool_id`
+    /// - `ContractError::GracePeriodNotElapsed` if fewer than `GRACE_PERIOD_SECS` have passed
     pub fn execute_emergency_withdraw(env: Env, pool_id: u32) {
         let withdrawal_key = (Symbol::new(&env, EMERGENCY_WITHDRAWAL_PREFIX), pool_id);
         let request: EmergencyWithdrawalRequest = env
             .storage()
             .persistent()
             .get::<_, EmergencyWithdrawalRequest>(&withdrawal_key)
-            .expect("Emergency withdrawal not requested");
+            .unwrap_or_else(|| {
+                env.panic_with_error(ContractError::EmergencyWithdrawalNotRequested)
+            });
 
         let current_timestamp = env.ledger().timestamp();
         let time_elapsed = current_timestamp.saturating_sub(request.request_timestamp);
 
         if time_elapsed < GRACE_PERIOD_SECS {
-            panic!("Grace period not elapsed");
+            env.panic_with_error(ContractError::GracePeriodNotElapsed);
         }
 
         let token_client = token::Client::new(&env, &request.token_address);

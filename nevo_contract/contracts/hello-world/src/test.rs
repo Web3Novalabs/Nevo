@@ -1211,7 +1211,7 @@ fn test_request_emergency_withdraw_duplicate_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Grace period not elapsed")]
+#[should_panic(expected = "Error(Contract, #21)")]
 fn test_execute_emergency_withdraw_before_grace_period_fails() {
     let env = Env::default();
     env.mock_all_auths();

@@ -85,7 +85,7 @@ fn test_emergency_withdrawal_complete_flow() {
 
 /// Test 2: Grace period is strictly enforced
 #[test]
-#[should_panic(expected = "Grace period not elapsed")]
+#[should_panic(expected = "Error(Contract, #21)")]
 fn test_emergency_withdrawal_grace_period_enforced() {
     let env = Env::default();
     env.mock_all_auths();

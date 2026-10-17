@@ -41,7 +41,7 @@ fn setup_emergency_pool(env: &Env, client: &ContractClient, admin: &Address) -> 
 // ── Test 1: Cannot execute without a prior request ──────────────────────────
 
 #[test]
-#[should_panic(expected = "Emergency withdrawal not requested")]
+#[should_panic(expected = "Error(Contract, #20)")]
 fn test_cannot_execute_without_prior_request() {
     let env = Env::default();
     env.mock_all_auths();
@@ -58,7 +58,7 @@ fn test_cannot_execute_without_prior_request() {
 // ── Test 2: Cannot execute before grace period elapses ──────────────────────
 
 #[test]
-#[should_panic(expected = "Grace period not elapsed")]
+#[should_panic(expected = "Error(Contract, #21)")]
 fn test_cannot_execute_before_grace_period_elapses() {
     let env = Env::default();
     env.mock_all_auths();

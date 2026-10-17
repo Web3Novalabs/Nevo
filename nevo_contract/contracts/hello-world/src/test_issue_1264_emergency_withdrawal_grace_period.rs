@@ -53,7 +53,7 @@ fn test_execute_at_grace_period_boundary_succeeds() {
 
 /// Executing one second before the grace period elapses fails.
 #[test]
-#[should_panic(expected = "Grace period not elapsed")]
+#[should_panic(expected = "Error(Contract, #21)")]
 fn test_execute_one_second_before_grace_period_fails() {
     let env = Env::default();
     env.mock_all_auths();
