@@ -45,6 +45,9 @@ export default function ProfilePage() {
   const [recentDonations, setRecentDonations] = useState<ApiDonation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [profileUpdateError, setProfileUpdateError] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     let active = true;
@@ -96,13 +99,14 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setProfileUpdateError(null);
     try {
       const updated = await updateProfile(preferences.displayName);
       setProfile(updated);
       toast('Profile updated successfully');
       setIsEditingProfile(false);
     } catch (err) {
-      toast(parseApiError(err), 'error');
+      setProfileUpdateError(parseApiError(err));
     }
   };
 
@@ -213,6 +217,14 @@ export default function ProfilePage() {
                   <div className="h-10 w-full bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
                 ) : isEditingProfile ? (
                   <form onSubmit={handleSaveProfile} className="space-y-4">
+                    {profileUpdateError && (
+                      <p
+                        role="alert"
+                        className="text-sm text-red-700 dark:text-red-200"
+                      >
+                        {profileUpdateError}
+                      </p>
+                    )}
                     <div>
                       <label
                         htmlFor="displayName"
@@ -224,12 +236,13 @@ export default function ProfilePage() {
                         id="displayName"
                         type="text"
                         value={preferences.displayName}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          setProfileUpdateError(null);
                           setPreferences({
                             ...preferences,
                             displayName: e.target.value,
-                          })
-                        }
+                          });
+                        }}
                         className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
                       />
                     </div>
@@ -316,7 +329,7 @@ export default function ProfilePage() {
                       type="checkbox"
                       checked={
                         preferences.notifications[
-                          item.key as keyof typeof preferences.notifications
+                        item.key as keyof typeof preferences.notifications
                         ]
                       }
                       onChange={() =>
