@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import {
   Keypair,
   Networks,
+  Transaction,
+  FeeBumpTransaction,
   TransactionBuilder,
   BASE_FEE,
   Account,
@@ -125,8 +127,13 @@ export class ContractService {
   }
 
   async submitSignedXdr(signedXdr: string): Promise<string> {
+    let tx: Transaction | FeeBumpTransaction;
     try {
-      const tx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+      tx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+    } catch {
+      throw new StellarError('invalid_xdr');
+    }
+    try {
       const result = await this.rpcServer.sendTransaction(tx);
       return result.hash;
     } catch (err: unknown) {
