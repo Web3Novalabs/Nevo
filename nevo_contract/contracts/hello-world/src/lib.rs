@@ -1890,6 +1890,7 @@ mod test_campaign_lifecycle;
 mod test_contract_initialization;
 mod test_issue_1287_pool_multisig;
 mod test_issue_1319_memory;
+mod test_issue_1477_pool_school_relationship;
 mod test_issue_1482_pool_getter_missing_pool;
 mod test_issue_1483_crowdfunding_token_unset;
 mod test_issue_1484_create_campaign_with_fee;
