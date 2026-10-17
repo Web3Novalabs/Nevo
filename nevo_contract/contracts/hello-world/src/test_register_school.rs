@@ -4,8 +4,8 @@
 
 use super::*;
 use soroban_sdk::{
-    testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation},
-    Address, BytesN, Env, IntoVal, String, Symbol,
+    testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, Events},
+    Address, BytesN, Env, IntoVal, String, Symbol, Val, Vec,
 };
 
 fn setup<'a>(env: &Env) -> (ContractClient<'a>, Address) {
@@ -96,6 +96,90 @@ fn test_non_admin_cannot_register_school() {
         },
     }]);
     client.register_school(&school, &metadata_hash);
+}
+
+/// Issue #1476: re-registering the same address with a different metadata hash
+/// stores only the second value.
+#[test]
+fn test_register_school_overwrite_stores_second_metadata_hash() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup(&env);
+
+    client.set_admin(&admin);
+
+    let school = Address::generate(&env);
+    let first = BytesN::from_array(&env, &[3u8; 32]);
+    let second = BytesN::from_array(&env, &[9u8; 32]);
+
+    client.register_school(&school, &first);
+    assert_eq!(client.get_school_metadata(&school), first);
+
+    client.register_school(&school, &second);
+    assert_eq!(
+        client.get_school_metadata(&school),
+        second,
+        "re-registration must overwrite the stored metadata hash"
+    );
+}
+
+/// Issue #1476: `is_school_registered` stays true on overwrite, and the
+/// `schl_reg` event schema is identical for create and overwrite (topics are
+/// the same; only the data payload is the new hash).
+#[test]
+fn test_register_school_event_does_not_distinguish_create_from_overwrite() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = setup(&env);
+
+    client.set_admin(&admin);
+
+    let school = Address::generate(&env);
+    let first = BytesN::from_array(&env, &[11u8; 32]);
+    let second = BytesN::from_array(&env, &[22u8; 32]);
+
+    assert!(!client.is_school_registered(&school));
+
+    client.register_school(&school, &first);
+    let expected_topics: Vec<Val> = soroban_sdk::vec![
+        &env,
+        SCHOOL_REGISTERED.into_val(&env),
+        school.clone().into_val(&env),
+    ];
+    let create_expected: Vec<(Address, Vec<Val>, Val)> = soroban_sdk::vec![
+        &env,
+        (
+            client.address.clone(),
+            expected_topics.clone(),
+            first.into_val(&env)
+        ),
+    ];
+    assert_eq!(env.events().all(), create_expected);
+    assert!(client.is_school_registered(&school));
+
+    client.register_school(&school, &second);
+    let overwrite_expected: Vec<(Address, Vec<Val>, Val)> = soroban_sdk::vec![
+        &env,
+        (
+            client.address.clone(),
+            expected_topics,
+            second.into_val(&env)
+        ),
+    ];
+    assert_eq!(
+        env.events().all(),
+        overwrite_expected,
+        "overwrite emits SCHOOL_REGISTERED with the same topics as a fresh registration"
+    );
+    assert_eq!(
+        create_expected.get(0).unwrap().1,
+        overwrite_expected.get(0).unwrap().1,
+        "event topics alone cannot distinguish create from overwrite under the current schema"
+    );
+    assert!(
+        client.is_school_registered(&school),
+        "school remains registered after the second register_school call"
+    );
 }
 
 /// Re-registering an existing school overwrites its metadata hash in place.
