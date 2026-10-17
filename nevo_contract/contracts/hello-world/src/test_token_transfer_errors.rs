@@ -127,7 +127,7 @@ fn test_withdraw_unallocated_funds_with_no_surplus_fails() {
 
 /// A student cannot claim more than the pool has collected.
 #[test]
-#[should_panic(expected = "Overdraw attempt")]
+#[should_panic(expected = "Error(Contract, #23)")]
 fn test_claim_beyond_collected_funds_fails() {
     let env = Env::default();
     env.mock_all_auths();

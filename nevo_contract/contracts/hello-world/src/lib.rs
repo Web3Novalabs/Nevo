@@ -140,6 +140,14 @@ pub enum ContractError {
     InvalidPoolDeadline = 18,
     /// Donation attempted at or after the pool's application deadline.
     CampaignExpired = 19,
+    /// Claim amount is zero or negative.
+    InvalidClaimAmount = 20,
+    /// Student has no application status record for this pool.
+    ApplicationStatusNotFound = 21,
+    /// Application status is not "Approved", so funds cannot be claimed.
+    ApplicationNotApproved = 22,
+    /// Claim would exceed the collected funds available to the pool.
+    OverdrawAttempt = 23,
 }
 
 // Helper functions for timestamp/deadline edge-case tests
@@ -1171,10 +1179,10 @@ impl Contract {
     /// * `token_address` - The token used for the transfer
     ///
     /// # Panics
-    /// - `"Claim amount must be positive"` if `claim_amount <= 0`
-    /// - `"Application status not found"` if no status has been set
-    /// - `"Application is not approved"` if status != "Approved"
-    /// - `"Overdraw attempt"` if `amount_claimed + claim_amount > collected`
+    /// - `ContractError::InvalidClaimAmount` if `claim_amount <= 0`
+    /// - `ContractError::ApplicationStatusNotFound` if no status has been set
+    /// - `ContractError::ApplicationNotApproved` if status != "Approved"
+    /// - `ContractError::OverdrawAttempt` if `amount_claimed + claim_amount > collected`
     pub fn claim_funds(
         env: Env,
         student: Address,
@@ -1185,7 +1193,7 @@ impl Contract {
         student.require_auth();
 
         if claim_amount <= 0 {
-            panic!("Claim amount must be positive");
+            env.panic_with_error(ContractError::InvalidClaimAmount);
         }
 
         // Verify application is approved
@@ -1198,10 +1206,10 @@ impl Contract {
             .storage()
             .persistent()
             .get::<_, String>(&status_key)
-            .unwrap_or_else(|| panic!("Application status not found"));
+            .unwrap_or_else(|| env.panic_with_error(ContractError::ApplicationStatusNotFound));
 
         if status != String::from_str(&env, APPLICATION_STATUS_APPROVED) {
-            panic!("Application is not approved");
+            env.panic_with_error(ContractError::ApplicationNotApproved);
         }
 
         // Load pool to check available collected funds
@@ -1242,7 +1250,7 @@ impl Contract {
 
         // Enforce the partial-payment invariant
         if application.amount_claimed + claim_amount > collected {
-            panic!("Overdraw attempt");
+            env.panic_with_error(ContractError::OverdrawAttempt);
         }
 
         // Accumulate protocol fees (1% of claim amount)

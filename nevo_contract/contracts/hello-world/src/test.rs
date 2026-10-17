@@ -235,7 +235,7 @@ fn test_pool_description_exceeds_max_length() {
 // ============= CLAIM FUNDS TESTS =============
 
 #[test]
-#[should_panic(expected = "Application status not found")]
+#[should_panic(expected = "Error(Contract, #21)")]
 fn test_claim_funds_no_status() {
     let env = Env::default();
     env.mock_all_auths();
@@ -257,7 +257,7 @@ fn test_claim_funds_no_status() {
 }
 
 #[test]
-#[should_panic(expected = "Application is not approved")]
+#[should_panic(expected = "Error(Contract, #22)")]
 fn test_claim_funds_rejected_application() {
     let env = Env::default();
     env.mock_all_auths();
@@ -280,7 +280,7 @@ fn test_claim_funds_rejected_application() {
 }
 
 #[test]
-#[should_panic(expected = "Overdraw attempt")]
+#[should_panic(expected = "Error(Contract, #23)")]
 fn test_claim_funds_overdraw() {
     let env = Env::default();
     env.mock_all_auths();
@@ -303,7 +303,7 @@ fn test_claim_funds_overdraw() {
 }
 
 #[test]
-#[should_panic(expected = "Claim amount must be positive")]
+#[should_panic(expected = "Error(Contract, #20)")]
 fn test_claim_funds_negative_amount() {
     let env = Env::default();
     env.mock_all_auths();

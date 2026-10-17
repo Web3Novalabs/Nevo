@@ -36,6 +36,10 @@ These errors are encoded as numeric codes and returned via `env.panic_with_error
 | 13 | `NoContributionToRefund` | 404 | Donor has no recorded contribution to refund |
 | 14 | `SchoolNotRegistered` | 404 | School address is not registered in the system |
 | 15 | `PoolAlreadyClosed` | 409 | Attempted to close a pool that is already closed |
+| 20 | `InvalidClaimAmount` | 400 | Claim amount is zero or negative |
+| 21 | `ApplicationStatusNotFound` | 404 | Student has no application status record for this pool; student must apply first |
+| 22 | `ApplicationNotApproved` | 403 | Application status is not "Approved"; school must approve before claiming |
+| 23 | `OverdrawAttempt` | 422 | Claim would exceed the pool's collected funds |
 
 ### Functions by Error
 
@@ -368,10 +372,6 @@ These are ad-hoc panic messages (not part of the `#[contracterror]` enum). While
 | `"Milestones required"` | `setup_application_milestones()` | Empty milestones vector provided | Provide at least one milestone |
 | `"Milestone total must equal pool goal"` | `setup_application_milestones()` | Sum of milestone amounts ≠ pool goal | Ensure milestone amounts sum to exactly pool goal |
 | `"No surplus to withdraw"` | `withdraw_unallocated_funds()` | No unallocated funds (surplus = 0) | Check pool has unallocated funds before withdrawing |
-| `"Claim amount must be positive"` | `claim_funds()` | Claim amount ≤ 0 | Use a positive claim amount |
-| `"Application status not found"` | `claim_funds()` | Student has no application status record | Student must apply to pool first |
-| `"Application is not approved"` | `claim_funds()` | Application status is not "Approved" | School must approve application before student can claim |
-| `"Overdraw attempt"` | `claim_funds()` | `amount_claimed + claim_amount > collected` | Cannot claim more than available collected funds |
 | `"Deadline must be in the future"` | `set_pool_deadline()` | Deadline ≤ current ledger sequence | Use a future timestamp |
 | `"InvalidAmount"` | `set_pool_state()` | Amount argument is ≤ 0 | Provide positive amount |
 | `"Error(Auth, InvalidAction)"` | `admin_confirm_emergency_withdrawal()` | Caller is not the admin (legacy error) | Only admin can perform this action |
