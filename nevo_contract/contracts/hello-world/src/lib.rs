@@ -1731,7 +1731,7 @@ impl Contract {
     /// Create a new donation / sponsorship pool with creation fee deduction.
     ///
     /// If creation fee > 0, fee is transferred from `creator` to the contract and
-    /// a `creation_fee_paid` event is emitted.
+    /// a `fee_paid` event is emitted.
     /// If creation fee == 0, creation proceeds without token transfer or balance checks.
     pub fn create_pool_with_fee(
         env: Env,
@@ -1760,11 +1760,7 @@ impl Contract {
                 .persistent()
                 .set(&unclaimed_key, &(current_unclaimed + fee));
 
-            // Emit fee payment events
-            env.events().publish(
-                (Symbol::new(&env, "creation_fee_paid"), creator.clone()),
-                fee,
-            );
+            // Emit fee payment event
             env.events().publish((FEE_PAID,), (creator.clone(), fee));
         }
 

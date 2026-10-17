@@ -11,7 +11,7 @@ use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Events},
     token::StellarAssetClient,
-    Address, Env, IntoVal, String, Symbol, Val,
+    Address, Env, IntoVal, String, Val,
 };
 
 // -- helpers ---------------------------------------------------------------
@@ -148,8 +148,8 @@ fn test_create_campaign_with_fee_accumulates_unclaimed_fees() {
 
 // -- Test 3: event emission -----------------------------------------------
 
-/// A successful `create_campaign_with_fee` must emit the fee-payment events
-/// and then the `pool_crtd` event for the new campaign, in that order.
+/// A successful `create_campaign_with_fee` must emit a single fee-payment event
+/// (`fee_paid`) and then the `pool_crtd` event for the new campaign, in that order.
 ///
 /// `env.events().all()` reports the events published by the last top-level
 /// invocation only; events from the fee-token contract are filtered out so the
@@ -176,16 +176,10 @@ fn test_create_campaign_with_fee_emits_fee_and_pool_created_events() {
 
     let pool_created_topics: Vec<Val> =
         soroban_sdk::vec![&env, POOL_CREATED.into_val(&env), pool_id.into_val(&env)];
-    let creation_fee_topics: Vec<Val> = soroban_sdk::vec![
-        &env,
-        Symbol::new(&env, "creation_fee_paid").into_val(&env),
-        creator.clone().into_val(&env),
-    ];
     let fee_paid_topics: Vec<Val> = soroban_sdk::vec![&env, FEE_PAID.into_val(&env)];
 
     let expected: Vec<(Address, Vec<Val>, Val)> = soroban_sdk::vec![
         &env,
-        (contract_id.clone(), creation_fee_topics, fee.into_val(&env)),
         (
             contract_id.clone(),
             fee_paid_topics,
@@ -201,7 +195,7 @@ fn test_create_campaign_with_fee_emits_fee_and_pool_created_events() {
     assert_eq!(
         env.events().all().filter_by_contract(&contract_id),
         expected,
-        "create_campaign_with_fee must emit creation_fee_paid, fee_paid and pool_crtd"
+        "create_campaign_with_fee must emit fee_paid and pool_crtd"
     );
 }
 
