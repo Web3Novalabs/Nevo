@@ -10,6 +10,10 @@ export class UsersService {
     private readonly userRepo: Repository<User>,
   ) {}
 
+  /**
+   * Returns null when no user exists for the given publicKey;
+   * UsersController maps that to a 404.
+   */
   async updateDisplayName(
     publicKey: string,
     displayName: string,
