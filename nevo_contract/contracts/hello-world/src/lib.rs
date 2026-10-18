@@ -1899,4 +1899,5 @@ mod test_issues;
 mod test_pool_creation;
 mod test_pool_retrieval;
 mod test_register_school;
+mod test_issue_1474_apply_to_pool_closed_state;
 mod test_withdraw;
