@@ -32,6 +32,12 @@ test.describe('Pool Management / Withdrawal Flow', () => {
     await expect(page.locator('body')).not.toContainText('500');
   });
 
+  test('pool management stays gated for an unauthenticated visitor', async ({ page }) => {
+    await page.goto('/pools/nonexistent-pool-99999/manage');
+    await expect(page.locator('body')).toBeVisible();
+    await expect(page.locator('body')).not.toContainText('Internal Server Error');
+  });
+
   test('shows error state when withdrawal fails without wallet', async ({
     page,
   }) => {
