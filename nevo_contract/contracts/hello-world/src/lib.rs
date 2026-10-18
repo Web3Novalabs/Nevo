@@ -451,6 +451,18 @@ impl Contract {
     }
 
     /// Save mutable pool metadata and its multi-signature configuration.
+    ///
+    /// Requires authorization from `pool.sponsor` (`pool.sponsor.require_auth()`).
+    ///
+    /// # Panics
+    /// - `ContractError::PoolNotFound` if `pool_id` does not exist in storage
+    /// - `"Description exceeds maximum length"` if `description.len() > MAX_DESCRIPTION_LENGTH` (`500`)
+    /// - `"URL exceeds maximum length"` if `url.len() > MAX_URL_LENGTH` (`256`)
+    /// - `"Image hash exceeds maximum length"` if `image_hash.len() > MAX_IMAGE_HASH_LENGTH` (`64`)
+    /// - `"Empty signers list"` if `signers` is empty
+    /// - `"Zero required_signatures"` if `required_signatures == 0`
+    /// - `"required_signatures exceeds signer count"` if `required_signatures > signers.len()`
+    /// - `"Mismatched multi-signature parameters"` if `signers` contains duplicate addresses
     pub fn save_pool(
         env: Env,
         pool_id: u32,
@@ -1899,4 +1911,5 @@ mod test_issues;
 mod test_pool_creation;
 mod test_pool_retrieval;
 mod test_register_school;
+mod test_issue_1468_save_pool_length_panics;
 mod test_withdraw;
