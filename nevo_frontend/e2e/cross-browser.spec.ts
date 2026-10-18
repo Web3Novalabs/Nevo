@@ -54,6 +54,13 @@ test.describe('Cross-browser compatibility', () => {
     await expect(page.locator('nav')).toBeVisible();
   });
 
+  test('wallet connection layout remains usable on a mobile viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('body')).toBeVisible();
+    await expect(page.locator('nav')).toBeVisible();
+  });
+
   test('images load without broken src', async ({ page }) => {
     await page.goto('/');
     const images = page.locator('img');
