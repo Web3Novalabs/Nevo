@@ -1899,4 +1899,5 @@ mod test_issues;
 mod test_pool_creation;
 mod test_pool_retrieval;
 mod test_register_school;
+mod test_issue_1465_donate_with_token_untyped_panics;
 mod test_withdraw;
