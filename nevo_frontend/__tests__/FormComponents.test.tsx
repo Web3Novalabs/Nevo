@@ -45,7 +45,13 @@ describe('Form components', () => {
       render(<Input label="Name" error="Name is required" />);
       const input = screen.getByLabelText(/Name/);
       expect(input).toHaveAttribute('aria-invalid', 'true');
+      expect(input).toHaveAttribute('aria-describedby', `${input.id}-error`);
       expect(screen.getByRole('alert')).toHaveTextContent('Name is required');
+    });
+
+    it('is disabled when the disabled prop is set', () => {
+      render(<Input label="Name" disabled />);
+      expect(screen.getByLabelText(/Name/)).toBeDisabled();
     });
 
     it('accepts keyboard input', async () => {
@@ -67,7 +73,18 @@ describe('Form components', () => {
 
     it('shows error message', () => {
       render(<Textarea label="Bio" error="Bio is too short" />);
+      const textarea = screen.getByLabelText(/Bio/);
+      expect(textarea).toHaveAttribute('aria-invalid', 'true');
+      expect(textarea).toHaveAttribute(
+        'aria-describedby',
+        `${textarea.id}-error`
+      );
       expect(screen.getByRole('alert')).toHaveTextContent('Bio is too short');
+    });
+
+    it('is disabled when the disabled prop is set', () => {
+      render(<Textarea label="Bio" disabled />);
+      expect(screen.getByLabelText(/Bio/)).toBeDisabled();
     });
   });
 
@@ -105,7 +122,15 @@ describe('Form components', () => {
       render(
         <Select label="Category" options={options} error="Pick a category" />
       );
+      const select = screen.getByLabelText(/Category/);
+      expect(select).toHaveAttribute('aria-invalid', 'true');
+      expect(select).toHaveAttribute('aria-describedby', `${select.id}-error`);
       expect(screen.getByRole('alert')).toHaveTextContent('Pick a category');
+    });
+
+    it('is disabled when the disabled prop is set', () => {
+      render(<Select label="Category" options={options} disabled />);
+      expect(screen.getByLabelText(/Category/)).toBeDisabled();
     });
   });
 
@@ -127,11 +152,18 @@ describe('Form components', () => {
 
     it('shows error message and invalid state', () => {
       render(<Checkbox label="Subscribe" error="You must subscribe" />);
-      expect(screen.getByRole('checkbox')).toHaveAttribute(
-        'aria-invalid',
-        'true'
+      const checkbox = screen.getByRole('checkbox', { name: 'Subscribe' });
+      expect(checkbox).toHaveAttribute('aria-invalid', 'true');
+      expect(checkbox).toHaveAttribute(
+        'aria-describedby',
+        `${checkbox.id}-error`
       );
       expect(screen.getByRole('alert')).toHaveTextContent('You must subscribe');
+    });
+
+    it('is disabled when the disabled prop is set', () => {
+      render(<Checkbox label="Subscribe" disabled />);
+      expect(screen.getByRole('checkbox', { name: 'Subscribe' })).toBeDisabled();
     });
 
     it('is keyboard focusable', () => {
@@ -143,14 +175,44 @@ describe('Form components', () => {
   });
 
   describe('FormField', () => {
-    it('wraps custom controls with label and error', () => {
+    it('associates the label and helper with a custom control', () => {
+      render(
+        <FormField
+          id="custom"
+          label="Custom"
+          helperText="Helpful hint"
+        >
+          <input id="custom" />
+        </FormField>
+      );
+      const input = screen.getByLabelText('Custom');
+      expect(input).toHaveAttribute('aria-describedby', 'custom-helper');
+      expect(screen.getByText('Helpful hint')).toHaveAttribute(
+        'id',
+        'custom-helper'
+      );
+    });
+
+    it('associates the error with a custom control', () => {
       render(
         <FormField id="custom" label="Custom" error="Invalid">
           <input id="custom" />
         </FormField>
       );
-      expect(screen.getByText('Custom')).toBeInTheDocument();
+
+      const input = screen.getByLabelText('Custom');
+      expect(input).toHaveAttribute('aria-describedby', 'custom-error');
       expect(screen.getByRole('alert')).toHaveTextContent('Invalid');
+    });
+
+    it('preserves disabled state on a custom control', () => {
+      render(
+        <FormField id="custom" label="Custom">
+          <input id="custom" disabled />
+        </FormField>
+      );
+
+      expect(screen.getByLabelText('Custom')).toBeDisabled();
     });
   });
 });
