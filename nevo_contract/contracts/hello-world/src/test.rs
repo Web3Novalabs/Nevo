@@ -4,7 +4,7 @@ use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Events, Ledger, MockAuth, MockAuthInvoke},
     token::StellarAssetClient,
-    Address, BytesN, Env, IntoVal, String,
+    Address, BytesN, Env, IntoVal, String, Val,
 };
 
 fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
@@ -834,9 +834,9 @@ fn test_set_creation_fee_non_admin_fails() {
     client.set_creation_fee(&non_admin, &100_000i128);
 }
 
-// (5) Fee update emits a "creation_fee_updated" event.
+// (5) Fee update emits exactly one event, on the canonical `fee_upd` topic.
 #[test]
-fn test_set_creation_fee_emits_event() {
+fn test_set_creation_fee_emits_exactly_one_canonical_event() {
     let env = Env::default();
     env.mock_all_auths();
     let contract_id = env.register(Contract, ());
@@ -848,11 +848,20 @@ fn test_set_creation_fee_emits_event() {
     let new_fee: i128 = 250_000;
     client.set_creation_fee(&admin, &new_fee);
 
-    // Verify the event was emitted with the correct topic and data.
-    let events = env.events().all();
-    assert!(
-        !events.events().is_empty(),
-        "Expected at least one event after set_creation_fee"
+    // Exactly one event, on the canonical topic, carrying the new fee value.
+    // The retired `creation_fee_updated` duplicate would make this compare fail.
+    let expected: Vec<(Address, Vec<Val>, Val)> = soroban_sdk::vec![
+        &env,
+        (
+            contract_id.clone(),
+            soroban_sdk::vec![&env, FEE_UPDATED.into_val(&env)],
+            new_fee.into_val(&env),
+        ),
+    ];
+    assert_eq!(
+        env.events().all().filter_by_contract(&contract_id),
+        expected,
+        "set_creation_fee must publish exactly one fee_upd event"
     );
 }
 

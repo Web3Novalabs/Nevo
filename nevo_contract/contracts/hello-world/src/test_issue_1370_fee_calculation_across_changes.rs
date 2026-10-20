@@ -178,7 +178,7 @@ fn test_get_creation_fee_reflects_latest_value_mid_flow() {
     assert_eq!(client.get_creation_fee(), 900_000i128);
 }
 
-/// `set_creation_fee` emits the `creation_fee_updated` event carrying the
+/// `set_creation_fee` emits the canonical `fee_upd` event carrying the
 /// exact new fee value.
 #[test]
 fn test_fee_change_event_carries_new_fee_value() {
@@ -196,7 +196,7 @@ fn test_fee_change_event_carries_new_fee_value() {
     let events = env.events().all();
     let event = events.last().unwrap();
     let topic_sym: Symbol = event.1.get(0).unwrap().try_into_val(&env).unwrap();
-    assert_eq!(topic_sym, Symbol::new(&env, "creation_fee_updated"));
+    assert_eq!(topic_sym, Symbol::new(&env, "fee_upd"));
     let emitted_fee: i128 = event.2.try_into_val(&env).unwrap();
     assert_eq!(emitted_fee, new_fee);
 }
