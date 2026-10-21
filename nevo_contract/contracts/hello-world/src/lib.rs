@@ -836,6 +836,15 @@ impl Contract {
             .unwrap_or(0)
     }
 
+    /// Get the number of applications submitted to a pool.
+    pub fn get_application_count(env: Env, pool_id: u32) -> u32 {
+        let count_key = (Symbol::new(&env, APPLICATION_COUNT_PREFIX), pool_id);
+        env.storage()
+            .persistent()
+            .get::<_, u32>(&count_key)
+            .unwrap_or(0)
+    }
+
     /// Student applies to a school-linked pool.
     ///
     /// Records a student's application to a pool. The pool must be in Active state
