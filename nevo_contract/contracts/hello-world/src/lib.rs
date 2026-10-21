@@ -1369,3 +1369,4 @@ impl Contract {
 mod test;
 mod test_issues;
 mod test_register_school;
+mod test_issue_1455;
