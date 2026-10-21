@@ -7,6 +7,10 @@ beforeEach(() => {
   useThemeStore.setState({ theme: 'light' });
 });
 
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 describe('themeStore', () => {
   describe('setTheme', () => {
     it('sets theme to dark in state', () => {
@@ -33,6 +37,16 @@ describe('themeStore', () => {
     it('persists light theme to localStorage', () => {
       useThemeStore.getState().setTheme('light');
       expect(localStorage.getItem('nevo-theme')).toBe('light');
+    });
+
+    it('does not throw and still updates state and class when localStorage.setItem throws', () => {
+      jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+
+      expect(() => useThemeStore.getState().setTheme('dark')).not.toThrow();
+      expect(useThemeStore.getState().theme).toBe('dark');
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
     });
   });
 
@@ -66,6 +80,17 @@ describe('themeStore', () => {
       useThemeStore.setState({ theme: 'light' });
       useThemeStore.getState().toggleTheme();
       expect(localStorage.getItem('nevo-theme')).toBe('dark');
+    });
+
+    it('does not throw and still flips state and class when localStorage.setItem throws', () => {
+      jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+
+      useThemeStore.setState({ theme: 'light' });
+      expect(() => useThemeStore.getState().toggleTheme()).not.toThrow();
+      expect(useThemeStore.getState().theme).toBe('dark');
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
     });
   });
 });

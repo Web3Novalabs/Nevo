@@ -1,0 +1,262 @@
+#![cfg(test)]
+
+use super::*;
+use soroban_sdk::{
+    symbol_short,
+    testutils::{Address as _, Events, Ledger},
+    token::StellarAssetClient,
+    Address, Env, String, Symbol, TryIntoVal,
+};
+
+fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
+    let admin = Address::generate(env);
+    let token = env.register_stellar_asset_contract_v2(admin.clone());
+    let sac = StellarAssetClient::new(env, &token.address());
+    sac.mint(recipient, &amount);
+    token.address()
+}
+
+// ============= ISSUE #1300: INTEGRATION TESTS FOR EMERGENCY WITHDRAWAL FLOW =============
+
+/// Test 1: Admin requests emergency withdrawal, grace period enforced, successful execution
+#[test]
+fn test_emergency_withdrawal_complete_flow() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let withdrawal_amount = 500_000_000i128;
+    let token = create_token(&env, withdrawal_amount, &contract_id);
+
+    client.set_admin(&admin);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Emergency Pool"),
+        &String::from_str(&env, "Testing emergency withdrawal"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    client.request_emergency_withdraw(&admin, &pool_id, &token, &withdrawal_amount);
+
+    let request_event = env.events().all().last().unwrap();
+    let request_topic: Symbol = request_event.1.get(0).unwrap().try_into_val(&env).unwrap();
+    let request_pool: u32 = request_event.1.get(1).unwrap().try_into_val(&env).unwrap();
+    let (event_token, event_amount, event_admin, _) = request_event.2
+        .try_into_val::<(Address, i128, Address, u64)>(&env)
+        .unwrap();
+    assert_eq!(request_topic, symbol_short!("emerg_req"));
+    assert_eq!(request_pool, pool_id);
+    assert_eq!(event_token, token);
+    assert_eq!(event_amount, withdrawal_amount);
+    assert_eq!(event_admin, admin);
+
+    let withdrawal_key = (Symbol::new(&env, "emergency_withdraw"), pool_id);
+    let has_request = env.as_contract(&contract_id, || {
+        env.storage().persistent().has(&withdrawal_key)
+    });
+    assert!(has_request);
+
+    // Advance past grace period
+    env.ledger().set_timestamp(GRACE_PERIOD_SECS + 1);
+
+    client.execute_emergency_withdraw(&pool_id);
+
+    let execute_event = env.events().all().last().unwrap();
+    let execute_topic: Symbol = execute_event.1.get(0).unwrap().try_into_val(&env).unwrap();
+    let execute_pool: u32 = execute_event.1.get(1).unwrap().try_into_val(&env).unwrap();
+    let (executed_token, executed_amount, executed_admin) = execute_event.2
+        .try_into_val::<(Address, i128, Address)>(&env)
+        .unwrap();
+    assert_eq!(execute_topic, symbol_short!("emerg_exe"));
+    assert_eq!(execute_pool, pool_id);
+    assert_eq!(executed_token, token);
+    assert_eq!(executed_amount, withdrawal_amount);
+    assert_eq!(executed_admin, admin);
+
+    let has_request_after = env.as_contract(&contract_id, || {
+        env.storage().persistent().has(&withdrawal_key)
+    });
+    assert!(!has_request_after);
+}
+
+/// Test 2: Grace period is strictly enforced
+#[test]
+#[should_panic(expected = "Error(Contract, #21)")]
+fn test_emergency_withdrawal_grace_period_enforced() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let token = create_token(&env, 500_000_000i128, &contract_id);
+
+    client.set_admin(&admin);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Grace Period Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    client.request_emergency_withdraw(&admin, &pool_id, &token, &500_000_000i128);
+
+    env.ledger().set_timestamp(GRACE_PERIOD_SECS - 1);
+
+    client.execute_emergency_withdraw(&pool_id);
+}
+
+/// Test 3: Token balances are updated correctly after emergency withdrawal
+#[test]
+fn test_emergency_withdrawal_token_balances_correct() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let withdrawal_amount = 300_000_000i128;
+    let token = create_token(&env, withdrawal_amount, &contract_id);
+
+    client.set_admin(&admin);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Balance Check Pool"),
+        &String::from_str(&env, "Test balances"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    client.request_emergency_withdraw(&admin, &pool_id, &token, &withdrawal_amount);
+
+    env.ledger().set_timestamp(GRACE_PERIOD_SECS + 1);
+
+    client.execute_emergency_withdraw(&pool_id);
+
+    // Contract should have 0 tokens
+    let token_client = soroban_sdk::token::Client::new(&env, &token);
+    let contract_balance = token_client.balance(&contract_id);
+    assert_eq!(contract_balance, 0i128);
+
+    // Admin should have received the tokens
+    let admin_balance = token_client.balance(&admin);
+    assert_eq!(admin_balance, withdrawal_amount);
+}
+
+/// Test 4: Emergency withdrawal for different amounts
+#[test]
+fn test_emergency_withdrawal_various_amounts() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let token = create_token(&env, 1_000_000_000i128, &contract_id);
+
+    client.set_admin(&admin);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Amounts Pool"),
+        &String::from_str(&env, "Test different amounts"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    // Test with small amount
+    client.request_emergency_withdraw(&admin, &pool_id, &token, &1i128);
+    env.ledger().set_timestamp(GRACE_PERIOD_SECS + 1);
+    client.execute_emergency_withdraw(&pool_id);
+
+    // Request again with larger amount
+    client.request_emergency_withdraw(&admin, &pool_id, &token, &999_999_999i128);
+    env.ledger().set_timestamp(GRACE_PERIOD_SECS * 2 + 1);
+    client.execute_emergency_withdraw(&pool_id);
+}
+
+/// Test 5: Emergency withdrawal with non-zero starting timestamp
+#[test]
+fn test_emergency_withdrawal_nonzero_start_timestamp() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let token = create_token(&env, 500_000_000i128, &contract_id);
+
+    client.set_admin(&admin);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "NonZero Start Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    env.ledger().set_timestamp(1_000_000);
+    client.request_emergency_withdraw(&admin, &pool_id, &token, &500_000_000i128);
+
+    env.ledger().set_timestamp(1_000_000 + GRACE_PERIOD_SECS + 1);
+
+    client.execute_emergency_withdraw(&pool_id);
+
+    let withdrawal_key = (Symbol::new(&env, "emergency_withdraw"), pool_id);
+    let has_request = env.as_contract(&contract_id, || {
+        env.storage().persistent().has(&withdrawal_key)
+    });
+    assert!(!has_request);
+}
+
+/// Test 6: Multiple pools can have independent emergency withdrawals
+#[test]
+fn test_emergency_withdrawal_multiple_pools_independent() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let token = create_token(&env, 1_000_000_000i128, &contract_id);
+
+    client.set_admin(&admin);
+
+    let pool1 = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Pool 1"),
+        &String::from_str(&env, "First"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+    let pool2 = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Pool 2"),
+        &String::from_str(&env, "Second"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    client.request_emergency_withdraw(&admin, &pool1, &token, &100_000_000i128);
+    client.request_emergency_withdraw(&admin, &pool2, &token, &200_000_000i128);
+
+    env.ledger().set_timestamp(GRACE_PERIOD_SECS + 1);
+
+    client.execute_emergency_withdraw(&pool1);
+    client.execute_emergency_withdraw(&pool2);
+
+    let key1 = (Symbol::new(&env, "emergency_withdraw"), pool1);
+    let key2 = (Symbol::new(&env, "emergency_withdraw"), pool2);
+    let has1 = env.as_contract(&contract_id, || env.storage().persistent().has(&key1));
+    let has2 = env.as_contract(&contract_id, || env.storage().persistent().has(&key2));
+    assert!(!has1 && !has2);
+}

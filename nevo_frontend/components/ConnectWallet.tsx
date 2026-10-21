@@ -125,6 +125,7 @@ export default function ConnectWallet() {
     return (
       <div className="flex flex-col items-end gap-1">
         <button
+          type="button"
           onClick={handleConnect}
           disabled={verifying}
           aria-busy={verifying}
@@ -151,6 +152,7 @@ export default function ConnectWallet() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        type="button"
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
@@ -184,6 +186,7 @@ export default function ConnectWallet() {
             </div>
           )}
           <button
+            type="button"
             onClick={() => {
               disconnectWallet();
               setOpen(false);

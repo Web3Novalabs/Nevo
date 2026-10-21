@@ -105,4 +105,48 @@ describe('Toast', () => {
     unmount();
     expect(() => toast('After unmount')).not.toThrow();
   });
+
+  it('pauses auto-dismiss timer on hover and resumes on mouse leave', async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    render(<ToastContainer />);
+    act(() => {
+      toast('Hover test');
+    });
+    const toastEl = screen.getByRole('status');
+    await user.hover(toastEl);
+
+    act(() => {
+      jest.advanceTimersByTime(4000);
+    });
+    expect(screen.getByText('Hover test')).toBeInTheDocument();
+
+    await user.unhover(toastEl);
+    act(() => {
+      jest.advanceTimersByTime(3000);
+    });
+    expect(screen.queryByText('Hover test')).not.toBeInTheDocument();
+  });
+
+  it('pauses auto-dismiss timer on focus and resumes on blur', async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    render(<ToastContainer />);
+    act(() => {
+      toast('Focus test');
+    });
+    const dismissBtn = screen.getByLabelText('Dismiss notification');
+    await user.tab();
+    expect(dismissBtn).toHaveFocus();
+
+    act(() => {
+      jest.advanceTimersByTime(4000);
+    });
+    expect(screen.getByText('Focus test')).toBeInTheDocument();
+
+    dismissBtn.blur();
+    act(() => {
+      jest.advanceTimersByTime(3000);
+    });
+    expect(screen.queryByText('Focus test')).not.toBeInTheDocument();
+  });
 });
+

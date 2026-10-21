@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { ScheduleModule, SchedulerRegistry } from '@nestjs/schedule';
+import { FindOperator, FindOptionsWhere, LessThan, Repository } from 'typeorm';
 import { NonceService } from './nonce.service';
 import { Nonce } from './nonce.entity';
 
@@ -194,6 +195,154 @@ describe('NonceService', () => {
       expect((deleteCall as FindOptionsWhere<Nonce>).expiresAt).toEqual(
         expect.any(Date),
       );
+    });
+
+    it('should target expiresAt with a LessThan operator, not a bare Date exact-match', async () => {
+      jest.spyOn(repository, 'delete').mockResolvedValue({
+        affected: 3,
+      } as any);
+
+      await service.deleteExpiredNonces();
+
+      const deleteCall = jest.spyOn(repository, 'delete').mock.calls[0][0] as
+        FindOptionsWhere<Nonce>;
+      const expiresAtCriteria = deleteCall.expiresAt;
+
+      // Must be a TypeORM FindOperator, not a bare Date (which would be an
+      // exact-timestamp match and never delete anything).
+      expect(expiresAtCriteria).toBeInstanceOf(FindOperator);
+      expect((expiresAtCriteria as FindOperator<Date>).type).toBe('lessThan');
+      expect((expiresAtCriteria as FindOperator<Date>).value).toEqual(
+        expect.any(Date),
+      );
+    });
+
+    it('should only remove nonces whose expiresAt is in the past', async () => {
+      const now = Date.now();
+      const pastNonce = {
+        ...mockNonce,
+        expiresAt: new Date(now - 60 * 1000),
+      };
+      const futureNonce = {
+        ...mockNonce,
+        expiresAt: new Date(now + 60 * 1000),
+      };
+
+      jest.spyOn(repository, 'delete').mockResolvedValue({
+        affected: 1,
+      } as any);
+
+      await service.deleteExpiredNonces();
+
+      const deleteCall = jest.spyOn(repository, 'delete').mock.calls[0][0] as
+        FindOptionsWhere<Nonce>;
+      const expiresAtCriteria = deleteCall.expiresAt as FindOperator<Date>;
+
+      expect(expiresAtCriteria.type).toBe('lessThan');
+      // The cutoff is "now": past-expiry nonces match, future ones do not.
+      expect(expiresAtCriteria.value.getTime()).toBeLessThanOrEqual(
+        Date.now(),
+      );
+      expect(expiresAtCriteria.value.getTime()).toBeGreaterThanOrEqual(
+        now - 1000,
+      );
+      expect(expiresAtCriteria.value.getTime()).toBeGreaterThan(
+        pastNonce.expiresAt.getTime(),
+      );
+      expect(expiresAtCriteria.value.getTime()).toBeLessThan(
+        futureNonce.expiresAt.getTime(),
+      );
+    });
+
+    it('should retain used nonces that have not yet expired', async () => {
+      const usedUnexpiredNonce = {
+        ...mockNonce,
+        used: true,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      };
+
+      jest.spyOn(repository, 'delete').mockResolvedValue({
+        affected: 0,
+      } as any);
+
+      await service.deleteExpiredNonces();
+
+      const deleteCall = jest.spyOn(repository, 'delete').mock.calls[0][0] as
+        FindOptionsWhere<Nonce>;
+      const expiresAtCriteria = deleteCall.expiresAt as FindOperator<Date>;
+
+      // The delete criteria only filters on expiry, so an unexpired used
+      // nonce is not matched and therefore retained.
+      expect(expiresAtCriteria.type).toBe('lessThan');
+      expect(expiresAtCriteria.value.getTime()).toBeLessThan(
+        usedUnexpiredNonce.expiresAt.getTime(),
+      );
+      expect(deleteCall).not.toHaveProperty('used');
+    });
+  });
+
+  describe('cleanupExpiredNonces cron job', () => {
+    it('should register an hourly cron job that calls deleteExpiredNonces', async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        imports: [ScheduleModule.forRoot()],
+        providers: [
+          NonceService,
+          {
+            provide: getRepositoryToken(Nonce),
+            useValue: {
+              save: jest.fn(),
+              findOne: jest.fn(),
+              update: jest.fn(),
+              delete: jest.fn(),
+              remove: jest.fn(),
+            },
+          },
+        ],
+      }).compile();
+
+      const app = module.createNestApplication();
+      await app.init();
+
+      const scheduledService = module.get(NonceService);
+      const schedulerRegistry = module.get(SchedulerRegistry);
+
+      expect(schedulerRegistry.getCronJobs().has('cleanupExpiredNonces')).toBe(true);
+
+      const deleteSpy = jest
+        .spyOn(scheduledService, 'deleteExpiredNonces')
+        .mockResolvedValue(undefined);
+
+      await scheduledService.cleanupExpiredNonces();
+
+      expect(deleteSpy).toHaveBeenCalled();
+
+      await app.close();
+    });
+
+    it('should delegate to deleteExpiredNonces which uses LessThan(new Date())', async () => {
+      const deleteSpy = jest
+        .spyOn(service, 'deleteExpiredNonces')
+        .mockResolvedValue(undefined);
+
+      await service.cleanupExpiredNonces();
+
+      expect(deleteSpy).toHaveBeenCalledTimes(1);
+
+      deleteSpy.mockRestore();
+
+      jest.spyOn(repository, 'delete').mockResolvedValue({
+        affected: 2,
+      } as any);
+
+      await service.cleanupExpiredNonces();
+
+      const deleteCall = jest.spyOn(repository, 'delete').mock.calls[0][0] as
+        FindOptionsWhere<Nonce>;
+      const expiresAtCriteria = deleteCall.expiresAt as FindOperator<Date>;
+
+      expect(expiresAtCriteria).toBeInstanceOf(FindOperator);
+      expect(expiresAtCriteria.type).toBe('lessThan');
+      expect(expiresAtCriteria.value).toEqual(expect.any(Date));
     });
   });
 });

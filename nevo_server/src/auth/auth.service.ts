@@ -30,6 +30,11 @@ const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
+  /**
+   * @deprecated DEAD CODE / UNREACHABLE
+   * In-memory challenge store. Populated solely by `generateChallenge()`.
+   * Never queried or referenced during authentication verification.
+   */
   private readonly challenges = new Map<string, ChallengeEntry>();
 
   constructor(
@@ -40,6 +45,30 @@ export class AuthService {
     setInterval(() => this.cleanupExpiredChallenges(), CHALLENGE_TTL_MS);
   }
 
+  /**
+   * @deprecated DEAD CODE / UNREACHABLE
+   *
+   * AUDIT (Issue #1490): Intentional Dead Code vs Wiring Bug
+   *
+   * Conclusion: INTENTIONAL DEAD CODE (legacy prototype remnant), NOT a wiring bug.
+   *
+   * Analysis:
+   * 1. Unreachable entry point:
+   *    `AuthController.challenge()` delegates nonce generation directly to
+   *    `NonceService.generateNonce(publicKey)`, storing nonces in the database (`nonce.entity.ts`).
+   *    `AuthController` never calls `AuthService.generateChallenge()`.
+   *
+   * 2. Verification disconnect:
+   *    `AuthService.verify()` validates incoming nonces via `NonceService.findAndValidateNonce(dto.message)`.
+   *    The in-memory `challenges` Map populated by this method is NEVER read by `verify()`.
+   *    Any nonce generated through this method will inevitably fail `verify()`.
+   *
+   * 3. Intentional migration:
+   *    The platform migrated authentication from an in-memory prototype to persistent DB-backed nonces
+   *    via `NonceService` to support horizontal scaling, restarts, replay prevention, and scheduled cleanup.
+   *    `generateChallenge()` and the `challenges` Map are obsolete artifacts left over from before
+   *    that migration and can be safely removed.
+   */
   generateChallenge(publicKey: string): ChallengeResult {
     if (!publicKey) {
       throw new BadRequestException('publicKey is required');

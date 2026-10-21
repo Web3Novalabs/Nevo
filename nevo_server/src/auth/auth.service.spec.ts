@@ -1,6 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException } from '@nestjs/common';
+
+jest.mock('@nestjs/schedule', () => ({
+  Cron: () => () => {},
+  CronExpression: {},
+  ScheduleModule: {},
+  SchedulerRegistry: jest.fn(),
+}));
+
 import { AuthService } from './auth.service';
 import { VerifyAuthDto } from './dto/verify-auth.dto';
 import { UsersService } from '../users/users.service';
@@ -505,4 +513,86 @@ describe('AuthService', () => {
       expect(result.user).toEqual(newUser);
     });
   });
+
+  describe('Dead/unreachable code proof - generateChallenge & challenges Map (Issue #1490)', () => {
+    it('populates internal challenges Map when generateChallenge is called', () => {
+      const keypair = StellarSdk.Keypair.random();
+      const result = service.generateChallenge(keypair.publicKey());
+
+      expect(result).toBeDefined();
+      expect(result.nonce).toBeDefined();
+      expect(typeof result.nonce).toBe('string');
+      expect(result.expiresAt).toBeGreaterThan(Date.now());
+
+      const challengesMap = (service as any).challenges as Map<string, any>;
+      expect(challengesMap.has(keypair.publicKey())).toBe(true);
+      expect(challengesMap.get(keypair.publicKey())).toEqual({
+        nonce: result.nonce,
+        expiresAt: result.expiresAt,
+      });
+    });
+
+    it('proves the challenges Map populated by generateChallenge is NEVER read by verify()', async () => {
+      const keypair = StellarSdk.Keypair.random();
+
+      // Step 1: Populate challenges Map via generateChallenge
+      const challenge = service.generateChallenge(keypair.publicKey());
+      const signature = keypair
+        .sign(Buffer.from(challenge.nonce))
+        .toString('hex');
+
+      const dto: VerifyAuthDto = {
+        publicKey: keypair.publicKey(),
+        signature,
+        message: challenge.nonce,
+      };
+
+      const challengesMap = (service as any).challenges as Map<string, any>;
+      const getSpy = jest.spyOn(challengesMap, 'get');
+      const hasSpy = jest.spyOn(challengesMap, 'has');
+
+      // Step 2: Signature is valid, but NonceService has no record of this nonce
+      // (because generateChallenge only saved it to the in-memory Map, never to NonceService/DB).
+      jest.spyOn(service as any, 'verifySignature').mockReturnValue(true);
+      jest.spyOn(nonceService, 'findAndValidateNonce').mockResolvedValue(null);
+
+      // verify() MUST reject despite the challenge being active in `this.challenges`
+      await expect(service.verify(dto)).rejects.toThrow(UnauthorizedException);
+      await expect(service.verify(dto)).rejects.toThrow(
+        'Invalid or expired nonce',
+      );
+
+      // Proves requirement (2): challenges Map is NEVER read (no .get(), no .has()) by verify()
+      expect(getSpy).not.toHaveBeenCalled();
+      expect(hasSpy).not.toHaveBeenCalled();
+
+      // Step 3: Now simulate that NonceService validates the nonce (as in the DB flow)
+      const mockDbNonce: Nonce = {
+        id: 'nonce-uuid-deadcode-audit',
+        nonce: challenge.nonce,
+        publicKey: keypair.publicKey(),
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        used: false,
+      };
+
+      jest
+        .spyOn(nonceService, 'findAndValidateNonce')
+        .mockResolvedValue(mockDbNonce);
+      jest.spyOn(nonceService, 'markNonceAsUsed').mockResolvedValue();
+      jest.spyOn(usersService, 'findOrCreate').mockResolvedValue(mockUser);
+      jest.spyOn(jwtService, 'sign').mockReturnValue('jwt-token');
+
+      const authResult = await service.verify(dto);
+
+      expect(authResult.accessToken).toBe('jwt-token');
+      // Proves: even during successful verification, challenges Map is still NEVER read
+      expect(getSpy).not.toHaveBeenCalled();
+      expect(hasSpy).not.toHaveBeenCalled();
+
+      // Proves: the entry in challenges Map was untouched and unconsumed
+      expect(challengesMap.has(keypair.publicKey())).toBe(true);
+    });
+  });
 });
+

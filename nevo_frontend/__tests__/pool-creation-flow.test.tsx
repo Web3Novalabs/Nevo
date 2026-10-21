@@ -290,6 +290,145 @@ describe('Pool creation form flow', () => {
     });
   });
 
+  // ── Issue #1552: page-level coverage beyond unit validation ─────────────
+
+  it('runs the full submission path and redirects to /pools/<id> on success', async () => {
+    const user = userEvent.setup();
+    render(<CreatePoolPage />);
+
+    // Step 1
+    await user.type(screen.getByLabelText(/^Title/), 'Redirect Pool');
+    await user.type(
+      screen.getByLabelText(/^Description/),
+      'Verifying the success redirect after a full page-level submission.'
+    );
+    await user.selectOptions(screen.getByLabelText(/^Category/), 'Technology');
+    await user.click(screen.getByRole('button', { name: /Next: Goal/i }));
+
+    // Step 2
+    await user.type(screen.getByPlaceholderText('e.g. 5000'), '750');
+    await user.click(screen.getByRole('radio', { name: /30 days/i }));
+    await user.click(screen.getByRole('button', { name: /Preview Pool/i }));
+
+    // Step 3: submit
+    await user.click(screen.getByRole('button', { name: /Create Pool/i }));
+
+    // Submission path: unsigned XDR built, signed, submitted
+    await waitFor(() => {
+      expect(mockBuildCreatePoolTransaction).toHaveBeenCalled();
+      expect(mockSignTransaction).toHaveBeenCalledWith('AAAA...mocked-xdr...', {
+        networkPassphrase: expect.any(String),
+      });
+      expect(mockSubmitSignedXdr).toHaveBeenCalledWith('AAAA...signed-xdr...');
+    });
+
+    // Pool metadata persisted with the expected payload
+    await waitFor(() => {
+      expect(mockCreatePool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contractPoolId: '2',
+          creatorWallet: mockWalletState.publicKey,
+          title: 'Redirect Pool',
+          category: 'Technology',
+        })
+      );
+    });
+
+    // Success redirect to the new pool's page
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/pools/uuid-new-pool');
+    });
+  });
+
+  it('surfaces an inline error and does not crash when the server rejects createPool', async () => {
+    mockCreatePool.mockRejectedValue(new Error('Server rejected pool'));
+
+    const user = userEvent.setup();
+    render(<CreatePoolPage />);
+
+    await user.type(screen.getByLabelText(/^Title/), 'Server Reject Pool');
+    await user.type(
+      screen.getByLabelText(/^Description/),
+      'Testing inline error rendering when the server rejects the request.'
+    );
+    await user.selectOptions(screen.getByLabelText(/^Category/), 'Health');
+    await user.click(screen.getByRole('button', { name: /Next: Goal/i }));
+
+    await user.type(screen.getByPlaceholderText('e.g. 5000'), '400');
+    await user.click(screen.getByRole('radio', { name: /7 days/i }));
+    await user.click(screen.getByRole('button', { name: /Preview Pool/i }));
+
+    await user.click(screen.getByRole('button', { name: /Create Pool/i }));
+
+    // Inline error is rendered (alert role or the error text)
+    await waitFor(() => {
+      const alert = screen.queryByRole('alert');
+      if (alert) {
+        expect(alert).toHaveTextContent('Server rejected pool');
+      } else {
+        expect(screen.getByText('Server rejected pool')).toBeInTheDocument();
+      }
+    });
+
+    // Component did not crash: the form is still interactive
+    expect(screen.getByRole('button', { name: /Create Pool/i })).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining('/pools/'));
+  });
+
+  it('surfaces an inline error and does not crash when submitSignedXdr rejects', async () => {
+    mockSubmitSignedXdr.mockRejectedValue(new Error('Contract rejected tx'));
+
+    const user = userEvent.setup();
+    render(<CreatePoolPage />);
+
+    await user.type(screen.getByLabelText(/^Title/), 'Contract Reject Pool');
+    await user.type(
+      screen.getByLabelText(/^Description/),
+      'Testing inline error rendering when the contract rejects the tx.'
+    );
+    await user.selectOptions(screen.getByLabelText(/^Category/), 'Education');
+    await user.click(screen.getByRole('button', { name: /Next: Goal/i }));
+
+    await user.type(screen.getByPlaceholderText('e.g. 5000'), '250');
+    await user.click(screen.getByRole('radio', { name: /14 days/i }));
+    await user.click(screen.getByRole('button', { name: /Preview Pool/i }));
+
+    await user.click(screen.getByRole('button', { name: /Create Pool/i }));
+
+    await waitFor(() => {
+      const alert = screen.queryByRole('alert');
+      if (alert) {
+        expect(alert).toHaveTextContent('Contract rejected tx');
+      } else {
+        expect(screen.getByText('Contract rejected tx')).toBeInTheDocument();
+      }
+    });
+
+    // Component did not crash and no success redirect happened
+    expect(screen.getByRole('button', { name: /Create Pool/i })).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining('/pools/'));
+  });
+
+  it('blocks submission and attempts no transaction when required fields are empty', async () => {
+    const user = userEvent.setup();
+    render(<CreatePoolPage />);
+
+    // Click through without filling anything
+    await user.click(screen.getByRole('button', { name: /Next: Goal/i }));
+
+    // Validation messages are shown on step 1
+    expect(screen.getByText('Title is required.')).toBeInTheDocument();
+    expect(screen.getByText('Description is required.')).toBeInTheDocument();
+    expect(screen.getByText('Please select a category.')).toBeInTheDocument();
+
+    // No transaction was attempted
+    expect(mockBuildCreatePoolTransaction).not.toHaveBeenCalled();
+    expect(mockSignTransaction).not.toHaveBeenCalled();
+    expect(mockSubmitSignedXdr).not.toHaveBeenCalled();
+    expect(mockCreatePool).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining('/pools/'));
+  });
+
   it('falls back to a local prefix ID when getPoolCount returns -1', async () => {
     mockGetPoolCount.mockResolvedValue(-1);
 

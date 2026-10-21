@@ -1,8 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import {
+  INestApplication,
+  NotFoundException,
+  ValidationPipe,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import request from 'supertest';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtStrategy } from '../auth/jwt.strategy';
+import { JWT_SECRET_FALLBACK } from '../auth/jwt.config';
 import { User } from './user.entity';
 
 const makeUser = (overrides: Partial<User> = {}): User => ({
@@ -175,5 +183,73 @@ describe('UsersController', () => {
       );
       expect(methodMetadata).toBeDefined();
     });
+  });
+});
+
+describe('UsersController (PATCH /users/me validation)', () => {
+  let app: INestApplication;
+  let usersService: { updateDisplayName: jest.Mock };
+
+  const jwtSecret = process.env.JWT_SECRET ?? JWT_SECRET_FALLBACK;
+  const signToken = (publicKey: string) =>
+    new JwtService({ secret: jwtSecret }).sign({ sub: publicKey });
+
+  beforeEach(async () => {
+    usersService = {
+      updateDisplayName: jest.fn().mockResolvedValue(makeUser()),
+    };
+
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      controllers: [UsersController],
+      providers: [
+        { provide: UsersService, useValue: usersService },
+        JwtStrategy,
+      ],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+    jest.clearAllMocks();
+  });
+
+  it('rejects a whitespace-only displayName with 400', async () => {
+    const token = signToken('GABC1234567890');
+
+    await request(app.getHttpServer())
+      .patch('/users/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ displayName: '   ' })
+      .expect(400);
+
+    expect(usersService.updateDisplayName).not.toHaveBeenCalled();
+  });
+
+  it('accepts a valid displayName and forwards the trimmed value', async () => {
+    const token = signToken('GABC1234567890');
+    const user = makeUser({ displayName: 'Bob' });
+    usersService.updateDisplayName.mockResolvedValue(user);
+
+    const res = await request(app.getHttpServer())
+      .patch('/users/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ displayName: '  Bob  ' })
+      .expect(200);
+
+    expect(usersService.updateDisplayName).toHaveBeenCalledWith(
+      'GABC1234567890',
+      'Bob',
+    );
+    expect(res.body).toMatchObject({ displayName: 'Bob' });
   });
 });

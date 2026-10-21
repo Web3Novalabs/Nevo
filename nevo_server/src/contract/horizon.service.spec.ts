@@ -94,5 +94,53 @@ describe('HorizonService', () => {
         HttpException,
       );
     });
+
+    describe('cursor pagination params', () => {
+      const getRequestedUrl = (): URL =>
+        new URL((global.fetch as jest.Mock).mock.calls[0][0]);
+
+      beforeEach(() => {
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ _embedded: { records: [] } }),
+        } as any);
+      });
+
+      it('sends no cursor query param when cursor is omitted', async () => {
+        await service.getTransactions('contract_123');
+
+        expect(getRequestedUrl().searchParams.has('cursor')).toBe(false);
+      });
+
+      it('sends no cursor query param when cursor is an empty string', async () => {
+        await service.getTransactions('contract_123', '');
+
+        expect(getRequestedUrl().searchParams.has('cursor')).toBe(false);
+      });
+
+      it('appends the supplied cursor exactly once', async () => {
+        await service.getTransactions('contract_123', '123456789-1');
+
+        expect(getRequestedUrl().searchParams.getAll('cursor')).toEqual([
+          '123456789-1',
+        ]);
+      });
+
+      it('always sends order=asc without a cursor', async () => {
+        await service.getTransactions('contract_123');
+
+        expect(getRequestedUrl().searchParams.getAll('order')).toEqual([
+          'asc',
+        ]);
+      });
+
+      it('always sends order=asc with a cursor', async () => {
+        await service.getTransactions('contract_123', 'cursor_xyz');
+
+        expect(getRequestedUrl().searchParams.getAll('order')).toEqual([
+          'asc',
+        ]);
+      });
+    });
   });
 });

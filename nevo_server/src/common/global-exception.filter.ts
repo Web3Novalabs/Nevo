@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { getRequestId } from './request-context';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -17,8 +18,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
+    // Fallback to header or 'unknown' if getRequestId() returns undefined
+    const requestId =
+      getRequestId() ??
+      (request.headers['x-request-id'] as string) ??
+      'unknown';
+    const requestId = getRequestId() || (request.headers['x-request-id'] as string) || 'unknown';
+
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message: string | string[] = 'Internal server error';
+    let message: string | string[] = 'An internal error occurred';
     let error = 'Internal Server Error';
 
     if (exception instanceof HttpException) {
@@ -33,14 +41,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         error = resObj.error ?? exception.name;
       }
     } else if (exception instanceof Error) {
+      // Log full error details server-side for debugging
       this.logger.error(
-        `Unhandled exception: ${exception.message}`,
+        `[${requestId}] Unhandled exception: ${exception.message}`,
         exception.stack,
       );
-      message = exception.message || 'Internal server error';
-      error = exception.name || 'Internal Server Error';
+      // Mask sensitive error details from client response
+      message = 'An internal error occurred';
+      error = 'Internal Server Error';
     } else {
-      this.logger.error(`Unhandled exception: ${String(exception)}`);
+      this.logger.error(`[${requestId}] Unhandled exception: ${String(exception)}`);
+      message = 'An internal error occurred';
+      error = 'Internal Server Error';
     }
 
     response.status(statusCode).json({
@@ -49,6 +61,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       error,
       timestamp: new Date().toISOString(),
       path: request.url,
+      requestId,
     });
   }
 }

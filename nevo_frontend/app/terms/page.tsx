@@ -12,7 +12,9 @@ export default function TermsPage() {
         </p>
       </div>
 
-      <p className="mb-6 text-sm text-[var(--color-text-muted)]">Last updated: {LAST_UPDATED}</p>
+      <p className="mb-6 text-sm text-[var(--color-text-muted)]">
+        Last updated: {LAST_UPDATED}
+      </p>
 
       <section className="prose max-w-none">
         <h2>1. Acceptance of Terms</h2>
@@ -42,7 +44,7 @@ export default function TermsPage() {
         <h2>5. Contact</h2>
         <p>
           Questions about these terms can be directed to our{' '}
-          <Link href="/contact">support</Link>.
+          <Link href="/help">support</Link>.
         </p>
       </section>
     </main>

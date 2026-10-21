@@ -1,4 +1,5 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { Matches } from 'class-validator';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { ContractService } from '../../contract/contract.service';
@@ -107,7 +108,25 @@ describe('DonatePoolDto (POST /pools/:id/donate body contract)', () => {
     expect(buildDonateTransaction).not.toHaveBeenCalled();
   });
 
-  it('rejects an empty amount string with 400', async () => {
+  it('3. rejects zero amount with 400 (Out-of-range)', async () => {
+    await request(app.getHttpServer())
+      .post(`/pools/${POOL_ID}/donate`)
+      .send({ amount: '0' })
+      .expect(400);
+
+    expect(buildDonateTransaction).not.toHaveBeenCalled();
+  });
+
+  it('3. rejects negative amount with 400 (Out-of-range)', async () => {
+    await request(app.getHttpServer())
+      .post(`/pools/${POOL_ID}/donate`)
+      .send({ amount: '-10' })
+      .expect(400);
+
+    expect(buildDonateTransaction).not.toHaveBeenCalled();
+  });
+
+  it('1. rejects an empty amount string with 400 (Null/empty parameters handled)', async () => {
     await request(app.getHttpServer())
       .post(`/pools/${POOL_ID}/donate`)
       .send({ amount: '' })
@@ -116,7 +135,7 @@ describe('DonatePoolDto (POST /pools/:id/donate body contract)', () => {
     expect(buildDonateTransaction).not.toHaveBeenCalled();
   });
 
-  it('rejects unknown extra fields under forbidNonWhitelisted with 400', async () => {
+  it('5. rejects unknown extra fields under forbidNonWhitelisted with 400 (Parameter combinations validated)', async () => {
     await request(app.getHttpServer())
       .post(`/pools/${POOL_ID}/donate`)
       .send({ amount: '10000000', extra: 'field' })

@@ -22,7 +22,7 @@ export class Donation {
   @Column({ type: 'varchar', length: 255 })
   amount: string;
 
-  @Column({ type: 'varchar', length: 10 })
+  @Column({ type: 'varchar', length: 12 })
   asset: string;
 
   @Index({ unique: true })

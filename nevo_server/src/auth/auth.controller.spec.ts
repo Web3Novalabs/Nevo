@@ -1,12 +1,169 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import request from 'supertest';
 import * as StellarSdk from '@stellar/stellar-sdk';
+
+jest.mock('@nestjs/schedule', () => ({
+  Cron: () => () => {},
+  CronExpression: {},
+  ScheduleModule: {},
+  SchedulerRegistry: jest.fn(),
+}));
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { NonceService } from './nonce.service';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
+
+describe('AuthController throttle limits', () => {
+  let app: INestApplication;
+  let nonceService: NonceService;
+  let authService: AuthService;
+
+  const keypair = StellarSdk.Keypair.random();
+  const publicKey = keypair.publicKey();
+
+  beforeEach(async () => {
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      imports: [
+        ThrottlerModule.forRoot([
+          {
+            ttl: 60000,
+            limit: 10,
+          },
+        ]),
+      ],
+      controllers: [AuthController],
+      providers: [
+        AuthService,
+        {
+          provide: APP_GUARD,
+          useClass: ThrottlerGuard,
+        },
+        {
+          provide: NonceService,
+          useValue: {
+            generateNonce: jest.fn().mockResolvedValue('nonce-123'),
+            findAndValidateNonce: jest.fn(),
+            markNonceAsUsed: jest.fn(),
+          },
+        },
+        {
+          provide: UsersService,
+          useValue: {
+            findOrCreate: jest.fn().mockResolvedValue({
+              id: 'user-id',
+              publicKey,
+              displayName: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }),
+          },
+        },
+        {
+          provide: JwtService,
+          useValue: {
+            sign: jest.fn().mockReturnValue('access-token'),
+          },
+        },
+      ],
+    }).compile();
+
+    nonceService = moduleRef.get<NonceService>(NonceService);
+    authService = moduleRef.get<AuthService>(AuthService);
+
+    app = moduleRef.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+    jest.clearAllMocks();
+  });
+
+  it('GET /auth/challenge rejects the 11th request within 60s (limit 10)', async () => {
+    const ip = '10.0.0.1';
+    for (let i = 0; i < 10; i++) {
+      await request(app.getHttpServer())
+        .get('/auth/challenge')
+        .query({ publicKey })
+        .set('X-Forwarded-For', ip)
+        .expect(200);
+    }
+
+    await request(app.getHttpServer())
+      .get('/auth/challenge')
+      .query({ publicKey })
+      .set('X-Forwarded-For', ip)
+      .expect(429);
+  });
+
+  it('POST /auth/verify rejects the 6th request within 60s (limit 5)', async () => {
+    const ip = '10.0.0.2';
+    const nonce = 'test-nonce';
+    const signature = keypair.sign(Buffer.from(nonce)).toString('hex');
+
+    jest.spyOn(authService as any, 'verifySignature').mockReturnValue(true);
+    jest.spyOn(nonceService, 'findAndValidateNonce').mockResolvedValue({
+      id: 'nonce-id',
+      nonce,
+      publicKey,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 10000),
+      used: false,
+    });
+    jest.spyOn(nonceService, 'markNonceAsUsed').mockResolvedValue();
+
+    for (let i = 0; i < 5; i++) {
+      await request(app.getHttpServer())
+        .post('/auth/verify')
+        .set('X-Forwarded-For', ip)
+        .send({ publicKey, signature, message: nonce })
+        .expect(201);
+    }
+
+    await request(app.getHttpServer())
+      .post('/auth/verify')
+      .set('X-Forwarded-For', ip)
+      .send({ publicKey, signature, message: nonce })
+      .expect(429);
+  });
+
+  it('scopes throttle counters per IP', async () => {
+    const ipA = '10.0.0.3';
+    const ipB = '10.0.0.4';
+
+    for (let i = 0; i < 10; i++) {
+      await request(app.getHttpServer())
+        .get('/auth/challenge')
+        .query({ publicKey })
+        .set('X-Forwarded-For', ipA)
+        .expect(200);
+    }
+
+    await request(app.getHttpServer())
+      .get('/auth/challenge')
+      .query({ publicKey })
+      .set('X-Forwarded-For', ipA)
+      .expect(429);
+
+    // A different IP must have its own counter and not be throttled.
+    await request(app.getHttpServer())
+      .get('/auth/challenge')
+      .query({ publicKey })
+      .set('X-Forwarded-For', ipB)
+      .expect(200);
+  });
+});
 
 describe('AuthController (challenge/verify)', () => {
   let app: INestApplication;
@@ -214,4 +371,40 @@ describe('AuthController (challenge/verify)', () => {
       });
     });
   });
+
+  describe('AuthController -> AuthService.generateChallenge dead code proof (Issue #1490)', () => {
+    it('GET /auth/challenge calls NonceService.generateNonce and NEVER calls AuthService.generateChallenge', async () => {
+      const authServiceSpy = jest.spyOn(authService, 'generateChallenge');
+      const nonceServiceSpy = jest
+        .spyOn(nonceService, 'generateNonce')
+        .mockResolvedValue('nonce-service-generated-nonce');
+
+      const response = await request(app.getHttpServer())
+        .get('/auth/challenge')
+        .query({ publicKey })
+        .expect(200);
+
+      expect(response.body).toEqual({ nonce: 'nonce-service-generated-nonce' });
+      // Proves: AuthController delegates to NonceService.generateNonce
+      expect(nonceServiceSpy).toHaveBeenCalledTimes(1);
+      expect(nonceServiceSpy).toHaveBeenCalledWith(publicKey);
+      // Proves: AuthService.generateChallenge is never called (dead/unreachable code)
+      expect(authServiceSpy).not.toHaveBeenCalled();
+    });
+
+    it('direct controller call verifies NonceService is invoked and AuthService.generateChallenge is untouched', async () => {
+      const authServiceSpy = jest.spyOn(authService, 'generateChallenge');
+      const nonceServiceSpy = jest
+        .spyOn(nonceService, 'generateNonce')
+        .mockResolvedValue('direct-call-nonce');
+
+      const controller = app.get<AuthController>(AuthController);
+      const result = await controller.challenge(publicKey);
+
+      expect(result).toEqual({ nonce: 'direct-call-nonce' });
+      expect(nonceServiceSpy).toHaveBeenCalledWith(publicKey);
+      expect(authServiceSpy).not.toHaveBeenCalled();
+    });
+  });
 });
+

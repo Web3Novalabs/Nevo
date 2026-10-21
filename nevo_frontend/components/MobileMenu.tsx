@@ -14,6 +14,8 @@ export const NAV_LINKS = [
   { label: 'Dashboard', href: '/dashboard' },
   { label: 'Profile', href: '/profile' },
   { label: 'Create Pool', href: '/pools/new' },
+  { label: 'About', href: '/about' },
+  { label: 'Help', href: '/help' },
 ] as const;
 
 const FOCUSABLE =
