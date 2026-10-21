@@ -265,11 +265,17 @@ pub enum PoolState {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Pool {
+    /// The sponsor address that created and owns this pool.
     pub sponsor: Address,
+    /// The funding goal amount for this pool.
     pub goal: u128,
+    /// Total amount of funds collected so far through donations.
     pub collected: u128,
+    /// Whether the pool has been permanently closed.
     pub is_closed: bool,
+    /// Current state of the pool in its lifecycle (Active, Paused, Completed, Cancelled, Disbursed, Closed).
     pub state: PoolState,
+    /// Ledger timestamp after which student applications are no longer accepted.
     pub application_deadline: u64,
     /// Ledger timestamp of the most recent contribution to this pool.
     /// Zero until the pool receives its first donation.
