@@ -1990,6 +1990,16 @@ impl Contract {
     pub fn get_emergency_grace_period_secs(_env: Env) -> u64 {
         GRACE_PERIOD_SECS
     }
+
+    /// Return the maximum allowed length for pool descriptions.
+    ///
+    /// This corresponds to the compile-time constant `MAX_DESCRIPTION_LENGTH`
+    /// (currently 500 bytes). Off-chain integrators should call this getter
+    /// rather than hard-coding the value so they remain correct if the constant
+    /// is ever updated.
+    pub fn get_max_description_length(_env: Env) -> u32 {
+        MAX_DESCRIPTION_LENGTH as u32
+    }
 }
 
 mod test;
@@ -2009,6 +2019,7 @@ mod test_issue_1483_crowdfunding_token_unset;
 mod test_issue_1484_create_campaign_with_fee;
 mod test_issue_1485_campaign_balance_alias;
 mod test_issue_1487_emergency_withdraw_amount_validation;
+mod test_get_max_description_length;
 mod test_issues;
 mod test_auth_bypass;
 mod test_numeric_overflow;
