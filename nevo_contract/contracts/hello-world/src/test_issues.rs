@@ -1363,7 +1363,7 @@ fn test_create_pool_for_school_unregistered_school_fails() {
 /// Test 3: get_pool_school panics for a pool with no linked school (i.e. one
 /// created via the normal, non-school `create_pool` path).
 #[test]
-#[should_panic(expected = "Pool school not set")]
+#[should_panic(expected = "Error(Contract, #15)")]
 fn test_get_pool_school_fails_for_non_school_pool() {
     let env = Env::default();
     env.mock_all_auths();

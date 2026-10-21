@@ -130,32 +130,34 @@ pub enum ContractError {
     NoContributionToRefund = 13,
     /// School address has not been registered by an admin.
     SchoolNotRegistered = 14,
+    /// Pool has no linked school.
+    PoolHasNoLinkedSchool = 15,
     /// Pool has already been closed and cannot be closed again.
-    PoolAlreadyClosed = 15,
+    PoolAlreadyClosed = 16,
     /// Pool title/name is empty.
-    InvalidPoolName = 16,
+    InvalidPoolName = 17,
     /// Pool funding goal is zero.
-    InvalidPoolTarget = 17,
+    InvalidPoolTarget = 18,
     /// Pool application deadline is zero or already in the past.
-    InvalidPoolDeadline = 18,
+    InvalidPoolDeadline = 19,
     /// Donation attempted at or after the pool's application deadline.
-    CampaignExpired = 19,
+    CampaignExpired = 20,
     /// No emergency withdrawal request exists for the pool.
-    EmergencyWithdrawalNotRequested = 20,
+    EmergencyWithdrawalNotRequested = 21,
     /// Emergency withdrawal grace period has not yet elapsed.
-    GracePeriodNotElapsed = 21,
+    GracePeriodNotElapsed = 22,
     /// Claim amount is zero or negative.
-    InvalidClaimAmount = 20,
+    InvalidClaimAmount = 23,
     /// Student has no application status record for this pool.
-    ApplicationStatusNotFound = 21,
+    ApplicationStatusNotFound = 24,
     /// Application status is not "Approved", so funds cannot be claimed.
-    ApplicationNotApproved = 22,
+    ApplicationNotApproved = 25,
     /// Claim would exceed the collected funds available to the pool.
-    OverdrawAttempt = 23,
+    OverdrawAttempt = 26,
     /// Donation amount must be positive (greater than zero).
-    InvalidAmount = 20,
+    InvalidAmount = 27,
     /// Token address does not match the pool's configured token.
-    TokenTransferFailed = 21,
+    TokenTransferFailed = 28,
 }
 
 // Helper functions for timestamp/deadline edge-case tests
@@ -585,7 +587,7 @@ impl Contract {
         env.storage()
             .persistent()
             .get::<_, Address>(&pool_school_key)
-            .expect("Pool school not set")
+            .unwrap_or_else(|| env.panic_with_error(ContractError::PoolHasNoLinkedSchool))
     }
 
     /// Donate to an existing pool.
