@@ -211,6 +211,10 @@ export class ClientRateLimiter {
     this.windows.clear();
   }
 
+  notifyRateLimit(error: RateLimitError): void {
+    notifyRateLimit(error);
+  }
+
   private getWindow(
     key: string,
     currentTime: number,
