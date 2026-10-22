@@ -157,7 +157,9 @@ pub enum ContractError {
     /// Donation amount must be positive (greater than zero).
     InvalidAmount = 27,
     /// Token address does not match the pool's configured token.
-    TokenTransferFailed = 28,
+    TokenTransferFailed = 21,
+    /// Token address is invalid (e.g., contract's own address).
+    InvalidTokenAddress = 24,
 }
 
 // Helper functions for timestamp/deadline edge-case tests
@@ -767,6 +769,7 @@ impl Contract {
 
         let updated_pool = Pool {
             is_closed: true,
+            state: PoolState::Closed,
             ..pool
         };
 
@@ -841,6 +844,15 @@ impl Contract {
         env.storage()
             .persistent()
             .get::<_, u128>(&(pool_id, "contribution", &donor))
+            .unwrap_or(0)
+    }
+
+    /// Get the number of applications submitted to a pool.
+    pub fn get_application_count(env: Env, pool_id: u32) -> u32 {
+        let count_key = (Symbol::new(&env, APPLICATION_COUNT_PREFIX), pool_id);
+        env.storage()
+            .persistent()
+            .get::<_, u32>(&count_key)
             .unwrap_or(0)
     }
 
@@ -1443,17 +1455,8 @@ impl Contract {
     ///
     /// Only the stored admin may call this function.
     /// A fee of zero is valid (disables the creation fee).
-    /// A negative fee panics with `"InvalidFee"`.
     ///
-    /// Emits a `creation_fee_updated` event on success.
-    ///
-    /// # Panics
-    /// - `ContractError::AdminNotSet` if no admin has been configured
-    /// - `"Unauthorized admin"` if `admin` does not match the stored admin
-    /// - `"InvalidFee"` if `fee` is negative
-    /// A negative fee panics with `ContractError::InvalidFee`.
-    ///
-    /// Emits a `FEE_UPDATED` event on success.
+    /// Emits exactly one `fee_upd` (`FEE_UPDATED`) event on success.
     ///
     /// # Panics
     /// - `ContractError::AdminNotSet` if no admin has been configured
@@ -1479,11 +1482,8 @@ impl Contract {
         let fee_key = Symbol::new(&env, CREATION_FEE_KEY);
         env.storage().persistent().set(&fee_key, &fee);
 
-        // Issue #954: use shared FEE_UPDATED constant instead of inline Symbol::new
+        // Issue #1461: FEE_UPDATED is the canonical topic; emit it once only.
         env.events().publish((FEE_UPDATED,), fee);
-        // Emit event: topics = ["creation_fee_updated"], data = new fee value
-        env.events()
-            .publish((Symbol::new(&env, "creation_fee_updated"),), fee);
     }
 
     /// Get the current pool creation fee.
@@ -1508,13 +1508,13 @@ impl Contract {
     /// - `"Error(Auth, InvalidAction)"` if caller is not the pool sponsor
     /// - `"Deadline must be in the future"` if deadline <= current ledger
     pub fn set_pool_deadline(env: Env, pool_id: u32, deadline: u32) {
-        let pool: Pool = env
+        let _pool: Pool = env
             .storage()
             .persistent()
             .get::<_, Pool>(&pool_id)
             .unwrap_or_else(|| env.panic_with_error(ContractError::PoolNotFound));
 
-        pool.sponsor.require_auth();
+        _pool.sponsor.require_auth();
 
         if deadline <= env.ledger().sequence() {
             panic!("Deadline must be in the future");
@@ -1525,7 +1525,7 @@ impl Contract {
 
         // Issue #954: emit deadline-set event
         env.events()
-            .publish((DEADLINE_SET, pool_id), (pool.sponsor.clone(), deadline));
+            .publish((DEADLINE_SET, pool_id), (_pool.sponsor.clone(), deadline));
     }
 
     /// Get the refund deadline ledger for a pool.
@@ -1935,7 +1935,7 @@ impl Contract {
         }
 
         if token == env.current_contract_address() {
-            panic!("InvalidTokenAddress");
+            env.panic_with_error(ContractError::InvalidTokenAddress);
         }
 
         let token_key = Symbol::new(&env, CROWDFUNDING_TOKEN_KEY);
@@ -2016,6 +2016,7 @@ mod test_issue_1467_create_pool_validation_panics;
 mod test_issue_1469_milestone_setup_panics;
 mod test_issue_1470_get_pool_omits_state;
 mod test_issue_1472_application_index_bounds;
+mod test_issue_1473_get_application_claimed_amount_consistency;
 mod test_issue_1482_pool_getter_missing_pool;
 mod test_issue_1483_crowdfunding_token_unset;
 mod test_issue_1484_create_campaign_with_fee;
@@ -2034,6 +2035,7 @@ mod test_create_pool_for_school;
 mod test_pool_creation;
 mod test_pool_retrieval;
 mod test_register_school;
+mod test_issue_1455;
 mod test_withdraw;
 mod test_timestamp_edge_cases;
 mod test_token_transfer_errors;

@@ -244,4 +244,29 @@ mod tests {
         assert!(client.has_applied(&pool_id, &student2));
         assert!(client.has_applied(&pool_id, &student3));
     }
+
+    #[test]
+    fn test_get_application_count() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, _school, _sponsor) = setup_pool_with_school(&env, &client);
+
+        let student1 = Address::generate(&env);
+        let student2 = Address::generate(&env);
+
+        let application_data = String::from_str(&env, "My application");
+
+        // Two students apply to the pool
+        student1.require_auth();
+        client.apply_to_pool(&pool_id, &student1, &application_data.clone());
+
+        student2.require_auth();
+        client.apply_to_pool(&pool_id, &student2, &application_data.clone());
+
+        // Assert the getter returns 2
+        let count = client.get_application_count(&pool_id);
+        assert_eq!(count, 2, "Application count should be 2");
+    }
 }

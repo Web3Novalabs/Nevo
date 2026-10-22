@@ -105,6 +105,15 @@ jobs:
       - name: Run tests
         run: cargo test --lib
 
+            - name: Run Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Build contract
+        run: cargo build --release --target wasm32-unknown-unknown
+
+      - name: Run tests
+        run: cargo test --lib
+
   markdown-links:
     name: Markdown — Link Check
     runs-on: ubuntu-latest
