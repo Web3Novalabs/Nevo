@@ -15,6 +15,7 @@ fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
     token.address()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn seed_application(
     env: &Env,
     contract_id: &Address,

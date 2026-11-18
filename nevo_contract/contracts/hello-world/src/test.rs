@@ -15,6 +15,30 @@ fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
     token.address()
 }
 
+/// Register a school (setting a fresh admin unless one is supplied) and create
+/// a pool linked to it, so `set_application_status` can be called by the school.
+#[allow(clippy::too_many_arguments)]
+fn create_school_pool(
+    env: &Env,
+    client: &ContractClient,
+    admin: Option<&Address>,
+    creator: &Address,
+    title: &String,
+    description: &String,
+    goal: &u128,
+    deadline: &u64,
+) -> (u32, Address) {
+    match admin {
+        Some(a) => client.set_admin(a),
+        None => client.set_admin(&Address::generate(env)),
+    }
+    let school = Address::generate(env);
+    client.register_school(&school, &BytesN::from_array(env, &[1u8; 32]));
+    let pool_id =
+        client.create_pool_for_school(creator, title, description, goal, &school, deadline);
+    (pool_id, school)
+}
+
 // ============= BASIC POOL TESTS =============
 
 #[test]
@@ -235,7 +259,7 @@ fn test_pool_description_exceeds_max_length() {
 // ============= CLAIM FUNDS TESTS =============
 
 #[test]
-#[should_panic(expected = "Error(Contract, #21)")]
+#[should_panic(expected = "Error(Contract, #24)")]
 fn test_claim_funds_no_status() {
     let env = Env::default();
     env.mock_all_auths();
@@ -257,7 +281,7 @@ fn test_claim_funds_no_status() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #22)")]
+#[should_panic(expected = "Error(Contract, #25)")]
 fn test_claim_funds_rejected_application() {
     let env = Env::default();
     env.mock_all_auths();
@@ -266,7 +290,10 @@ fn test_claim_funds_rejected_application() {
 
     let creator = Address::generate(&env);
     let student = Address::generate(&env);
-    let pool_id = client.create_pool(
+    let (pool_id, school) = create_school_pool(
+        &env,
+        &client,
+        None,
         &creator,
         &String::from_str(&env, "Test Pool"),
         &String::from_str(&env, "Test"),
@@ -274,13 +301,13 @@ fn test_claim_funds_rejected_application() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Rejected"));
+    client.set_application_status(&school, &pool_id, &student, &String::from_str(&env, "Rejected"));
     let token = Address::generate(&env);
     client.claim_funds(&student, &pool_id, &100_000_000i128, &token);
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #23)")]
+#[should_panic(expected = "Error(Contract, #26)")]
 fn test_claim_funds_overdraw() {
     let env = Env::default();
     env.mock_all_auths();
@@ -289,7 +316,10 @@ fn test_claim_funds_overdraw() {
 
     let creator = Address::generate(&env);
     let student = Address::generate(&env);
-    let pool_id = client.create_pool(
+    let (pool_id, school) = create_school_pool(
+        &env,
+        &client,
+        None,
         &creator,
         &String::from_str(&env, "Test Pool"),
         &String::from_str(&env, "Test"),
@@ -297,13 +327,13 @@ fn test_claim_funds_overdraw() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &100_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&school, &pool_id, &student, &String::from_str(&env, "Approved"));
     let token = Address::generate(&env);
     client.claim_funds(&student, &pool_id, &500_000_000i128, &token);
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #20)")]
+#[should_panic(expected = "Error(Contract, #23)")]
 fn test_claim_funds_negative_amount() {
     let env = Env::default();
     env.mock_all_auths();
@@ -312,7 +342,10 @@ fn test_claim_funds_negative_amount() {
 
     let creator = Address::generate(&env);
     let student = Address::generate(&env);
-    let pool_id = client.create_pool(
+    let (pool_id, school) = create_school_pool(
+        &env,
+        &client,
+        None,
         &creator,
         &String::from_str(&env, "Test Pool"),
         &String::from_str(&env, "Test"),
@@ -320,7 +353,7 @@ fn test_claim_funds_negative_amount() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&school, &pool_id, &student, &String::from_str(&env, "Approved"));
     let token = Address::generate(&env);
     client.claim_funds(&student, &pool_id, &-100_000_000i128, &token);
 }
@@ -352,7 +385,10 @@ fn test_get_application_status() {
 
     let creator = Address::generate(&env);
     let student = Address::generate(&env);
-    let pool_id = client.create_pool(
+    let (pool_id, school) = create_school_pool(
+        &env,
+        &client,
+        None,
         &creator,
         &String::from_str(&env, "Test Pool"),
         &String::from_str(&env, "Test"),
@@ -366,7 +402,7 @@ fn test_get_application_status() {
     );
 
     let approved = String::from_str(&env, "Approved");
-    client.set_application_status(&creator, &pool_id, &student, &approved);
+    client.set_application_status(&school, &pool_id, &student, &approved);
     assert_eq!(client.get_application_status(&pool_id, &student), approved);
 }
 
@@ -383,7 +419,10 @@ fn test_unauthorized_address_cannot_set_application_status() {
 
     env.mock_all_auths();
 
-    let pool_id = client.create_pool(
+    let (pool_id, _school) = create_school_pool(
+        &env,
+        &client,
+        None,
         &creator,
         &String::from_str(&env, "Test Pool"),
         &String::from_str(&env, "Test"),
@@ -505,7 +544,10 @@ fn test_protocol_fees_accumulation_on_claim() {
     let token = create_token(&env, claim_amount, &contract_id);
 
     client.set_admin(&admin);
-    let pool_id = client.create_pool(
+    let (pool_id, school) = create_school_pool(
+        &env,
+        &client,
+        Some(&admin),
         &creator,
         &String::from_str(&env, "Test Pool"),
         &String::from_str(&env, "Test"),
@@ -513,7 +555,7 @@ fn test_protocol_fees_accumulation_on_claim() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&school, &pool_id, &student, &String::from_str(&env, "Approved"));
     client.claim_funds(&student, &pool_id, &claim_amount, &token);
 
     let app = client.get_application(&pool_id, &student);
@@ -565,7 +607,10 @@ fn test_claim_protocol_fees_multiple_claims_accumulate() {
     let token = create_token(&env, claim1 + claim2, &contract_id);
 
     client.set_admin(&admin);
-    let pool_id = client.create_pool(
+    let (pool_id, school) = create_school_pool(
+        &env,
+        &client,
+        Some(&admin),
         &creator,
         &String::from_str(&env, "Test Pool"),
         &String::from_str(&env, "Test"),
@@ -573,8 +618,8 @@ fn test_claim_protocol_fees_multiple_claims_accumulate() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student1, &String::from_str(&env, "Approved"));
-    client.set_application_status(&creator, &pool_id, &student2, &String::from_str(&env, "Approved"));
+    client.set_application_status(&school, &pool_id, &student1, &String::from_str(&env, "Approved"));
+    client.set_application_status(&school, &pool_id, &student2, &String::from_str(&env, "Approved"));
     client.claim_funds(&student1, &pool_id, &claim1, &token);
     client.claim_funds(&student2, &pool_id, &claim2, &token);
 
@@ -597,7 +642,10 @@ fn test_protocol_fees_reset_after_claim() {
     let token = create_token(&env, claim_amount, &contract_id);
 
     client.set_admin(&admin);
-    let pool_id = client.create_pool(
+    let (pool_id, school) = create_school_pool(
+        &env,
+        &client,
+        Some(&admin),
         &creator,
         &String::from_str(&env, "Test Pool"),
         &String::from_str(&env, "Test"),
@@ -605,7 +653,7 @@ fn test_protocol_fees_reset_after_claim() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&school, &pool_id, &student, &String::from_str(&env, "Approved"));
     client.claim_funds(&student, &pool_id, &claim_amount, &token);
     client.claim_protocol_fees(&admin, &token);
     // Second claim should panic
@@ -1116,7 +1164,10 @@ fn test_claim_funds_cancelled_pool_panics() {
 
     let creator = Address::generate(&env);
     let student = Address::generate(&env);
-    let pool_id = client.create_pool(
+    let (pool_id, school) = create_school_pool(
+        &env,
+        &client,
+        None,
         &creator,
         &String::from_str(&env, "Cancelled Pool"),
         &String::from_str(&env, "Test"),
@@ -1124,7 +1175,7 @@ fn test_claim_funds_cancelled_pool_panics() {
         &100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&school, &pool_id, &student, &String::from_str(&env, "Approved"));
     client.set_pool_state(&pool_id, &PoolState::Cancelled);
 
     let token = create_token(&env, 500_000_000i128, &contract_id);
@@ -1170,7 +1221,7 @@ fn test_request_emergency_withdraw_valid_admin_succeeds() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Auth, InvalidAction)")]
+#[should_panic(expected = "Error(Contract, #3)")]
 fn test_request_emergency_withdraw_non_admin_fails_with_auth_error() {
     let env = Env::default();
     env.mock_all_auths();
@@ -1220,7 +1271,7 @@ fn test_request_emergency_withdraw_duplicate_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #21)")]
+#[should_panic(expected = "Error(Contract, #22)")]
 fn test_execute_emergency_withdraw_before_grace_period_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -1247,7 +1298,7 @@ fn test_execute_emergency_withdraw_before_grace_period_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #15)")]
+#[should_panic(expected = "Error(Contract, #16)")]
 fn test_close_pool_twice_panics() {
     let env = Env::default();
     env.mock_all_auths();

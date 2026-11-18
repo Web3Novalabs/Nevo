@@ -3,7 +3,7 @@
 use super::*;
 use soroban_sdk::{
     testutils::Address as _,
-    Address, Env,
+    Address, BytesN, Env,
 };
 
 /// Test is_school_registered returns false for unregistered address.
@@ -14,7 +14,7 @@ fn test_is_school_registered_unregistered_address() {
     let client = ContractClient::new(&env, &contract_id);
 
     let school = Address::generate(&env);
-    assert_eq!(client.is_school_registered(&school), false);
+    assert!(!client.is_school_registered(&school));
 }
 
 /// Test is_school_registered returns true immediately after register_school.
@@ -32,10 +32,10 @@ fn test_is_school_registered_immediately_after_registration() {
     client.set_admin(&admin);
 
     // Register the school
-    client.register_school(&admin, &school);
+    client.register_school(&school, &BytesN::from_array(&env, &[1u8; 32]));
 
     // Verify it's immediately registered
-    assert_eq!(client.is_school_registered(&school), true);
+    assert!(client.is_school_registered(&school));
 }
 
 /// Test is_school_registered is independent across multiple distinct school addresses.
@@ -54,28 +54,28 @@ fn test_is_school_registered_independent_schools() {
     client.set_admin(&admin);
 
     // Register only school1
-    client.register_school(&admin, &school1);
+    client.register_school(&school1, &BytesN::from_array(&env, &[1u8; 32]));
 
     // Check registration status
-    assert_eq!(client.is_school_registered(&school1), true);
-    assert_eq!(client.is_school_registered(&school2), false);
-    assert_eq!(client.is_school_registered(&school3), false);
+    assert!(client.is_school_registered(&school1));
+    assert!(!client.is_school_registered(&school2));
+    assert!(!client.is_school_registered(&school3));
 
     // Register school2
-    client.register_school(&admin, &school2);
+    client.register_school(&school2, &BytesN::from_array(&env, &[1u8; 32]));
 
     // Check registration status again
-    assert_eq!(client.is_school_registered(&school1), true);
-    assert_eq!(client.is_school_registered(&school2), true);
-    assert_eq!(client.is_school_registered(&school3), false);
+    assert!(client.is_school_registered(&school1));
+    assert!(client.is_school_registered(&school2));
+    assert!(!client.is_school_registered(&school3));
 
     // Register school3
-    client.register_school(&admin, &school3);
+    client.register_school(&school3, &BytesN::from_array(&env, &[1u8; 32]));
 
     // Check final registration status
-    assert_eq!(client.is_school_registered(&school1), true);
-    assert_eq!(client.is_school_registered(&school2), true);
-    assert_eq!(client.is_school_registered(&school3), true);
+    assert!(client.is_school_registered(&school1));
+    assert!(client.is_school_registered(&school2));
+    assert!(client.is_school_registered(&school3));
 }
 
 /// Test is_school_registered is unaffected by pool creation activity.
@@ -93,14 +93,14 @@ fn test_is_school_registered_unaffected_by_pool_creation() {
     client.set_admin(&admin);
 
     // Before registration, registration status is false
-    assert_eq!(client.is_school_registered(&school), false);
+    assert!(!client.is_school_registered(&school));
 
     // Register the school
-    client.register_school(&admin, &school);
-    assert_eq!(client.is_school_registered(&school), true);
+    client.register_school(&school, &BytesN::from_array(&env, &[1u8; 32]));
+    assert!(client.is_school_registered(&school));
 
     // Create a pool linked to the school
-    let pool_id = client.create_pool_for_school(
+    let _pool_id = client.create_pool_for_school(
         &creator,
         &soroban_sdk::String::from_str(&env, "School Pool"),
         &soroban_sdk::String::from_str(&env, "Pool for school"),
@@ -110,7 +110,7 @@ fn test_is_school_registered_unaffected_by_pool_creation() {
     );
 
     // Verify registration status is still true after pool creation
-    assert_eq!(client.is_school_registered(&school), true);
+    assert!(client.is_school_registered(&school));
 
     // Create another pool linked to the same school
     client.create_pool_for_school(
@@ -123,7 +123,7 @@ fn test_is_school_registered_unaffected_by_pool_creation() {
     );
 
     // Verify registration status remains true
-    assert_eq!(client.is_school_registered(&school), true);
+    assert!(client.is_school_registered(&school));
 }
 
 /// Test is_school_registered gives consistent result across repeated calls.
@@ -138,18 +138,18 @@ fn test_is_school_registered_consistent_repeated_calls() {
     let school = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school);
+    client.register_school(&school, &BytesN::from_array(&env, &[1u8; 32]));
 
     // Call is_school_registered multiple times and verify consistency
     for _ in 0..5 {
-        assert_eq!(client.is_school_registered(&school), true);
+        assert!(client.is_school_registered(&school));
     }
 
     let unregistered = Address::generate(&env);
 
     // Check unregistered school multiple times
     for _ in 0..5 {
-        assert_eq!(client.is_school_registered(&unregistered), false);
+        assert!(!client.is_school_registered(&unregistered));
     }
 }
 
@@ -162,30 +162,30 @@ fn test_is_school_registered_multiple_operations() {
     let client = ContractClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
-    let schools: Vec<Address> = (0..5)
+    let schools: std::vec::Vec<Address> = (0..5)
         .map(|_| Address::generate(&env))
         .collect();
 
     client.set_admin(&admin);
 
     // Register first two schools
-    client.register_school(&admin, &schools[0]);
-    client.register_school(&admin, &schools[1]);
+    client.register_school(&schools[0], &BytesN::from_array(&env, &[1u8; 32]));
+    client.register_school(&schools[1], &BytesN::from_array(&env, &[1u8; 32]));
 
     // Verify status
-    assert_eq!(client.is_school_registered(&schools[0]), true);
-    assert_eq!(client.is_school_registered(&schools[1]), true);
-    assert_eq!(client.is_school_registered(&schools[2]), false);
-    assert_eq!(client.is_school_registered(&schools[3]), false);
+    assert!(client.is_school_registered(&schools[0]));
+    assert!(client.is_school_registered(&schools[1]));
+    assert!(!client.is_school_registered(&schools[2]));
+    assert!(!client.is_school_registered(&schools[3]));
 
     // Register remaining schools
-    client.register_school(&admin, &schools[2]);
-    client.register_school(&admin, &schools[3]);
-    client.register_school(&admin, &schools[4]);
+    client.register_school(&schools[2], &BytesN::from_array(&env, &[1u8; 32]));
+    client.register_school(&schools[3], &BytesN::from_array(&env, &[1u8; 32]));
+    client.register_school(&schools[4], &BytesN::from_array(&env, &[1u8; 32]));
 
     // Verify all are now registered
     for school in &schools {
-        assert_eq!(client.is_school_registered(school), true);
+        assert!(client.is_school_registered(school));
     }
 }
 
@@ -205,11 +205,11 @@ fn test_is_school_registered_persistence() {
     client.set_admin(&admin);
 
     // Verify not registered initially
-    assert_eq!(client.is_school_registered(&school), false);
+    assert!(!client.is_school_registered(&school));
 
     // Register school
-    client.register_school(&admin, &school);
-    assert_eq!(client.is_school_registered(&school), true);
+    client.register_school(&school, &BytesN::from_array(&env, &[1u8; 32]));
+    assert!(client.is_school_registered(&school));
 
     // Create a school-linked pool
     let pool_id = client.create_pool_for_school(
@@ -225,12 +225,12 @@ fn test_is_school_registered_persistence() {
     client.donate(&pool_id, &donor, &1_000_000_000u128);
 
     // Verify registration status persists
-    assert_eq!(client.is_school_registered(&school), true);
+    assert!(client.is_school_registered(&school));
 
     // Verify with get_pool_school that school link is maintained
     let linked_school = client.get_pool_school(&pool_id);
     assert_eq!(linked_school, school);
 
     // Verify registration still true after pool operations
-    assert_eq!(client.is_school_registered(&school), true);
+    assert!(client.is_school_registered(&school));
 }

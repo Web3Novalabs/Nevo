@@ -48,21 +48,21 @@ fn test_get_pool_tuple_is_identical_across_all_pool_states() {
     }
 }
 
-/// `close_pool` only flips `is_closed` and never touches `state`, so the two
-/// can disagree (closed but `Active`), and `get_pool` surfaces only
-/// `is_closed`.
+/// `close_pool` sets both `is_closed` and `state = Closed`, but a later
+/// `set_pool_state` can still move `state` away while `is_closed` stays true,
+/// and `get_pool` surfaces only `is_closed`.
 #[test]
 fn test_is_closed_and_state_can_disagree_and_get_pool_shows_only_is_closed() {
     let env = Env::default();
     env.mock_all_auths();
     let (contract_id, client, pool_id) = setup_pool(&env);
 
-    // close_pool requires a Cancelled or Disbursed pool and leaves state as-is.
+    // close_pool requires a Cancelled or Disbursed pool and moves it to Closed.
     client.set_pool_state(&pool_id, &PoolState::Cancelled);
     client.close_pool(&pool_id);
     assert_eq!(
         stored_state(&env, &contract_id, pool_id),
-        PoolState::Cancelled
+        PoolState::Closed
     );
 
     client.set_pool_state(&pool_id, &PoolState::Active);

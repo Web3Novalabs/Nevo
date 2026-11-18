@@ -31,7 +31,7 @@ fn test_get_pool_existing_returns_correct_config() {
     assert_eq!(sponsor, creator);
     assert_eq!(pool_goal, goal);
     assert_eq!(collected, 0u128);
-    assert_eq!(is_closed, false);
+    assert!(!is_closed);
     assert_eq!(app_deadline, deadline);
 }
 

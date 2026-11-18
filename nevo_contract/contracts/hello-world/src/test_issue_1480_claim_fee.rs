@@ -108,7 +108,7 @@ fn test_claim_funds_fee_table_truncating_integer_division() {
 }
 
 #[test]
-#[should_panic(expected = "Claim amount must be positive")]
+#[should_panic(expected = "Error(Contract, #23)")]
 fn test_claim_funds_zero_amount_rejected() {
     let env = Env::default();
     env.mock_all_auths();

@@ -6,9 +6,9 @@
 
 use super::*;
 use soroban_sdk::{
-    testutils::Address as _,
+    testutils::{Address as _, Ledger},
     token::StellarAssetClient,
-    Address, Env, String,
+    Address, BytesN, Env, String,
 };
 
 fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
@@ -17,6 +17,31 @@ fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
     let sac = StellarAssetClient::new(env, &token.address());
     sac.mint(recipient, &amount);
     token.address()
+}
+
+/// Register a school and create a pool linked to it, so that
+/// `set_application_status` (which requires the linked school or admin) works.
+fn create_school_pool(
+    env: &Env,
+    client: &ContractClient,
+    creator: &Address,
+    title: &str,
+    description: &str,
+    goal: u128,
+) -> (u32, Address) {
+    let admin = Address::generate(env);
+    let school = Address::generate(env);
+    client.set_admin(&admin);
+    client.register_school(&school, &BytesN::from_array(env, &[1u8; 32]));
+    let pool_id = client.create_pool_for_school(
+        creator,
+        &String::from_str(env, title),
+        &String::from_str(env, description),
+        &goal,
+        &school,
+        &100_000u64,
+    );
+    (pool_id, school)
 }
 
 fn approved(env: &Env) -> String {
@@ -42,21 +67,23 @@ fn test_claim_funds_ignores_configured_pool_token() {
 
     let creator = Address::generate(&env);
     let student = Address::generate(&env);
-    // Both tokens are minted to the contract so both transfer paths can succeed.
-    let token_a = create_token(&env, 1_000_000, &contract_id);
+    // Token A is donated in by the creator; token B is held by the contract
+    // so a claim in B can succeed.
+    let token_a = create_token(&env, 1_000_000, &creator);
     let token_b = create_token(&env, 1_000_000, &contract_id);
 
-    let pool_id = client.create_pool(
+    let (pool_id, school) = create_school_pool(
+        &env,
+        &client,
         &creator,
-        &String::from_str(&env, "1460 Pool"),
-        &String::from_str(&env, "Token mismatch on claim"),
-        &1_000_000u128,
-        &100_000u64,
+        "1460 Pool",
+        "Token mismatch on claim",
+        1_000_000u128,
     );
 
     client.set_pool_token(&pool_id, &token_a);
     client.donate_with_token(&pool_id, &creator, &token_a, &500_000i128);
-    client.set_application_status(&pool_id, &student, &approved(&env));
+    client.set_application_status(&school, &pool_id, &student, &approved(&env));
 
     // Claim using token B — different from the configured pool token (A).
     client.claim_funds(&student, &pool_id, &100_000i128, &token_b);
@@ -136,22 +163,23 @@ fn test_inconsistency_between_donation_and_claim_token_checks() {
     let creator = Address::generate(&env);
     let donor = Address::generate(&env);
     let student = Address::generate(&env);
-    let token_a = create_token(&env, 1_000_000, &contract_id);
+    let token_a = create_token(&env, 1_000_000, &creator);
     let token_b = create_token(&env, 1_000_000, &contract_id);
     // Give the donor B so they could attempt a B donation.
     let _ = create_token(&env, 1_000_000, &donor);
 
-    let pool_id = client.create_pool(
+    let (pool_id, school) = create_school_pool(
+        &env,
+        &client,
         &creator,
-        &String::from_str(&env, "1460 Inconsistency"),
-        &String::from_str(&env, "Same pool, two token policies"),
-        &1_000_000u128,
-        &100_000u64,
+        "1460 Inconsistency",
+        "Same pool, two token policies",
+        1_000_000u128,
     );
 
     client.set_pool_token(&pool_id, &token_a);
     client.donate_with_token(&pool_id, &creator, &token_a, &500_000i128);
-    client.set_application_status(&pool_id, &student, &approved(&env));
+    client.set_application_status(&school, &pool_id, &student, &approved(&env));
 
     // Donate in token B: rejected because stored token is A.
     let donate_b = client.try_donate_with_token(&pool_id, &donor, &token_b, &1_000i128);

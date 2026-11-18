@@ -91,11 +91,12 @@ fn test_refused_operations_leave_no_storage_behind() {
         &school,
         &100_000u64,
     );
-    client.donate(&pool_id, &Address::generate(&env), &100_000u128);
-
+    // Apply before donating: reaching the goal moves the pool to Completed,
+    // after which apply_to_pool is refused.
     let student = Address::generate(&env);
     client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "application"));
     client.approve_application(&pool_id, &school, &student, &true);
+    client.donate(&pool_id, &Address::generate(&env), &100_000u128);
 
     let token = env.register_stellar_asset_contract_v2(Address::generate(&env));
     StellarAssetClient::new(&env, &token.address()).mint(&client.address, &100_000i128);
@@ -188,6 +189,7 @@ fn test_a_large_milestone_list_round_trips_whole() {
     );
     let student = Address::generate(&env);
     client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "application"));
+    client.approve_application(&pool_id, &school, &student, &true);
 
     let mut milestones = Vec::new(&env);
     for _ in 0..200 {
@@ -221,7 +223,7 @@ fn test_a_large_milestone_list_round_trips_whole() {
 fn test_per_donor_records_stay_exact_at_scale() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, contract_id) = setup(&env);
+    let (client, _contract_id) = setup(&env);
     let pool_id = create_pool(&client, &env, 1_000_000u128);
 
     let mut donors = Vec::new(&env);

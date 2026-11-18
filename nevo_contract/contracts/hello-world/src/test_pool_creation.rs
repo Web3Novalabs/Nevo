@@ -29,7 +29,7 @@ fn test_create_pool_valid_config() {
     assert_eq!(pool.1, creator);
     assert_eq!(pool.2, 5_000_000_000u128);
     assert_eq!(pool.3, 0u128);
-    assert_eq!(pool.4, false);
+    assert!(!pool.4);
     assert_eq!(pool.5, 200_000u64);
 }
 
@@ -109,7 +109,7 @@ fn test_create_pool_state_initialized_active() {
 
     let pool = client.get_pool(&pool_id);
     assert_eq!(pool.3, 100_000_000u128);
-    assert_eq!(pool.4, false); // is_closed = false
+    assert!(!pool.4); // is_closed = false
 }
 
 /// Test 5: Pool metrics are initialized correctly
@@ -154,7 +154,7 @@ fn test_create_pool_metadata_stored() {
 
 /// Test 7: Pool with zero goal is rejected
 #[test]
-#[should_panic(expected = "Error(Contract, #17)")]
+#[should_panic(expected = "Error(Contract, #18)")]
 fn test_create_pool_zero_goal() {
     let env = Env::default();
     let contract_id = env.register(Contract, ());
@@ -238,7 +238,7 @@ fn test_create_pool_pool_count_tracks_total() {
 
 /// Test 11: Invalid config with empty title fails validation
 #[test]
-#[should_panic(expected = "Error(Contract, #16)")]
+#[should_panic(expected = "Error(Contract, #17)")]
 fn test_create_pool_invalid_empty_title() {
     let env = Env::default();
     let contract_id = env.register(Contract, ());
@@ -272,7 +272,7 @@ fn test_create_pool_invalid_empty_description() {
 
 /// Test 13: Invalid config with zero duration fails validation
 #[test]
-#[should_panic(expected = "Error(Contract, #18)")]
+#[should_panic(expected = "Error(Contract, #19)")]
 fn test_create_pool_invalid_zero_duration() {
     let env = Env::default();
     let contract_id = env.register(Contract, ());
@@ -305,7 +305,7 @@ fn test_create_pool_state_active_before_donation() {
 
     // A freshly created pool is Active: not closed and no funds raised yet
     let pool = client.get_pool(&pool_id);
-    assert_eq!(pool.4, false); // is_closed = false
+    assert!(!pool.4); // is_closed = false
     assert_eq!(pool.3, 0u128); // total_raised = 0
 }
 

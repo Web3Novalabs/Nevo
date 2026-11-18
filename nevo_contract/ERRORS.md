@@ -21,25 +21,35 @@ These errors are encoded as numeric codes and returned via `env.panic_with_error
 
 | Code | Variant | HTTP Analogy | Description |
 |------|---------|--------------|-------------|
-| 1 | `PoolNotFound` | 404 | Attempted operation on a non-existent pool ID |
-| 2 | `InvalidPoolState` | 422 | Operation not allowed in current pool state (e.g., donations to non-Active pool) |
-| 3 | `UnauthorizedAdmin` | 403 | Caller is not the registered platform administrator |
-| 4 | `PoolIsClosed` | 410 | Operation rejected because pool is permanently closed |
-| 5 | `DuplicateApplication` | 409 | Student attempted to apply twice to the same pool |
-| 6 | `StudentHasNotApplied` | 404 | Operation requires existing application, but student has not applied |
-| 7 | `OnlyLinkedSchoolCanApprove` | 403 | Non-linked school attempted to approve applications for this pool |
-| 8 | `PoolNotDisbursedOrRefunded` | 422 | Pool must reach Disbursed or Cancelled state before closing |
-| 9 | `AdminNotSet` | 503 | No admin has been configured; call `set_admin()` first |
-| 10 | `NoUnclaimedFees` | 404 | No accumulated protocol fees available to claim |
-| 11 | `InvalidFee` | 400 | Fee value is invalid (negative or invalid type) |
-| 12 | `PoolNotExpired` | 422 | Pool deadline has not passed or grace period hasn't elapsed |
-| 13 | `NoContributionToRefund` | 404 | Donor has no recorded contribution to refund |
-| 14 | `SchoolNotRegistered` | 404 | School address is not registered in the system |
-| 15 | `PoolAlreadyClosed` | 409 | Attempted to close a pool that is already closed |
-| 20 | `InvalidClaimAmount` | 400 | Claim amount is zero or negative |
-| 21 | `ApplicationStatusNotFound` | 404 | Student has no application status record for this pool; student must apply first |
-| 22 | `ApplicationNotApproved` | 403 | Application status is not "Approved"; school must approve before claiming |
-| 23 | `OverdrawAttempt` | 422 | Claim would exceed the pool's collected funds |
+| 1 | `PoolNotFound` | 404 | Pool with the given ID does not exist in storage. |
+| 2 | `InvalidPoolState` | 422 | Pool is not in the state required for this operation. |
+| 3 | `UnauthorizedAdmin` | 403 | Caller is not the stored platform admin. |
+| 4 | `PoolIsClosed` | 410 | Operation rejected because the pool is already closed. |
+| 5 | `DuplicateApplication` | 409 | Student has already submitted an application for this pool. |
+| 6 | `StudentHasNotApplied` | 404 | Student has not applied to this pool. |
+| 7 | `OnlyLinkedSchoolCanApprove` | 403 | Only the school linked to the pool may approve applications. |
+| 8 | `PoolNotDisbursedOrRefunded` | 422 | Pool must be in Disbursed or Cancelled state before it can be closed. |
+| 9 | `AdminNotSet` | 503 | No admin address has been configured in storage. |
+| 10 | `NoUnclaimedFees` | 404 | There are no accumulated protocol fees to claim. |
+| 11 | `InvalidFee` | 400 | Fee value is invalid (e.g. negative). |
+| 12 | `PoolNotExpired` | 422 | Pool deadline has not yet passed (or grace period not elapsed). |
+| 13 | `NoContributionToRefund` | 404 | Donor has no recorded contribution in this pool to refund. |
+| 14 | `SchoolNotRegistered` | 404 | School address has not been registered by an admin. |
+| 15 | `PoolHasNoLinkedSchool` | 422 | Pool has no linked school. |
+| 16 | `PoolAlreadyClosed` | 409 | Pool has already been closed and cannot be closed again. |
+| 17 | `InvalidPoolName` | 400 | Pool title/name is empty. |
+| 18 | `InvalidPoolTarget` | 400 | Pool funding goal is zero. |
+| 19 | `InvalidPoolDeadline` | 400 | Pool application deadline is zero or already in the past. |
+| 20 | `CampaignExpired` | 410 | Donation attempted at or after the pool's application deadline. |
+| 21 | `EmergencyWithdrawalNotRequested` | 404 | No emergency withdrawal request exists for the pool. |
+| 22 | `GracePeriodNotElapsed` | 425 | Emergency withdrawal grace period has not yet elapsed. |
+| 23 | `InvalidClaimAmount` | 400 | Claim amount is zero or negative. |
+| 24 | `ApplicationStatusNotFound` | 404 | Student has no application status record for this pool. |
+| 25 | `ApplicationNotApproved` | 403 | Application status is not "Approved", so funds cannot be claimed. |
+| 26 | `OverdrawAttempt` | 422 | Claim would exceed the collected funds available to the pool. |
+| 27 | `InvalidAmount` | 400 | Donation amount must be positive (greater than zero). |
+| 28 | `TokenTransferFailed` | 400 | Token address does not match the pool's configured token. |
+| 29 | `InvalidTokenAddress` | 400 | Token address is invalid (e.g., contract's own address). |
 
 ### Functions by Error
 
@@ -351,7 +361,7 @@ try {
 
 ---
 
-#### `PoolAlreadyClosed` (Code 15)
+#### `PoolAlreadyClosed` (Code 16)
 
 **Raised by:**
 - `close_pool()` - Pool has already been closed
