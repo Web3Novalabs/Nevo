@@ -705,8 +705,21 @@ export function fetchMyDonations(
   limit?: number
 ): Promise<ApiResponseBody<'/users/me/donations', 'get'>> {
   return apiClient.typedGet(
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<PaginatedResponse<ApiDonation>> {
+  return apiClient.get<PaginatedResponse<ApiDonation>>(
     '/users/me/donations',
-    limit ? { params: { limit } } : undefined
+    params ? { params } : undefined
+  );
+}
+
+export function fetchPoolDonations(
+  poolId: string | number,
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<PaginatedResponse<ApiDonation>> {
+  return apiClient.get<PaginatedResponse<ApiDonation>>(
+    `/pools/${poolId}/donations`,
+    params ? { params } : undefined
   );
 }
 
@@ -828,6 +841,45 @@ export function createPoolComment(
   return apiClient.typedPost(
     `/pools/${poolId}/comments` as '/pools/{id}/comments',
     payload,
+// ─── Comments ────────────────────────────────────────────────────────────────
+
+export interface ApiComment {
+  id: string;
+  poolId: number;
+  authorWallet: string;
+  text: string;
+  parentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  replies?: ApiComment[];
+}
+
+export interface CommentThread {
+  data: ApiComment[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export function fetchComments(
+  poolId: string | number,
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<CommentThread> {
+  return apiClient.get<CommentThread>(
+    `/pools/${poolId}/comments`,
+    params ? { params } : undefined
+  );
+}
+
+export function postComment(
+  poolId: string | number,
+  text: string,
+  parentId?: string | null
+): Promise<ApiComment> {
+  return apiClient.post<ApiComment>(
+    `/pools/${poolId}/comments`,
+    { text, parentId: parentId ?? null },
     { requireAuth: true }
   );
 }
@@ -852,6 +904,25 @@ export function deletePoolComment(
     `/pools/${poolId}/comments/${commentId}` as '/pools/{id}/comments/{commentId}',
     { requireAuth: true }
   );
+export function updateComment(
+  poolId: string | number,
+  commentId: string,
+  text: string
+): Promise<ApiComment> {
+  return apiClient.request<ApiComment>(
+    `/pools/${poolId}/comments/${commentId}`,
+    'PATCH',
+    { body: { text }, requireAuth: true }
+  );
+}
+
+export function deleteComment(
+  poolId: string | number,
+  commentId: string
+): Promise<void> {
+  return apiClient.delete<void>(`/pools/${poolId}/comments/${commentId}`, {
+    requireAuth: true,
+  });
 }
 
 // ─── Type exports for main branch compatibility ─────────────────────────────

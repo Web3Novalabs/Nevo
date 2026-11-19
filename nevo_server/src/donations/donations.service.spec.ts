@@ -31,59 +31,107 @@ describe('DonationsService', () => {
     service = module.get<DonationsService>(DonationsService);
   });
 
+  const createMockQb = (data: any[], total: number) => ({
+    where: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
+    getManyAndCount: jest.fn().mockResolvedValue([data, total]),
+  });
+
   describe('findByPool', () => {
-    it('returns donations for a pool', async () => {
-      mockRepo.find.mockResolvedValue([{ id: 1, poolId: '1', amount: '100' }]);
+    it('returns paginated donations for a pool', async () => {
+      const mockQb = createMockQb([{ id: 1, poolId: '1', amount: '100' }], 1);
+      mockRepo.createQueryBuilder.mockReturnValue(mockQb);
       const result = await service.findByPool('1');
-      expect(result).toEqual([{ id: 1, poolId: '1', amount: '100' }]);
-      expect(mockRepo.find).toHaveBeenCalledWith({
-        where: { poolId: '1' },
-        order: { createdAt: 'DESC' },
+      expect(result).toEqual({
+        data: [{ id: 1, poolId: '1', amount: '100' }],
+        total: 1,
+        page: 1,
+        limit: 20,
       });
+      expect(mockRepo.createQueryBuilder).toHaveBeenCalledWith('d');
+      expect(mockQb.where).toHaveBeenCalledWith('d.poolId = :poolId', { poolId: '1' });
+      expect(mockQb.orderBy).toHaveBeenCalledWith('d.createdAt', 'DESC');
+      expect(mockQb.skip).toHaveBeenCalledWith(0);
+      expect(mockQb.take).toHaveBeenCalledWith(20);
     });
 
     it('returns donations sorted by largest amount', async () => {
-      const mockQb = {
-        where: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([{ id: 1, poolId: '1', amount: '1000' }]),
-      };
+      const mockQb = createMockQb([{ id: 1, poolId: '1', amount: '1000' }], 1);
       mockRepo.createQueryBuilder.mockReturnValue(mockQb);
       const result = await service.findByPool('1', DonationSortBy.largest);
-      expect(result).toEqual([{ id: 1, poolId: '1', amount: '1000' }]);
+      expect(result).toEqual({
+        data: [{ id: 1, poolId: '1', amount: '1000' }],
+        total: 1,
+        page: 1,
+        limit: 20,
+      });
       expect(mockRepo.createQueryBuilder).toHaveBeenCalledWith('d');
       expect(mockQb.where).toHaveBeenCalledWith('d.poolId = :poolId', { poolId: '1' });
       expect(mockQb.orderBy).toHaveBeenCalledWith('CAST(d.amount AS NUMERIC)', 'DESC');
+    });
+
+    it('applies page and limit to the query', async () => {
+      const mockQb = createMockQb([{ id: 3, poolId: '1', amount: '50' }], 42);
+      mockRepo.createQueryBuilder.mockReturnValue(mockQb);
+      const result = await service.findByPool('1', DonationSortBy.newest, 3, 10);
+      expect(result).toEqual({
+        data: [{ id: 3, poolId: '1', amount: '50' }],
+        total: 42,
+        page: 3,
+        limit: 10,
+      });
+      expect(mockQb.skip).toHaveBeenCalledWith(20);
+      expect(mockQb.take).toHaveBeenCalledWith(10);
     });
   });
 
   describe('findByDonor', () => {
     it('returns only that donors donations', async () => {
-      mockRepo.find.mockResolvedValue([{ id: 2, donorWallet: 'ABC', amount: '200' }]);
+      const mockQb = createMockQb([{ id: 2, donorWallet: 'ABC', amount: '200' }], 1);
+      mockRepo.createQueryBuilder.mockReturnValue(mockQb);
       const result = await service.findByDonor('ABC');
-      expect(result).toEqual([{ id: 2, donorWallet: 'ABC', amount: '200' }]);
-      expect(mockRepo.find).toHaveBeenCalledWith({
-        where: { donorWallet: 'ABC' },
-        order: { createdAt: 'DESC' },
+      expect(result).toEqual({
+        data: [{ id: 2, donorWallet: 'ABC', amount: '200' }],
+        total: 1,
+        page: 1,
+        limit: 20,
       });
+      expect(mockRepo.createQueryBuilder).toHaveBeenCalledWith('d');
+      expect(mockQb.where).toHaveBeenCalledWith('d.donorWallet = :donorWallet', { donorWallet: 'ABC' });
+      expect(mockQb.orderBy).toHaveBeenCalledWith('d.createdAt', 'DESC');
+      expect(mockQb.skip).toHaveBeenCalledWith(0);
+      expect(mockQb.take).toHaveBeenCalledWith(20);
     });
 
     it('returns donations sorted by largest amount', async () => {
-      const mockQb = {
-        where: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        take: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([{ id: 2, donorWallet: 'ABC', amount: '2000' }]),
-      };
+      const mockQb = createMockQb([{ id: 2, donorWallet: 'ABC', amount: '2000' }], 1);
       mockRepo.createQueryBuilder.mockReturnValue(mockQb);
       const result = await service.findByDonor('ABC', DonationSortBy.largest);
-      expect(result).toEqual([{ id: 2, donorWallet: 'ABC', amount: '2000' }]);
+      expect(result).toEqual({
+        data: [{ id: 2, donorWallet: 'ABC', amount: '2000' }],
+        total: 1,
+        page: 1,
+        limit: 20,
+      });
       expect(mockRepo.createQueryBuilder).toHaveBeenCalledWith('d');
       expect(mockQb.where).toHaveBeenCalledWith('d.donorWallet = :donorWallet', { donorWallet: 'ABC' });
       expect(mockQb.orderBy).toHaveBeenCalledWith('CAST(d.amount AS NUMERIC)', 'DESC');
+    });
+
+    it('applies page and limit to the query', async () => {
+      const mockQb = createMockQb([{ id: 4, donorWallet: 'ABC', amount: '75' }], 25);
+      mockRepo.createQueryBuilder.mockReturnValue(mockQb);
+      const result = await service.findByDonor('ABC', DonationSortBy.newest, 2, 5);
+      expect(result).toEqual({
+        data: [{ id: 4, donorWallet: 'ABC', amount: '75' }],
+        total: 25,
+        page: 2,
+        limit: 5,
+      });
+      expect(mockQb.skip).toHaveBeenCalledWith(5);
+      expect(mockQb.take).toHaveBeenCalledWith(5);
     });
   });
 

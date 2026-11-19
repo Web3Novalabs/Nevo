@@ -87,6 +87,74 @@ describe('UsersService', () => {
     expect(repo.save).not.toHaveBeenCalled();
   });
 
+  describe('findPublicProfile', () => {
+    async function buildProfileService(
+      existing: User | null,
+      poolStats: { poolsCreated: number; totalRaised: string } | null,
+    ) {
+      const repo = {
+        findOne: jest.fn().mockResolvedValue(existing),
+        save: jest.fn(),
+        create: jest
+          .fn()
+          .mockImplementation((d: Partial<User>) => ({ ...d }) as User),
+      };
+      const poolRepo = {
+        createQueryBuilder: jest.fn().mockReturnValue({
+          select: jest.fn().mockReturnThis(),
+          addSelect: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          getRawOne: jest.fn().mockResolvedValue(poolStats),
+        }),
+      };
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          UsersService,
+          { provide: getRepositoryToken(User), useValue: repo },
+          { provide: getRepositoryToken(Pool), useValue: poolRepo },
+        ],
+      }).compile();
+      return { service: module.get(UsersService), repo, poolRepo };
+    }
+
+    it('returns aggregated profile data for a known key', async () => {
+      const createdAt = new Date('2024-01-15T12:00:00.000Z');
+      const existing: User = {
+        id: 'uuid-1',
+        publicKey,
+        displayName: 'alice',
+        createdAt,
+        updatedAt: new Date(),
+      };
+      const { service, repo } = await buildProfileService(existing, {
+        poolsCreated: 3,
+        totalRaised: '1500.5',
+      });
+
+      const result = await service.findPublicProfile(publicKey);
+
+      expect(repo.findOne).toHaveBeenCalledWith({ where: { publicKey } });
+      expect(result).toEqual({
+        publicKey,
+        displayName: 'alice',
+        joinedAt: createdAt,
+        poolsCreated: 3,
+        totalRaised: '1500.5',
+      });
+      expect(result).not.toHaveProperty('id');
+      expect(result).not.toHaveProperty('updatedAt');
+    });
+
+    it('returns null for an unknown key', async () => {
+      const { service, poolRepo } = await buildProfileService(null, null);
+
+      const result = await service.findPublicProfile('GUNKNOWN1234567890');
+
+      expect(result).toBeNull();
+      expect(poolRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+  });
+
   describe('findOrCreate race condition handling', () => {
     it('two concurrent findOrCreate calls for a new key both pass findOne but only one succeeds on save', async () => {
       const testKey = 'GABC1234567890NEW';
