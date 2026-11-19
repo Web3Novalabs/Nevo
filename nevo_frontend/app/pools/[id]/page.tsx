@@ -120,6 +120,8 @@ function PoolDetailPageContent() {
       await submitSignedXdr(signedTxXdr);
       notify({ type: 'success', title: 'Withdrawal successful' });
 
+      // TODO(#1736): poll RPC getTransaction(hash) until SUCCESS/FAILED before refresh
+      setContributors([]);
       await fetchPool(Number(pool.id));
     } catch (err: unknown) {
       const error = err as Error;

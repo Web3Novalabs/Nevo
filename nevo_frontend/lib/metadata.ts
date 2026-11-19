@@ -89,6 +89,11 @@ export function generatePageMetadata({
   };
 }
 
+// TODO(#1735): call from generateMetadata in app/pools/[id]/page.tsx
+export function generatePoolMetadata(title: string, description: string, id: string): Metadata {
+  return generatePageMetadata({ title, description, path: `/pools/${id}` });
+}
+
 interface BreadcrumbItem {
   name: string;
   path: string;
