@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { Donation } from './donation.entity.js';
 
 export enum DonationSortBy {
@@ -31,24 +31,20 @@ export class DonationsService {
     page?: number | string,
     limit?: number | string,
   ): Promise<Donation[]> {
-    const pageNum = page !== undefined ? Math.max(1, parseInt(String(page), 10) || 1) : undefined;
+    const pageNum =
+      page !== undefined ? Math.max(1, parseInt(String(page), 10) || 1) : undefined;
     const limitNum =
       limit !== undefined
         ? Math.max(1, Math.min(100, parseInt(String(limit), 10) || 10))
         : undefined;
 
     if (sortBy === DonationSortBy.largest) {
-      const qb = this.donationRepo
-        .createQueryBuilder('d')
-        .where('d.poolId = :poolId', { poolId })
-        .orderBy('CAST(d.amount AS NUMERIC)', 'DESC');
-
-      if (pageNum !== undefined || limitNum !== undefined) {
-        const p = pageNum ?? 1;
-        const l = limitNum ?? 10;
-        qb.skip((p - 1) * l).take(l);
-      }
-      return qb.getMany();
+      return this.buildLargestDonationsQuery(
+        'poolId',
+        poolId,
+        pageNum,
+        limitNum,
+      ).getMany();
     }
 
     const findOptions: any = {
@@ -72,24 +68,20 @@ export class DonationsService {
     page?: number | string,
     limit?: number | string,
   ): Promise<Donation[]> {
-    const pageNum = page !== undefined ? Math.max(1, parseInt(String(page), 10) || 1) : undefined;
+    const pageNum =
+      page !== undefined ? Math.max(1, parseInt(String(page), 10) || 1) : undefined;
     const limitNum =
       limit !== undefined
         ? Math.max(1, Math.min(100, parseInt(String(limit), 10) || 10))
         : undefined;
 
     if (sortBy === DonationSortBy.largest) {
-      const qb = this.donationRepo
-        .createQueryBuilder('d')
-        .where('d.donorWallet = :donorWallet', { donorWallet })
-        .orderBy('CAST(d.amount AS NUMERIC)', 'DESC');
-
-      if (pageNum !== undefined || limitNum !== undefined) {
-        const p = pageNum ?? 1;
-        const l = limitNum ?? 10;
-        qb.skip((p - 1) * l).take(l);
-      }
-      return qb.getMany();
+      return this.buildLargestDonationsQuery(
+        'donorWallet',
+        donorWallet,
+        pageNum,
+        limitNum,
+      ).getMany();
     }
 
     const findOptions: any = {
@@ -107,6 +99,28 @@ export class DonationsService {
     return this.donationRepo.find(findOptions);
   }
 
+  private buildLargestDonationsQuery(
+    filterColumn: 'poolId' | 'donorWallet',
+    filterValue: string,
+    pageNum?: number,
+    limitNum?: number,
+  ) {
+    const qb = this.donationRepo
+      .createQueryBuilder('d')
+      .where(`d.${filterColumn} = :${filterColumn}`, {
+        [filterColumn]: filterValue,
+      })
+      .orderBy('CAST(d.amount AS NUMERIC)', 'DESC');
+
+    if (pageNum !== undefined || limitNum !== undefined) {
+      const p = pageNum ?? 1;
+      const l = limitNum ?? 10;
+      qb.skip((p - 1) * l).take(l);
+    }
+
+    return qb;
+  }
+
   async isTxProcessed(txHash: string): Promise<boolean> {
     const count = await this.donationRepo.countBy({ txHash });
     return count > 0;
@@ -118,17 +132,33 @@ export class DonationsService {
     amount: string;
     asset: string;
     txHash: string;
-    memo?: string;
+    memo?: string | null;
   }): Promise<Donation> {
-    return this.donationRepo.save(
-      this.donationRepo.create({
-        poolId: data.poolId,
-        donorWallet: data.donorWallet,
-        amount: data.amount,
-        asset: data.asset,
-        txHash: data.txHash,
-        memo: data.memo || null,
-      }),
-    );
+    try {
+      return await this.donationRepo.save(
+        this.donationRepo.create({
+          poolId: data.poolId,
+          donorWallet: data.donorWallet,
+          amount: data.amount,
+          asset: data.asset,
+          txHash: data.txHash,
+          memo: data.memo ?? null,
+        }),
+      );
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        'code' in error.driverError &&
+        error.driverError.code === '23505'
+      ) {
+        const existing = await this.donationRepo.findOneBy({
+          txHash: data.txHash,
+        });
+        if (existing) {
+          return existing;
+        }
+      }
+      throw error;
+    }
   }
 }

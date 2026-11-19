@@ -25,10 +25,16 @@ export function toast(message: string, type: ToastType = 'success') {
 }
 
 function ToastItem({ toast: t, onDismiss }: ToastItemProps) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+
+  const isPaused = isHovered || isFocused;
+
   useEffect(() => {
+    if (isPaused) return;
     const timer = setTimeout(() => onDismiss(t.id), 3000);
     return () => clearTimeout(timer);
-  }, [t.id, onDismiss]);
+  }, [t.id, onDismiss, isPaused]);
 
   const bgColor = {
     success: 'bg-green-600',
@@ -46,6 +52,14 @@ function ToastItem({ toast: t, onDismiss }: ToastItemProps) {
     <div
       role="status"
       aria-live="polite"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onFocus={() => setIsFocused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setIsFocused(false);
+        }
+      }}
       className={`pointer-events-auto flex items-center gap-2 rounded-lg ${bgColor[t.type]} px-4 py-2.5 text-sm font-medium text-white shadow-lg transition-all duration-300`}
     >
       {icon[t.type]}

@@ -47,7 +47,16 @@ export default function DonationsPage() {
       .then((donations) => {
         donations.forEach((d) => {
           if (!history.some((h) => h.id === d.id)) {
-            addDonation(d);
+            addDonation({
+              id: d.id,
+              poolId: d.poolId,
+              poolName: d.poolTitle,
+              amount: d.amount,
+              asset: d.asset as 'XLM' | 'USDC',
+              txHash: d.txHash,
+              timestamp: d.createdAt,
+              status: 'confirmed',
+            });
           }
         });
       })

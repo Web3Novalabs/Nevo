@@ -20,6 +20,10 @@ const STELLAR_CODE_MAP: Record<
     status: HttpStatus.REQUEST_TIMEOUT,
     message: 'Transaction timed out — the network did not confirm it in time',
   },
+  invalid_xdr: {
+    status: HttpStatus.BAD_REQUEST,
+    message: 'Invalid transaction XDR',
+  },
 };
 
 export class StellarError extends HttpException {

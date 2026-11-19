@@ -1,4 +1,7 @@
 import type { Config } from 'jest';
+import nextJest from 'next/jest.js';
+
+const createJestConfig = nextJest({ dir: './' });
 
 const config: Config = {
   testEnvironment: 'jsdom',
@@ -6,13 +9,12 @@ const config: Config = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
-  transform: {
-    '^.+\\.tsx?$': ['ts-jest', { tsconfig: { jsx: 'react-jsx' } }],
-  },
   testMatch: [
     '**/__tests__/**/*.test.{ts,tsx}',
     '**/hooks/**/*.test.{ts,tsx}',
     '**/src/store/**/*.test.{ts,tsx}',
+    '**/lib/**/*.test.{ts,tsx}',
+    '**/components/**/*.test.{ts,tsx}',
   ],
   collectCoverage: true,
   coverageThreshold: {
@@ -25,4 +27,4 @@ const config: Config = {
   },
 };
 
-export default config;
+export default createJestConfig(config);

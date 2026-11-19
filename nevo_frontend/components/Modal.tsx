@@ -2,8 +2,6 @@
 
 import React, {
   FC,
-  HTMLAttributes,
-  KeyboardEvent,
   ReactNode,
   useCallback,
   useEffect,
@@ -50,29 +48,47 @@ export const Modal: FC<ModalProps> = ({
   const descId = useId();
 
   // ── Focus trap ────────────────────────────────────────────────────────────
-  const trapFocus = useCallback((e: globalThis.KeyboardEvent) => {
-    if (!dialogRef.current) return;
-    const focusable = Array.from(
-      dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)
-    );
-    if (focusable.length === 0) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
+  const handleDocumentKeyDown = useCallback(
+    (e: globalThis.KeyboardEvent) => {
+      if (!dialogRef.current) return;
 
-    if (e.key === 'Tab') {
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+        return;
       }
-    }
-  }, []);
+
+      if (e.key !== 'Tab') return;
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)
+      );
+      if (focusable.length === 0) {
+        e.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const activeIndex = focusable.indexOf(
+        document.activeElement as HTMLElement
+      );
+
+      if (activeIndex === -1) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      } else if (e.shiftKey && activeIndex === 0) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && activeIndex === focusable.length - 1) {
+        e.preventDefault();
+        first.focus();
+      }
+    },
+    [onClose]
+  );
 
   // ── Open / close effects ──────────────────────────────────────────────────
   useEffect(() => {
@@ -88,22 +104,14 @@ export const Modal: FC<ModalProps> = ({
       el?.focus();
     });
 
-    document.addEventListener('keydown', trapFocus);
+    document.addEventListener('keydown', handleDocumentKeyDown);
 
     return () => {
       document.body.style.overflow = prev;
       cancelAnimationFrame(id);
-      document.removeEventListener('keydown', trapFocus);
+      document.removeEventListener('keydown', handleDocumentKeyDown);
     };
-  }, [open, trapFocus]);
-
-  // ── Esc key ───────────────────────────────────────────────────────────────
-  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      onClose();
-    }
-  }
+  }, [open, handleDocumentKeyDown]);
 
   // ── Backdrop click ────────────────────────────────────────────────────────
   function handleBackdropClick() {
@@ -122,7 +130,6 @@ export const Modal: FC<ModalProps> = ({
         // Backdrop fade-in
         'animate-[fadeIn_150ms_ease-out]',
       ].join(' ')}
-      onKeyDown={handleKeyDown}
     >
       {/* Backdrop */}
       <div

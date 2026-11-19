@@ -379,7 +379,7 @@ export default function AboutPage() {
               Email Us
             </a>
             <Link
-              href="/contact"
+              href="/help"
               className="inline-flex items-center justify-center rounded-xl border border-[var(--color-border)] px-6 py-3 text-sm font-semibold hover:bg-[var(--color-surface)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
             >
               Contact Form

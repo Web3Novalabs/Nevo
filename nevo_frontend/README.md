@@ -14,7 +14,7 @@ This layer handles the user interface, wallet connections via Freighter, and int
 
 ## Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - npm
 - [Freighter wallet extension](https://www.freighter.app/) (for local development with Stellar testnet)
 
@@ -72,6 +72,7 @@ Runs Playwright E2E tests with the interactive UI for debugging.
 ## Browser Compatibility
 
 Supported browsers are defined in `package.json` under `browserslist`:
+
 - Last 2 versions of Chrome, Firefox, Safari, Edge
 - Last 2 versions of iOS and Android
 - Excludes dead browsers and Opera Mini
@@ -80,4 +81,4 @@ Supported browsers are defined in `package.json` under `browserslist`:
 
 - [Next.js Documentation](https://nextjs.org/docs)
 - [Stellar Documentation](https://developers.stellar.org/)
-- [Freighter Documentation](https://www.freighter.app/docs)
+- [Freighter Documentation](https://docs.freighter.app/)

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import {
   ADVISORY_LOCK_KEYS,
   AdvisoryLockService,
@@ -60,20 +60,20 @@ export class NonceService {
     await this.nonceRepository.update(nonceId, { used: true });
   }
 
-  @Cron(CronExpression.EVERY_HOUR)
-  async cleanupExpiredNonces(): Promise<void> {
+  async deleteExpiredNonces(): Promise<void> {
     await this.advisoryLock.runExclusive(
       ADVISORY_LOCK_KEYS.nonceCleanup,
       'NonceService.cleanupExpiredNonces',
       async () => {
         await this.nonceRepository.delete({
-          expiresAt: new Date(),
+          expiresAt: LessThan(new Date()),
         });
       },
     );
   }
 
-  async deleteExpiredNonces(): Promise<void> {
-    await this.cleanupExpiredNonces();
+  @Cron(CronExpression.EVERY_HOUR, { name: 'cleanupExpiredNonces' })
+  async cleanupExpiredNonces(): Promise<void> {
+    await this.deleteExpiredNonces();
   }
 }

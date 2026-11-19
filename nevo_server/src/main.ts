@@ -1,12 +1,16 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.use(helmet());
+
+  const corsOrigins = process.env.CORS_ORIGIN ?? process.env.FRONTEND_ORIGIN;
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    origin: corsOrigins ? corsOrigins.split(',') : [],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
   //global validation pipe to validate incoming requests
@@ -17,6 +21,8 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  app.enableShutdownHooks();
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Nevo API')
@@ -31,10 +37,17 @@ async function bootstrap() {
     )
     .addTag('auth', 'Stellar wallet challenge/response authentication')
     .addTag('pools', 'Donation pools')
+    .addTag('donations', 'Donations to pools')
+    .addTag('transactions', 'Signed transaction submission')
+    .addTag('contract', 'Smart contract transaction submission')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api-docs', app, document);
 
   await app.listen(process.env.PORT ?? 3000);
 }
+bootstrap().catch((err: unknown) => {
+  console.error(err);
+  process.exit(1);
+});
 void bootstrap();

@@ -1,5 +1,10 @@
 import { renderHook, act } from '@testing-library/react';
-import { useXdrTransaction } from './useXdrTransaction';
+import { useEffect, useRef } from 'react';
+import {
+  useXdrTransaction,
+  extractUnsignedXdr,
+  extractTxHash,
+} from './useXdrTransaction';
 
 jest.mock('@/lib/stellar', () => ({
   signTransaction: jest.fn(),
@@ -206,6 +211,122 @@ describe('useXdrTransaction', () => {
 
       expect(caught).toBe(error);
       expect(result.current.status).toBe('error');
+    });
+  });
+
+  describe('status transition sequence', () => {
+    it('records idle → signing → submitting → success during the async chain', async () => {
+      mockSignTransaction.mockResolvedValue('signed-xdr');
+      const getXdr = jest.fn().mockResolvedValue('unsigned-xdr');
+      const submitXdr = jest.fn().mockResolvedValue('tx-hash-seq');
+
+      const { result } = renderHook(() => {
+        const hook = useXdrTransaction();
+        const history = useRef<string[]>([]);
+        useEffect(() => {
+          const last = history.current[history.current.length - 1];
+          if (last !== hook.status) {
+            history.current.push(hook.status);
+          }
+        }, [hook.status]);
+        return { hook, history };
+      });
+
+      await act(async () => {
+        await result.current.hook.submit(getXdr, submitXdr);
+      });
+
+      expect(result.current.history.current).toEqual([
+        'idle',
+        'signing',
+        'submitting',
+        'success',
+      ]);
+      expect(result.current.hook.status).toBe('success');
+    });
+  });
+
+  describe('sign rejection', () => {
+    it('sets status to error and rethrows the same error object', async () => {
+      const error = new Error('User rejected signing');
+      mockSignTransaction.mockRejectedValue(error);
+      const getXdr = jest.fn().mockResolvedValue('unsigned-xdr');
+      const submitXdr = jest.fn();
+
+      const { result } = renderHook(() => useXdrTransaction());
+
+      let caught: unknown;
+      await act(async () => {
+        try {
+          await result.current.submit(getXdr, submitXdr);
+        } catch (e) {
+          caught = e;
+        }
+      });
+
+      expect(caught).toBe(error);
+      expect(result.current.status).toBe('error');
+      expect(result.current.error).toBe('User rejected signing');
+      expect(submitXdr).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('extractUnsignedXdr', () => {
+    it('returns the string payload as-is', () => {
+      expect(extractUnsignedXdr('unsigned-xdr-string')).toBe(
+        'unsigned-xdr-string'
+      );
+    });
+
+    it('unwraps the unsignedXdr property from an object payload', () => {
+      expect(extractUnsignedXdr({ unsignedXdr: 'unsigned-xdr-obj' })).toBe(
+        'unsigned-xdr-obj'
+      );
+    });
+  });
+
+  describe('extractTxHash', () => {
+    it('returns the string payload as-is', () => {
+      expect(extractTxHash('tx-hash-string')).toBe('tx-hash-string');
+    });
+
+    it('unwraps the txHash property from an object payload', () => {
+      expect(extractTxHash({ txHash: 'txhash-from-obj' })).toBe(
+        'txhash-from-obj'
+      );
+    });
+
+    it('unwraps the hash property from an object payload', () => {
+      expect(extractTxHash({ hash: 'hash-from-obj' })).toBe('hash-from-obj');
+    });
+
+    it('returns an empty string for an empty object payload', () => {
+      expect(extractTxHash({})).toBe('');
+    });
+  });
+
+  describe('submit failure after successful signing', () => {
+    it('sets status to error (not success) and leaves txHash null', async () => {
+      mockSignTransaction.mockResolvedValue('signed-xdr');
+      const getXdr = jest.fn().mockResolvedValue('unsigned-xdr');
+      const submitXdr = jest.fn().mockRejectedValue(new Error('Submit failed'));
+
+      const { result } = renderHook(() => useXdrTransaction());
+
+      await act(async () => {
+        try {
+          await result.current.submit(getXdr, submitXdr);
+        } catch (_) {
+          // expected
+        }
+      });
+
+      expect(mockSignTransaction).toHaveBeenCalledWith('unsigned-xdr');
+      expect(submitXdr).toHaveBeenCalledWith('signed-xdr');
+      expect(result.current.status).toBe('error');
+      expect(result.current.status).not.toBe('success');
+      expect(result.current.txHash).toBeNull();
+      expect(result.current.error).toBe('Submit failed');
     });
   });
 

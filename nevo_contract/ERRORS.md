@@ -35,6 +35,11 @@ These errors are encoded as numeric codes and returned via `env.panic_with_error
 | 12 | `PoolNotExpired` | 422 | Pool deadline has not passed or grace period hasn't elapsed |
 | 13 | `NoContributionToRefund` | 404 | Donor has no recorded contribution to refund |
 | 14 | `SchoolNotRegistered` | 404 | School address is not registered in the system |
+| 15 | `PoolAlreadyClosed` | 409 | Attempted to close a pool that is already closed |
+| 20 | `InvalidClaimAmount` | 400 | Claim amount is zero or negative |
+| 21 | `ApplicationStatusNotFound` | 404 | Student has no application status record for this pool; student must apply first |
+| 22 | `ApplicationNotApproved` | 403 | Application status is not "Approved"; school must approve before claiming |
+| 23 | `OverdrawAttempt` | 422 | Claim would exceed the pool's collected funds |
 
 ### Functions by Error
 
@@ -346,6 +351,15 @@ try {
 
 ---
 
+#### `PoolAlreadyClosed` (Code 15)
+
+**Raised by:**
+- `close_pool()` - Pool has already been closed
+
+**Meaning:** The pool's `is_closed` flag is already set, so it cannot be closed a second time.
+
+---
+
 ## String Panic Messages
 
 These are ad-hoc panic messages (not part of the `#[contracterror]` enum). While they should be replaced with typed errors over time, integrators should be aware of them as they may be encountered in production.
@@ -358,16 +372,19 @@ These are ad-hoc panic messages (not part of the `#[contracterror]` enum). While
 | `"Milestones required"` | `setup_application_milestones()` | Empty milestones vector provided | Provide at least one milestone |
 | `"Milestone total must equal pool goal"` | `setup_application_milestones()` | Sum of milestone amounts ≠ pool goal | Ensure milestone amounts sum to exactly pool goal |
 | `"No surplus to withdraw"` | `withdraw_unallocated_funds()` | No unallocated funds (surplus = 0) | Check pool has unallocated funds before withdrawing |
-| `"Claim amount must be positive"` | `claim_funds()` | Claim amount ≤ 0 | Use a positive claim amount |
-| `"Application status not found"` | `claim_funds()` | Student has no application status record | Student must apply to pool first |
-| `"Application is not approved"` | `claim_funds()` | Application status is not "Approved" | School must approve application before student can claim |
-| `"Overdraw attempt"` | `claim_funds()` | `amount_claimed + claim_amount > collected` | Cannot claim more than available collected funds |
 | `"Deadline must be in the future"` | `set_pool_deadline()` | Deadline ≤ current ledger sequence | Use a future timestamp |
 | `"InvalidAmount"` | `set_pool_state()` | Amount argument is ≤ 0 | Provide positive amount |
-| `"Error(Auth, InvalidAction)"` | `admin_confirm_emergency_withdrawal()` | Caller is not the admin (legacy error) | Only admin can perform this action |
-| `"EmergencyWithdrawalAlreadyRequested"` | `request_emergency_withdrawal()` | Emergency withdrawal already pending | Complete or cancel existing request first |
+| `"EmergencyWithdrawalAlreadyRequested"` | `request_emergency_withdraw()` | Emergency withdrawal already pending | Complete or cancel existing request first |
 | `"Grace period not elapsed"` | `confirm_emergency_withdrawal()` | Less than 24 hours have elapsed since request | Wait for grace period to complete |
 | `"Insolvency: locked funds exceed collected"` | `withdraw_unallocated_funds()` | Pool accounting is inconsistent | This should never happen; report as bug |
+| `"Crowdfunding token not set"` | `get_crowdfunding_token()` | No token has been configured yet; `set_crowdfunding_token()` has never succeeded | Configure a token with `set_crowdfunding_token()` first |
+
+### Pending Follow-ups
+
+| Panic Message | Function | Follow-up |
+|---------------|----------|-----------|
+| `"Crowdfunding token not set"` | `get_crowdfunding_token()` | Replace the `.expect()` with a typed `ContractError` variant, matching the convention already used by `ContractError::AdminNotSet` (the admin lookup in `set_crowdfunding_token`) and `ContractError::SchoolNotRegistered`. Until that change is made, integrators must match this string. Tracked by issue #1483; the current behaviour is pinned by `test_issue_1483_crowdfunding_token_unset`. |
+| `"EmergencyWithdrawalAlreadyRequested"` | `request_emergency_withdraw()` | Replace the `panic!` with a typed `ContractError` variant for the duplicate-request case. Until that change is made, integrators must match this string. Tracked by issue #1574. |
 
 ---
 

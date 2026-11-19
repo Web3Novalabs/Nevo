@@ -7,7 +7,10 @@ const baseNotification = {
   link: '/pools/123',
 };
 
-beforeEach(() => useNotificationsStore.setState({ notifications: [] }));
+beforeEach(() => {
+  useNotificationsStore.setState({ notifications: [] });
+  localStorage.clear();
+});
 
 describe('notificationsStore', () => {
   describe('addNotification', () => {
@@ -48,6 +51,20 @@ describe('notificationsStore', () => {
       const { notifications } = useNotificationsStore.getState();
       expect(notifications[0].timestamp).toBeDefined();
     });
+
+    it('prepends with generated id, timestamp, and isRead false', () => {
+      useNotificationsStore.getState().addNotification(baseNotification);
+      const { notifications } = useNotificationsStore.getState();
+      expect(notifications).toHaveLength(1);
+      const [n] = notifications;
+      expect(n.isRead).toBe(false);
+      expect(n.id).toMatch(/^notif-/);
+      expect(n.timestamp).toBeDefined();
+      expect(n.title).toBe(baseNotification.title);
+      expect(n.message).toBe(baseNotification.message);
+      expect(n.type).toBe(baseNotification.type);
+      expect(n.link).toBe(baseNotification.link);
+    });
   });
 
   describe('markAsRead', () => {
@@ -77,6 +94,20 @@ describe('notificationsStore', () => {
       expect(updatedA!.isRead).toBe(true);
       expect(updatedB!.isRead).toBe(false);
     });
+
+    it('only flips isRead and preserves other fields', () => {
+      useNotificationsStore.getState().addNotification(baseNotification);
+      const before = useNotificationsStore.getState().notifications[0];
+      useNotificationsStore.getState().markAsRead(before.id);
+      const after = useNotificationsStore.getState().notifications[0];
+      expect(after.isRead).toBe(true);
+      expect(after.id).toBe(before.id);
+      expect(after.title).toBe(before.title);
+      expect(after.message).toBe(before.message);
+      expect(after.type).toBe(before.type);
+      expect(after.link).toBe(before.link);
+      expect(after.timestamp).toBe(before.timestamp);
+    });
   });
 
   describe('markAllAsRead', () => {
@@ -97,6 +128,30 @@ describe('notificationsStore', () => {
         useNotificationsStore.getState().markAllAsRead()
       ).not.toThrow();
       expect(useNotificationsStore.getState().notifications).toHaveLength(0);
+    });
+
+    it('only flips isRead and preserves other fields', () => {
+      useNotificationsStore.getState().addNotification({
+        ...baseNotification,
+        title: 'A',
+      });
+      useNotificationsStore.getState().addNotification({
+        ...baseNotification,
+        title: 'B',
+      });
+      const before = useNotificationsStore.getState().notifications;
+      useNotificationsStore.getState().markAllAsRead();
+      const after = useNotificationsStore.getState().notifications;
+      expect(after).toHaveLength(before.length);
+      after.forEach((n, i) => {
+        expect(n.isRead).toBe(true);
+        expect(n.id).toBe(before[i].id);
+        expect(n.title).toBe(before[i].title);
+        expect(n.message).toBe(before[i].message);
+        expect(n.type).toBe(before[i].type);
+        expect(n.link).toBe(before[i].link);
+        expect(n.timestamp).toBe(before[i].timestamp);
+      });
     });
   });
 
@@ -138,6 +193,40 @@ describe('notificationsStore', () => {
 
     it('works on already empty store', () => {
       expect(() => useNotificationsStore.getState().clearAll()).not.toThrow();
+    });
+  });
+
+  describe('persistence', () => {
+    it('persists under the nevo-notifications key', () => {
+      useNotificationsStore.getState().addNotification(baseNotification);
+      const raw = localStorage.getItem('nevo-notifications');
+      expect(raw).not.toBeNull();
+      const parsed = JSON.parse(raw as string);
+      expect(parsed.state.notifications).toEqual(
+        useNotificationsStore.getState().notifications
+      );
+    });
+
+    it('persists updated state after markAsRead', () => {
+      useNotificationsStore.getState().addNotification(baseNotification);
+      const { id } = useNotificationsStore.getState().notifications[0];
+      useNotificationsStore.getState().markAsRead(id);
+      const raw = localStorage.getItem('nevo-notifications');
+      expect(raw).not.toBeNull();
+      const parsed = JSON.parse(raw as string);
+      expect(parsed.state.notifications).toEqual(
+        useNotificationsStore.getState().notifications
+      );
+      expect(parsed.state.notifications[0].isRead).toBe(true);
+    });
+
+    it('persists empty state after clearAll', () => {
+      useNotificationsStore.getState().addNotification(baseNotification);
+      useNotificationsStore.getState().clearAll();
+      const raw = localStorage.getItem('nevo-notifications');
+      expect(raw).not.toBeNull();
+      const parsed = JSON.parse(raw as string);
+      expect(parsed.state.notifications).toEqual([]);
     });
   });
 });

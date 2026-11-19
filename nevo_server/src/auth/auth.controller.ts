@@ -15,6 +15,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { NonceService } from './nonce.service';
 import type { AuthResult } from './auth.service';
@@ -47,6 +48,7 @@ export class AuthController {
     },
   })
   @ApiBadRequestResponse({ description: 'publicKey was not supplied.' })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Get('challenge')
   async challenge(
     @Query('publicKey') publicKey?: string,
@@ -96,6 +98,7 @@ export class AuthController {
     },
   })
   @ApiUnauthorizedResponse({ description: 'Signature or nonce is invalid.' })
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('verify')
   verify(@Body() dto: VerifyAuthDto): Promise<AuthResult> {
     return this.authService.verify(dto);

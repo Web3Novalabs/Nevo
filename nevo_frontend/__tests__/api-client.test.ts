@@ -5,7 +5,10 @@ import {
   fetchAuthChallenge,
   ApiError,
   UnauthorizedError,
+  isRateLimitError,
 } from '@/lib/api-client';
+import * as rateLimit from '@/lib/rate-limit';
+import { RATE_LIMIT_EVENT, type RateLimitNotification } from '@/lib/rate-limit';
 
 function jsonResponse(data: unknown, init: ResponseInit = {}) {
   const status = init.status ?? 200;
@@ -293,7 +296,91 @@ describe('fetchAuthChallenge', () => {
       )
     );
 
-    await expect(fetchAuthChallenge('INVALID')).rejects.toBeInstanceOf(ApiError);
+    await expect(fetchAuthChallenge('INVALID')).rejects.toBeInstanceOf(
+      ApiError
+    );
     expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ApiClient RateLimitError round-trip', () => {
+  let events: CustomEvent<RateLimitNotification>[];
+  const onRateLimit = (event: Event) =>
+    events.push(event as CustomEvent<RateLimitNotification>);
+
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'Headers', {
+      value: TestHeaders,
+      configurable: true,
+    });
+    global.fetch = jest.fn();
+    events = [];
+    window.addEventListener(RATE_LIMIT_EVENT, onRateLimit);
+    jest.spyOn(rateLimit, 'notifyRateLimit');
+  });
+
+  afterEach(() => {
+    window.removeEventListener(RATE_LIMIT_EVENT, onRateLimit);
+    jest.restoreAllMocks();
+  });
+
+  async function captureError(promise: Promise<unknown>) {
+    try {
+      await promise;
+    } catch (error) {
+      return error;
+    }
+    throw new Error('Expected request to reject');
+  }
+
+  it('throws a RateLimitError and notifies when the local limit is hit', async () => {
+    const client = new ApiClient('https://api.test', 1000, {
+      maxRequests: 1,
+      windowMs: 60_000,
+    });
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse({ ok: true }));
+
+    await client.get('/pools', { requireAuth: false, cacheResponse: false });
+    const error = await captureError(
+      client.get('/pools', { requireAuth: false, cacheResponse: false })
+    );
+
+    expect(error).toBeInstanceOf(RateLimitError);
+    expect(isRateLimitError(error)).toBe(true);
+    expect(rateLimit.notifyRateLimit).toHaveBeenCalledTimes(1);
+    expect(rateLimit.notifyRateLimit).toHaveBeenCalledWith(error);
+    expect(events).toHaveLength(1);
+    expect(events[0].detail).toMatchObject({
+      message: (error as RateLimitError).message,
+      limit: 1,
+      endpoint: '/pools',
+    });
+  });
+
+  it('throws a RateLimitError and notifies on a server 429', async () => {
+    const client = new ApiClient('https://api.test', 1000, {
+      maxRequests: 10,
+      windowMs: 60_000,
+    });
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': '5' } }
+      )
+    );
+
+    const error = await captureError(
+      client.get('/limited', { requireAuth: false, cacheResponse: false })
+    );
+
+    expect(error).toBeInstanceOf(RateLimitError);
+    expect(isRateLimitError(error)).toBe(true);
+    expect(rateLimit.notifyRateLimit).toHaveBeenCalledTimes(1);
+    expect(rateLimit.notifyRateLimit).toHaveBeenCalledWith(error);
+    expect(events).toHaveLength(1);
+    expect(events[0].detail).toMatchObject({
+      retryAfterMs: 5_000,
+      endpoint: '/limited',
+    });
   });
 });

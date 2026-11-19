@@ -13,7 +13,7 @@ export class LoggingMiddleware implements NestMiddleware {
 
     const requestId = (req.headers['x-request-id'] as string) || randomUUID();
 
-    res.setHeader('X-Request_ID', requestId);
+    res.setHeader('X-Request-Id', requestId);
 
     res.on('finish', () => {
       const duration = Date.now() - start;

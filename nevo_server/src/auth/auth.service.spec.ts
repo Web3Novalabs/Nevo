@@ -1,6 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException } from '@nestjs/common';
+
+jest.mock('@nestjs/schedule', () => ({
+  Cron: () => () => {},
+  CronExpression: {},
+  ScheduleModule: {},
+  SchedulerRegistry: jest.fn(),
+}));
+
 import { AuthService } from './auth.service';
 import { VerifyAuthDto } from './dto/verify-auth.dto';
 import { UsersService } from '../users/users.service';

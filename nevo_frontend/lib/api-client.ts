@@ -8,6 +8,12 @@ import {
   parseRetryAfterHeader,
   resolveRateLimitOptions,
 } from './rate-limit';
+import type {
+  ApiPool,
+  ApiDonation,
+  ApiUser,
+  PaginatedResponse,
+} from './api-types';
 import { env, validatePublicEnv } from './env';
 import { getToken } from './auth-storage';
 import { toast } from '../components/Toast';
@@ -491,34 +497,96 @@ export {
   getRateLimitRemainingMs,
   isRateLimitError,
 } from './rate-limit';
+export type {
+  ApiPool,
+  ApiDonation,
+  ApiUser,
+  PaginatedResponse,
+} from './api-types';
 
-export interface ApiDonation {
-  id: string;
-  type: 'donation' | 'pool_creation' | 'withdrawal';
-  amount: string;
-  asset: string;
-  recipient: string;
-  date: string;
-  status: 'completed' | 'pending' | 'failed';
-  txHash: string;
+// ─── JWT helpers ────────────────────────────────────────────────────────────
+
+const JWT_KEY = 'nevo_jwt';
+
+export function getJwt(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(JWT_KEY);
 }
 
-export interface ApiProfile {
-  publicKey: string;
-  displayName: string | null;
-  createdAt: string;
+export function setJwt(token: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(JWT_KEY, token);
+  }
 }
 
-export function fetchMyDonations(limit?: number): Promise<ApiDonation[]> {
-  return apiClient.get<ApiDonation[]>(
-    '/users/me/donations',
-    limit ? { params: { limit } } : undefined
-  );
+export function clearJwt(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(JWT_KEY);
+  }
 }
 
-export function fetchMyProfile(): Promise<ApiProfile> {
-  return apiClient.get<ApiProfile>('/users/me');
-}
+// ─── Auth request interceptor ────────────────────────────────────────────────
+// Attaches wallet credentials (legacy) and the JWT Bearer token when present.
+
+apiClient.addRequestInterceptor((config) => {
+  if (config.requireAuth !== false) {
+    const signature =
+      typeof window !== 'undefined'
+        ? localStorage.getItem('wallet_signature')
+        : null;
+    const pubKey =
+      typeof window !== 'undefined'
+        ? localStorage.getItem('wallet_pubkey')
+        : null;
+    const jwt = getJwt();
+
+    const headers = new Headers(config.headers);
+    if (signature && pubKey) {
+      headers.set('X-Wallet-Signature', signature);
+      headers.set('X-Wallet-Pubkey', pubKey);
+    }
+    if (jwt) {
+      headers.set('Authorization', `Bearer ${jwt}`);
+    }
+    config.headers = headers;
+  }
+  return config;
+});
+
+// ─── 401 response interceptor ────────────────────────────────────────────────
+// On any 401 outside the auth endpoints themselves, clear the JWT, disconnect
+// the wallet, and redirect to /login.
+
+const AUTH_ENDPOINTS = ['/auth/challenge', '/auth/verify'];
+
+apiClient.addResponseInterceptor((response) => {
+  if (response.status === 401) {
+    const url = response.url ?? '';
+    const isAuthEndpoint = AUTH_ENDPOINTS.some((ep) => url.includes(ep));
+
+    if (!isAuthEndpoint) {
+      clearJwt();
+
+      if (typeof window !== 'undefined') {
+        // Lazy-import the wallet store to avoid a circular dependency at module
+        // load time. The store is always available by the time a 401 fires.
+        import('@/src/store/walletStore')
+          .then(({ useWalletStore }) => {
+            return useWalletStore.getState().disconnectWallet();
+          })
+          .catch(() => {
+            // Best-effort — still redirect even if disconnect fails.
+          })
+          .finally(() => {
+            window.location.href = '/login';
+          });
+      }
+    }
+  }
+  return response;
+});
+
+// ─── API call functions ──────────────────────────────────────────────────────
 
 export function updateProfile(displayName: string): Promise<ApiProfile> {
   return apiClient.request<ApiProfile>('/users/me', 'PATCH', {
@@ -531,30 +599,54 @@ export interface CreatePoolPayload {
   title: string;
   description: string;
   category: string;
-  goalAmount: string;
-  duration: number;
-  imageUrl: string;
-  tags: string;
+  goal?: string;
+  goalAmount?: string;
+  imageUrl?: string;
+  duration?: number;
+  tags?: string;
 }
 
 export interface CreatePoolResponse {
-  id: string;
+  poolId: number;
   unsignedXdr: string;
 }
 
-export async function createPool(
+export function fetchMyDonations(limit?: number): Promise<ApiDonation[]> {
+  return apiClient.get<ApiDonation[]>(
+    '/users/me/donations',
+    limit ? { params: { limit } } : undefined
+  );
+}
+
+export function fetchMyProfile(): Promise<ApiUser> {
+  return apiClient.get<ApiUser>('/users/me');
+}
+
+export function fetchCreatorPools(publicKey: string): Promise<ApiPool[]> {
+  return apiClient.get<ApiPool[]>(
+    `/pools?creator=${encodeURIComponent(publicKey)}`
+  );
+}
+
+export function fetchPools(
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<PaginatedResponse<ApiPool>> {
+  return apiClient.get<PaginatedResponse<ApiPool>>('/pools', { params });
+}
+
+export function fetchPool(id: string | number): Promise<ApiPool> {
+  return apiClient.get<ApiPool>(`/pools/${id}`);
+}
+
+export function createPool(
   payload: CreatePoolPayload
 ): Promise<CreatePoolResponse> {
-  return apiClient.post<CreatePoolResponse>('/pools', payload);
+  return apiClient.post<CreatePoolResponse>('/pools', payload, {
+    requireAuth: true,
+  });
 }
 
-export async function submitSignedXdr(
-  xdr: string
-): Promise<{ txHash: string }> {
-  return apiClient.post<{ txHash: string }>('/transactions/submit', { xdr });
-}
-
-export async function closePool(
+export function closePool(
   poolId: string | number
 ): Promise<{ unsignedXdr: string }> {
   return apiClient.post<{ unsignedXdr: string }>(
@@ -566,16 +658,26 @@ export async function closePool(
   );
 }
 
-export async function withdrawPool(
+export function withdrawPool(
   poolId: string | number
 ): Promise<{ unsignedXdr: string }> {
   return apiClient.post<{ unsignedXdr: string }>(
     `/pools/${poolId}/withdraw`,
     undefined,
-    {
-      requireAuth: true,
-    }
+    { requireAuth: true }
   );
+}
+
+export function donate(
+  poolId: number,
+  amount: string,
+  tokenAddress: string
+): Promise<void> {
+  return apiClient.post('/donations', { poolId, amount, tokenAddress });
+}
+
+export function submitSignedXdr(xdr: string): Promise<{ txHash: string }> {
+  return apiClient.post<{ txHash: string }>('/transactions/submit', { xdr });
 }
 
 export function verifyAuthSignature(
@@ -601,4 +703,23 @@ export function fetchAuthChallenge(publicKey: string): Promise<AuthChallenge> {
     requireAuth: false,
     cacheResponse: false,
   });
+}
+
+// ─── Type exports for main branch compatibility ─────────────────────────────
+
+export interface ApiDonation {
+  id: string;
+  type: 'donation' | 'pool_creation' | 'withdrawal';
+  amount: string;
+  asset: string;
+  recipient: string;
+  date: string;
+  status: 'completed' | 'pending' | 'failed';
+  txHash: string;
+}
+
+export interface ApiProfile {
+  publicKey: string;
+  displayName: string | null;
+  createdAt: string;
 }

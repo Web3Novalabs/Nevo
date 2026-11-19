@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Button } from './Button';
+import ConnectWallet from './ConnectWallet';
 import { MobileMenu, MobileMenuButton, NAV_LINKS } from './MobileMenu';
 
 export const Header = () => {
@@ -35,9 +35,7 @@ export const Header = () => {
           </nav>
 
           <div className="hidden md:flex md:items-center">
-            <Button variant="primary" size="small">
-              Connect Wallet
-            </Button>
+            <ConnectWallet />
           </div>
 
           <MobileMenuButton open={menuOpen} onOpen={() => setMenuOpen(true)} />
