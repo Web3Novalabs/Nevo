@@ -4,8 +4,24 @@ import { RATE_LIMIT_EVENT } from '@/lib/rate-limit';
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
+const TESTNET_USDC_ISSUER = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+const MAINNET_USDC_ISSUER = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+
 describe('getAccountBalances', () => {
-  beforeEach(() => mockFetch.mockReset());
+  const originalNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK;
+
+  beforeEach(() => {
+    mockFetch.mockReset();
+    delete process.env.NEXT_PUBLIC_STELLAR_NETWORK;
+  });
+
+  afterAll(() => {
+    if (originalNetwork === undefined) {
+      delete process.env.NEXT_PUBLIC_STELLAR_NETWORK;
+    } else {
+      process.env.NEXT_PUBLIC_STELLAR_NETWORK = originalNetwork;
+    }
+  });
 
   it('returns parsed XLM and USDC balances', async () => {
     mockFetch.mockResolvedValueOnce({
@@ -13,12 +29,63 @@ describe('getAccountBalances', () => {
       json: async () => ({
         balances: [
           { asset_type: 'native', balance: '100.5000000' },
-          { asset_code: 'USDC', balance: '50.2500000' },
+          {
+            asset_code: 'USDC',
+            asset_issuer: TESTNET_USDC_ISSUER,
+            balance: '50.2500000',
+          },
         ],
       }),
     });
     const result = await getAccountBalances('GABC');
     expect(result).toEqual({ xlm: '100.50', usdc: '50.25' });
+  });
+
+  it('only counts USDC when the issuer matches', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        balances: [
+          { asset_type: 'native', balance: '10.0000000' },
+          {
+            asset_code: 'USDC',
+            asset_issuer: 'GFAKEISSUER',
+            balance: '999.0000000',
+          },
+          {
+            asset_code: 'USDC',
+            asset_issuer: TESTNET_USDC_ISSUER,
+            balance: '25.0000000',
+          },
+        ],
+      }),
+    });
+    const result = await getAccountBalances('GABC');
+    expect(result).toEqual({ xlm: '10.00', usdc: '25.00' });
+  });
+
+  it('queries testnet Horizon when configured for testnet', async () => {
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK = 'testnet';
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ balances: [] }) });
+    await getAccountBalances('GABC');
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('horizon-testnet.stellar.org'),
+      expect.anything()
+    );
+  });
+
+  it('queries mainnet Horizon when configured for mainnet', async () => {
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK = 'public';
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ balances: [] }) });
+    await getAccountBalances('GABC');
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('horizon.stellar.org'),
+      expect.anything()
+    );
+    expect(mockFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('horizon-testnet.stellar.org'),
+      expect.anything()
+    );
   });
 
   it('returns zeros when response is not ok', async () => {

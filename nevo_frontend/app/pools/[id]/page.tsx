@@ -8,10 +8,13 @@ import { EmptyState } from '@/components/EmptyState';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { WalletAddress } from '@/components/WalletAddress';
 import { CopyButton } from '@/components/CopyButton';
-import { toast } from '@/components/Toast';
+import { useNotificationCenter } from '@/components/NotificationCenter';
 import { usePoolsStore } from '@/src/store/poolsStore';
 import type { Pool } from '@/src/store/poolsStore';
 import { useWalletStore } from '@/src/store/walletStore';
+import { closePool, submitSignedXdr, withdrawPool } from '@/lib/api-client';
+import { signTransaction } from '@/lib/stellar';
+import { NETWORK_PASSPHRASE } from '@/lib/env';
 import {
   closePool,
   submitSignedXdr,
@@ -99,6 +102,7 @@ function PoolDetailPageContent() {
   const [donateOpen, setDonateOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [withdrawStep, setWithdrawStep] = useState<WithdrawStep>('idle');
+  const { notify } = useNotificationCenter();
 
   const handleWithdraw = async () => {
     if (!pool || !publicKey) return;
@@ -107,24 +111,22 @@ function PoolDetailPageContent() {
       const { unsignedXdr } = await withdrawPool(pool.id);
 
       setWithdrawStep('signing');
-      const signedResult = await signTransaction(unsignedXdr, {
-        networkPassphrase:
-          process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-          'Test SDF Network ; September 2015',
+      const signedTxXdr = await signTransaction(unsignedXdr, {
+        networkPassphrase: NETWORK_PASSPHRASE,
       });
 
-      if (signedResult.error) {
-        throw new Error(signedResult.error);
-      }
-
       setWithdrawStep('submitting');
-      await submitSignedXdr(signedResult.signedTxXdr);
-      toast('Withdrawal successful');
+      await submitSignedXdr(signedTxXdr);
+      notify({ type: 'success', title: 'Withdrawal successful' });
 
       await fetchPool(Number(pool.id));
     } catch (err: unknown) {
       const error = err as Error;
-      toast(error.message || 'Failed to withdraw funds', 'error');
+      notify({
+        type: 'error',
+        title: 'Failed to withdraw funds',
+        message: error.message,
+      });
       console.error(error);
     } finally {
       setWithdrawStep('idle');
@@ -150,22 +152,20 @@ function PoolDetailPageContent() {
       setIsClosing(true);
       const { unsignedXdr } = await closePool(pool.id);
 
-      const signedResult = await signTransaction(unsignedXdr, {
-        networkPassphrase:
-          process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-          'Test SDF Network ; September 2015',
+      const signedTxXdr = await signTransaction(unsignedXdr, {
+        networkPassphrase: NETWORK_PASSPHRASE,
       });
 
-      if (signedResult.error) {
-        throw new Error(signedResult.error);
-      }
-
-      await submitSignedXdr(signedResult.signedTxXdr);
-      toast('Pool closed successfully');
+      await submitSignedXdr(signedTxXdr);
+      notify({ type: 'success', title: 'Pool closed successfully' });
 
       await fetchPool(Number(pool.id));
     } catch (err: unknown) {
-      toast(parseApiError(err), 'error');
+      notify({
+        type: 'error',
+        title: 'Failed to close pool',
+        message: parseApiError(err),
+      });
       console.error(err);
     } finally {
       setIsClosing(false);
