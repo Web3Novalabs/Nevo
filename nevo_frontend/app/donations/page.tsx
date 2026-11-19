@@ -44,7 +44,7 @@ export default function DonationsPage() {
 
   useEffect(() => {
     fetchMyDonations()
-      .then((donations) => {
+      .then(({ data: donations }) => {
         donations.forEach((d) => {
           if (!history.some((h) => h.id === d.id)) {
             addDonation({

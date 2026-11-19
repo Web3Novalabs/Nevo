@@ -303,6 +303,153 @@ describe('fetchAuthChallenge', () => {
   });
 });
 
+describe('ApiClient donations and comments', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'Headers', {
+      value: TestHeaders,
+      configurable: true,
+    });
+    global.fetch = jest.fn();
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('parses the paginated response from fetchMyDonations', async () => {
+    window.localStorage.setItem(
+      'nevo-wallet',
+      JSON.stringify({ state: { accessToken: 'jwt-token-123' } })
+    );
+
+    const client = new ApiClient('https://api.test', 1000, {
+      maxRequests: 10,
+      windowMs: 60_000,
+    });
+    const payload = {
+      data: [{ id: 'donation-1', amount: '10' }],
+      total: 42,
+      page: 2,
+      limit: 10,
+    };
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse(payload));
+
+    const result = await client.fetchMyDonations({ page: 2, limit: 10 });
+
+    expect(result).toEqual(payload);
+    expect(result.data).toHaveLength(1);
+    expect(result.total).toBe(42);
+    expect(result.page).toBe(2);
+    expect(result.limit).toBe(10);
+
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/users/me/donations');
+    expect(url).toContain('page=2');
+    expect(url).toContain('limit=10');
+    expect(fetchInit.method).toBe('GET');
+  });
+
+  it('fetches pool comments with pagination params', async () => {
+    const client = new ApiClient('https://api.test', 1000, {
+      maxRequests: 10,
+      windowMs: 60_000,
+    });
+    const payload = {
+      data: [{ id: 'comment-1', text: 'hi', parentId: null }],
+      total: 1,
+      page: 1,
+      limit: 20,
+    };
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse(payload));
+
+    const result = await client.getPoolComments('pool-1', {
+      page: 1,
+      limit: 20,
+    });
+
+    expect(result).toEqual(payload);
+
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/pools/pool-1/comments');
+    expect(url).toContain('page=1');
+    expect(url).toContain('limit=20');
+    expect(fetchInit.method).toBe('GET');
+  });
+
+  it('posts a pool comment to the comments endpoint', async () => {
+    window.localStorage.setItem(
+      'nevo-wallet',
+      JSON.stringify({ state: { accessToken: 'jwt-token-123' } })
+    );
+
+    const client = new ApiClient('https://api.test', 1000, {
+      maxRequests: 10,
+      windowMs: 60_000,
+    });
+    const created = { id: 'comment-1', text: 'hello', parentId: null };
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse(created));
+
+    const result = await client.createPoolComment('pool-1', {
+      text: 'hello',
+    });
+
+    expect(result).toEqual(created);
+
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/pools/pool-1/comments');
+    expect(fetchInit.method).toBe('POST');
+    expect(JSON.parse(fetchInit.body)).toEqual({ text: 'hello' });
+    expect(fetchInit.headers.get('Authorization')).toBe(
+      'Bearer jwt-token-123'
+    );
+  });
+
+  it('updates a pool comment with PATCH', async () => {
+    window.localStorage.setItem(
+      'nevo-wallet',
+      JSON.stringify({ state: { accessToken: 'jwt-token-123' } })
+    );
+
+    const client = new ApiClient('https://api.test', 1000, {
+      maxRequests: 10,
+      windowMs: 60_000,
+    });
+    const updated = { id: 'comment-1', text: 'edited', parentId: null };
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse(updated));
+
+    const result = await client.updatePoolComment('pool-1', 'comment-1', {
+      text: 'edited',
+    });
+
+    expect(result).toEqual(updated);
+
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/pools/pool-1/comments/comment-1');
+    expect(fetchInit.method).toBe('PATCH');
+    expect(JSON.parse(fetchInit.body)).toEqual({ text: 'edited' });
+  });
+
+  it('deletes a pool comment with DELETE', async () => {
+    window.localStorage.setItem(
+      'nevo-wallet',
+      JSON.stringify({ state: { accessToken: 'jwt-token-123' } })
+    );
+
+    const client = new ApiClient('https://api.test', 1000, {
+      maxRequests: 10,
+      windowMs: 60_000,
+    });
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse({ ok: true }));
+
+    await client.deletePoolComment('pool-1', 'comment-1');
+
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/pools/pool-1/comments/comment-1');
+    expect(fetchInit.method).toBe('DELETE');
+  });
+});
+
 describe('ApiClient RateLimitError round-trip', () => {
   let events: CustomEvent<RateLimitNotification>[];
   const onRateLimit = (event: Event) =>

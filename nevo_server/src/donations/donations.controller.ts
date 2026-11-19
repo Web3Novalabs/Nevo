@@ -22,7 +22,18 @@ export class DonationsController {
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'sortBy', required: false, enum: DonationSortBy })
-  @ApiOkResponse({ description: 'Donations made to the pool.' })
+  @ApiOkResponse({
+    description: 'Paginated donations made to the pool.',
+    schema: {
+      type: 'object',
+      properties: {
+        data: { type: 'array', items: { type: 'object' } },
+        total: { type: 'number' },
+        page: { type: 'number' },
+        limit: { type: 'number' },
+      },
+    },
+  })
   @Get('pools/:id/donations')
   findByPool(@Param('id') id: string, @Query() query: GetDonationsDto) {
     const sort =
@@ -37,7 +48,18 @@ export class DonationsController {
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'sortBy', required: false, enum: DonationSortBy })
-  @ApiOkResponse({ description: 'Donations made by the current user.' })
+  @ApiOkResponse({
+    description: 'Paginated donations made by the current user.',
+    schema: {
+      type: 'object',
+      properties: {
+        data: { type: 'array', items: { type: 'object' } },
+        total: { type: 'number' },
+        page: { type: 'number' },
+        limit: { type: 'number' },
+      },
+    },
+  })
   @UseGuards(JwtAuthGuard)
   @Get('users/me/donations')
   findMyDonations(

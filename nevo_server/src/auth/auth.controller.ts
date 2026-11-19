@@ -3,11 +3,16 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Post,
   Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiBody,
   ApiOkResponse,
   ApiOperation,
@@ -20,6 +25,8 @@ import { AuthService } from './auth.service';
 import { NonceService } from './nonce.service';
 import type { AuthResult } from './auth.service';
 import { VerifyAuthDto } from './dto/verify-auth.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import type { AuthenticatedRequest } from './interfaces/authenticated-request.interface';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -102,5 +109,23 @@ export class AuthController {
   @Post('verify')
   verify(@Body() dto: VerifyAuthDto): Promise<AuthResult> {
     return this.authService.verify(dto);
+  }
+
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Log out and revoke issued tokens',
+    description:
+      'Increments the token version for the authenticated user, invalidating ' +
+      'all previously issued JWTs. Subsequent requests with those tokens ' +
+      'will be rejected with 401.',
+  })
+  @ApiOkResponse({ description: 'Tokens revoked.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid token.' })
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Post('logout')
+  async logout(@Req() req: AuthenticatedRequest): Promise<{ success: true }> {
+    await this.authService.logout(req.user.publicKey);
+    return { success: true };
   }
 }
