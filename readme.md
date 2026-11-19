@@ -99,6 +99,22 @@ Nevo aims to redefine how donations are managed by making them:
 - [Pools page details](./docs/pools-page.md) — browse pools, search, filter categories, and review campaign progress.
 - [Backend server (nevo_server)](./nevo_server/README.md) — env vars (see `.env.example`), local PostgreSQL setup, and `migration:generate`/`migration:run`/`migration:revert` scripts.
 
+## Run locally with Docker
+
+With Docker and Compose v2 installed, run from the repository root:
+
+```bash
+docker compose up
+```
+
+Use `docker compose up --build` after changing either app or its Dockerfile. Compose starts PostgreSQL 16, runs the server migrations on startup, and then starts the frontend. The defaults target Stellar testnet.
+
+- Frontend: http://localhost:3002
+- API: http://localhost:3001
+- Swagger UI: http://localhost:3001/api-docs
+
+Set `NEVO_CONTRACT_ID` before starting to point both apps at your deployed testnet contract. The defaults use ports that rarely conflict; override `FRONTEND_PORT`, `API_PORT`, or `POSTGRES_PORT` if needed. `docker compose down -v` also removes the local database volume.
+
 ---
 
 If you have ideas or want to collaborate, feel free to open an issue or submit a pull request.

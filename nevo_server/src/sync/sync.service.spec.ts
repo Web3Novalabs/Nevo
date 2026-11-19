@@ -3,6 +3,10 @@ import { SyncService, HorizonContractEvent } from './sync.service';
 import { PoolsService } from '../pools/pools.service';
 import { DonationsService } from '../donations/donations.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import {
+  ADVISORY_LOCK_KEYS,
+  AdvisoryLockService,
+} from '../common/advisory-lock.service';
 import { SyncState } from './sync-state.entity';
 
 describe('SyncService', () => {
@@ -11,6 +15,15 @@ describe('SyncService', () => {
   const markCompleted = jest.fn();
   const isTxProcessed = jest.fn();
   const syncStateRepo = { findOne: jest.fn(), save: jest.fn() };
+  const advisoryLock = {
+    runExclusive: jest.fn(
+      (
+        _key: number,
+        _job: string,
+        callback: () => Promise<unknown>,
+      ): Promise<unknown> => callback(),
+    ),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -19,6 +32,7 @@ describe('SyncService', () => {
         { provide: PoolsService, useValue: { upsertFromChain, markCompleted } },
         { provide: DonationsService, useValue: { isTxProcessed } },
         { provide: getRepositoryToken(SyncState), useValue: syncStateRepo },
+        { provide: AdvisoryLockService, useValue: advisoryLock },
       ],
     }).compile();
 
@@ -28,6 +42,37 @@ describe('SyncService', () => {
     isTxProcessed.mockReset().mockResolvedValue(false);
     syncStateRepo.findOne.mockReset();
     syncStateRepo.save.mockReset();
+    advisoryLock.runExclusive.mockClear();
+  });
+
+  describe('pollHorizonEvents', () => {
+    it('runs the poll inside the advisory lock', async () => {
+      const seenInRun = (service as unknown as { seenInRun: Set<string> })
+        .seenInRun;
+      const clearSpy = jest.spyOn(seenInRun, 'clear');
+
+      await service.pollHorizonEvents();
+
+      expect(advisoryLock.runExclusive).toHaveBeenCalledWith(
+        ADVISORY_LOCK_KEYS.syncHorizonEvents,
+        'SyncService.pollHorizonEvents',
+        expect.any(Function),
+      );
+      expect(clearSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not run the poll when another instance holds the lock', async () => {
+      advisoryLock.runExclusive.mockImplementationOnce(() =>
+        Promise.resolve(undefined),
+      );
+      const seenInRun = (service as unknown as { seenInRun: Set<string> })
+        .seenInRun;
+      const clearSpy = jest.spyOn(seenInRun, 'clear');
+
+      await service.pollHorizonEvents();
+
+      expect(clearSpy).not.toHaveBeenCalled();
+    });
   });
 
   it('extracts contractPoolId, creatorWallet, and goal and calls upsertFromChain', async () => {

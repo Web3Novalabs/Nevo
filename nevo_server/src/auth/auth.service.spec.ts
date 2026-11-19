@@ -70,6 +70,33 @@ describe('AuthService', () => {
     jest.clearAllMocks();
   });
 
+  describe('dead challenge code (#1490)', () => {
+    it('does not expose generateChallenge or an in-memory challenge store', () => {
+      const internal = service as unknown as {
+        generateChallenge?: unknown;
+        challenges?: unknown;
+        cleanupExpiredChallenges?: unknown;
+      };
+
+      expect(internal.generateChallenge).toBeUndefined();
+      expect(internal.challenges).toBeUndefined();
+      expect(internal.cleanupExpiredChallenges).toBeUndefined();
+    });
+
+    it('does not create an interval when instantiated', () => {
+      const setIntervalSpy = jest
+        .spyOn(global, 'setInterval')
+        .mockImplementation(() => 0 as unknown as NodeJS.Timeout);
+
+      try {
+        new AuthService(jwtService, usersService, nonceService);
+        expect(setIntervalSpy).not.toHaveBeenCalled();
+      } finally {
+        setIntervalSpy.mockRestore();
+      }
+    });
+  });
+
   describe('verifySignature - Valid Stellar Signature', () => {
     it('should return true for a valid Stellar Ed25519 signature', () => {
       // Generate a test keypair

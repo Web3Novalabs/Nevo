@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { AdvisoryLockService } from '../common/advisory-lock.service';
 import { SyncService, HorizonContractEvent } from './sync.service';
 import { PoolsService } from '../pools/pools.service';
 import { DonationsService } from '../donations/donations.service';
@@ -100,6 +101,15 @@ describe('SyncService Integration Tests', () => {
         {
           provide: getRepositoryToken(SyncState),
           useValue: mockSyncStateRepo,
+        },
+        {
+          provide: AdvisoryLockService,
+          useValue: {
+            runExclusive: jest.fn(
+              (_key: number, _job: string, callback: () => Promise<unknown>) =>
+                callback(),
+            ),
+          },
         },
         {
           provide: ContractService,

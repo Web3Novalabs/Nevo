@@ -1,12 +1,25 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
+import {
+  ADVISORY_LOCK_KEYS,
+  AdvisoryLockService,
+} from '../common/advisory-lock.service';
 import { NonceService } from './nonce.service';
 import { Nonce } from './nonce.entity';
 
 describe('NonceService', () => {
   let service: NonceService;
   let repository: Repository<Nonce>;
+  const advisoryLock = {
+    runExclusive: jest.fn(
+      (
+        _key: number,
+        _job: string,
+        callback: () => Promise<unknown>,
+      ): Promise<unknown> => callback(),
+    ),
+  };
 
   const mockNonce: Nonce = {
     id: 'nonce-uuid-1',
@@ -31,11 +44,13 @@ describe('NonceService', () => {
             remove: jest.fn(),
           },
         },
+        { provide: AdvisoryLockService, useValue: advisoryLock },
       ],
     }).compile();
 
     service = module.get(NonceService);
     repository = module.get(getRepositoryToken(Nonce));
+    advisoryLock.runExclusive.mockClear();
   });
 
   afterEach(() => {
@@ -181,7 +196,7 @@ describe('NonceService', () => {
     });
   });
 
-  describe('deleteExpiredNonces', () => {
+  describe('cleanupExpiredNonces', () => {
     it('should delete nonces that have expired', async () => {
       jest.spyOn(repository, 'delete').mockResolvedValue({
         affected: 5,
@@ -194,6 +209,26 @@ describe('NonceService', () => {
       expect((deleteCall as FindOptionsWhere<Nonce>).expiresAt).toEqual(
         expect.any(Date),
       );
+    });
+
+    it('runs the cleanup inside the advisory lock', async () => {
+      await service.cleanupExpiredNonces();
+
+      expect(advisoryLock.runExclusive).toHaveBeenCalledWith(
+        ADVISORY_LOCK_KEYS.nonceCleanup,
+        'NonceService.cleanupExpiredNonces',
+        expect.any(Function),
+      );
+    });
+
+    it('skips deletion when another instance holds the lock', async () => {
+      advisoryLock.runExclusive.mockImplementationOnce(() =>
+        Promise.resolve(undefined),
+      );
+
+      await service.cleanupExpiredNonces();
+
+      expect(repository.delete).not.toHaveBeenCalled();
     });
   });
 });

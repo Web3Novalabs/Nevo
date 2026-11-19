@@ -10,7 +10,6 @@ import { WalletAddress } from '@/components/WalletAddress';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { toast } from '@/components/Toast';
 import type { Pool } from '@/src/store/poolsStore';
-import { signTransaction } from '@stellar/freighter-api';
 
 // TODO: Replace with real API call once backend pool endpoints are implemented
 const MOCK_CREATOR_POOLS: Pool[] = [

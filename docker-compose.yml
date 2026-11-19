@@ -1,0 +1,74 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: nevo
+    ports:
+      - "${POSTGRES_PORT:-15432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-uuid-ossp.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nevo"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  server:
+    build:
+      context: .
+      dockerfile: nevo_server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/nevo
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: nevo
+      JWT_SECRET: local-dev-jwt-secret-change-me
+      JWT_EXPIRY: 15m
+      STELLAR_NETWORK: testnet
+      STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+      HORIZON_URL: https://horizon-testnet.stellar.org
+      CONTRACT_ID: ${NEVO_CONTRACT_ID:-CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM}
+      CORS_ORIGIN: http://localhost:${FRONTEND_PORT:-3002}
+      PORT: 3000
+    ports:
+      - "${API_PORT:-3001}:3000"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - node -e "require('http').get('http://127.0.0.1:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: nevo_frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_PORT:-3001}
+        NEXT_PUBLIC_STELLAR_NETWORK: testnet
+        NEXT_PUBLIC_SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+        NEXT_PUBLIC_NETWORK_PASSPHRASE: Test SDF Network ; September 2015
+        NEXT_PUBLIC_CONTRACT_ID: ${NEVO_CONTRACT_ID:-CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM}
+        NEXT_PUBLIC_API_RATE_LIMIT_MAX_REQUESTS: 60
+        NEXT_PUBLIC_API_RATE_LIMIT_WINDOW_MS: 60000
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-3002}:3000"
+
+volumes:
+  postgres_data:
