@@ -5,10 +5,12 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { createPool, submitSignedXdr, ApiError } from '@/lib/api-client';
-import { signTransaction } from '@stellar/freighter-api';
 import { contractService } from '@/lib/contract-service';
 import { useWalletStore } from '@/src/store/walletStore';
 import { parseApiError } from '@/lib/errors';
+import { signTransaction } from '@/lib/stellar';
+import { useNotificationStore } from '@/src/store/notificationStore';
+import { env } from '@/lib/env';
 
 import {
   validateFormData,
@@ -334,32 +336,33 @@ function CreatePoolPageContent() {
         throw err;
       }
 
-      // Call Freighter's signTransaction with unsignedXdr
+      // Sign the unsigned XDR through the shared wallet abstraction
       setSubmitStep('signing');
-      const signedResult = await signTransaction(createPoolResult.unsignedXdr, {
-        networkPassphrase:
-          process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-          'Test SDF Network ; September 2015',
-      });
-      if (signedResult.error) {
-        // Check if it's a rejection
-        if (
-          signedResult.error.toLowerCase().includes('cancelled') ||
-          signedResult.error.toLowerCase().includes('denied')
-        ) {
-          throw new Error('Transaction cancelled');
-        }
-        throw new Error(signedResult.error);
-      }
+      const signedXdr = await signTransaction(
+        createPoolResult.unsignedXdr,
+        env.networkPassphrase
+      );
 
       // Submit signed XDR
       setSubmitStep('submitting');
-      await submitSignedXdr(signedResult.signedTxXdr);
+      await submitSignedXdr(signedXdr);
+
+      useNotificationStore.getState().addNotification({
+        type: 'success',
+        title: 'Pool created',
+        message: 'Your pool was created successfully.',
+      });
 
       // Redirect to the newly created pool's page after successful submission
       router.push(`/pools/${createPoolResult.id}`);
     } catch (error) {
-      setErrors({ submit: parseApiError(error) });
+      const message = parseApiError(error);
+      setErrors({ submit: message });
+      useNotificationStore.getState().addNotification({
+        type: 'error',
+        title: 'Pool creation failed',
+        message,
+      });
     } finally {
       setSubmitting(false);
       setSubmitStep('idle');

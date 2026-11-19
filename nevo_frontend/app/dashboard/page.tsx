@@ -2,17 +2,16 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { signTransaction } from '@stellar/freighter-api';
 import { useWalletStore } from '@/src/store/walletStore';
 import { EmptyState } from '@/components/EmptyState';
 import ConnectWallet from '@/components/ConnectWallet';
 import { WalletAddress } from '@/components/WalletAddress';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { toast } from '@/components/Toast';
+import { useXdrTransaction } from '@/src/hooks/useXdrTransaction';
 import type { Pool } from '@/src/store/poolsStore';
 import {
   apiClient,
-  submitSignedXdr,
   withdrawPool,
   closePool,
 } from '@/lib/api-client';
@@ -77,6 +76,7 @@ function DashboardPageContent() {
   const [actionModal, setActionModal] = useState<ActionModal>(null);
   const [confirming, setConfirming] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { signAndSubmit } = useXdrTransaction();
 
   const loadPools = useCallback(async () => {
     if (!publicKey) return;
@@ -155,17 +155,7 @@ function DashboardPageContent() {
       const poolIds = Array.from(selectedIds);
       for (const poolId of poolIds) {
         const { unsignedXdr } = await closePool(poolId);
-        const signedResult = await signTransaction(unsignedXdr, {
-          networkPassphrase:
-            process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-            'Test SDF Network ; September 2015',
-        });
-
-        if (signedResult.error) {
-          throw new Error(signedResult.error);
-        }
-
-        await submitSignedXdr(signedResult.signedTxXdr);
+        await signAndSubmit(unsignedXdr);
       }
 
       toast(`Successfully archived ${poolIds.length} pool${poolIds.length > 1 ? 's' : ''}`);
@@ -325,31 +315,11 @@ function DashboardPageContent() {
             try {
               if (actionModal.type === 'withdraw') {
                 const { unsignedXdr } = await withdrawPool(actionModal.pool.id);
-                const signedResult = await signTransaction(unsignedXdr, {
-                  networkPassphrase:
-                    process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-                    'Test SDF Network ; September 2015',
-                });
-
-                if (signedResult.error) {
-                  throw new Error(signedResult.error);
-                }
-
-                await submitSignedXdr(signedResult.signedTxXdr);
+                await signAndSubmit(unsignedXdr);
                 toast('Withdrawal successful');
               } else {
                 const { unsignedXdr } = await closePool(actionModal.pool.id);
-                const signedResult = await signTransaction(unsignedXdr, {
-                  networkPassphrase:
-                    process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-                    'Test SDF Network ; September 2015',
-                });
-
-                if (signedResult.error) {
-                  throw new Error(signedResult.error);
-                }
-
-                await submitSignedXdr(signedResult.signedTxXdr);
+                await signAndSubmit(unsignedXdr);
                 toast('Pool archived successfully');
               }
             } catch (err: unknown) {
