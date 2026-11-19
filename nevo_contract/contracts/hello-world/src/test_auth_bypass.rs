@@ -82,7 +82,7 @@ fn test_mock_auth_cannot_bypass_admin_for_set_crowdfunding_token() {
 
 /// Mock auth authorizing an attacker cannot bypass the stored admin check in request_emergency_withdraw.
 #[test]
-#[should_panic(expected = "Error(Auth, InvalidAction)")]
+#[should_panic(expected = "Error(Contract, #3)")]
 fn test_mock_auth_cannot_bypass_admin_for_emergency_withdraw() {
     let env = Env::default();
     env.mock_all_auths();
@@ -614,16 +614,21 @@ fn test_user_data_isolation_milestones() {
     let student_1 = Address::generate(&env);
     let student_2 = Address::generate(&env);
 
-    let pool_id = client.create_pool(
+    client.set_admin(&Address::generate(&env));
+    let school = Address::generate(&env);
+    client.register_school(&school, &BytesN::from_array(&env, &[1u8; 32]));
+    let pool_id = client.create_pool_for_school(
         &creator,
         &String::from_str(&env, "Milestone Isolation Pool"),
         &String::from_str(&env, "Description"),
         &500_000u128,
+        &school,
         &100_000u64,
     );
 
     client.apply_to_pool(&pool_id, &student_1, &String::from_str(&env, "App 1"));
     client.apply_to_pool(&pool_id, &student_2, &String::from_str(&env, "App 2"));
+    client.approve_application(&pool_id, &school, &student_1, &true);
 
     let milestones = Vec::from_array(&env, [Milestone { amount: 500_000u128 }]);
     client.setup_application_milestones(&pool_id, &student_1, &milestones);

@@ -34,6 +34,23 @@ fn new_pool(env: &Env, client: &ContractClient, goal: u128) -> (u32, Address) {
     (pool_id, creator)
 }
 
+/// Like `new_pool`, but linked to a registered school so applications can be
+/// approved (milestones require an approved application).
+fn new_school_pool(env: &Env, client: &ContractClient, goal: u128) -> (u32, Address) {
+    client.set_admin(&Address::generate(env));
+    let school = Address::generate(env);
+    client.register_school(&school, &BytesN::from_array(env, &[1u8; 32]));
+    let pool_id = client.create_pool_for_school(
+        &Address::generate(env),
+        &String::from_str(env, "Pool"),
+        &String::from_str(env, "Test"),
+        &goal,
+        &school,
+        &100_000u64,
+    );
+    (pool_id, school)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // (1) Maximum i128 amounts handled
 // ─────────────────────────────────────────────────────────────────────────────
@@ -102,7 +119,7 @@ fn test_negative_creation_fee_rejected() {
 
 /// A negative claim amount is rejected before any arithmetic is performed.
 #[test]
-#[should_panic(expected = "Claim amount must be positive")]
+#[should_panic(expected = "Error(Contract, #23)")]
 fn test_negative_claim_amount_rejected() {
     let env = Env::default();
     env.mock_all_auths();
@@ -118,7 +135,7 @@ fn test_negative_claim_amount_rejected() {
 
 /// A zero or negative donation amount via token is rejected with InvalidAmount.
 #[test]
-#[should_panic(expected = "InvalidAmount")]
+#[should_panic(expected = "Error(Contract, #27)")]
 fn test_zero_or_negative_token_donation_rejected() {
     let env = Env::default();
     env.mock_all_auths();
@@ -149,12 +166,13 @@ fn test_collected_amount_addition_overflow_rejected() {
     let token = create_token(&env, 1_000i128, &donor);
     let (pool_id, _) = new_pool(&env, &client, u128::MAX);
 
-    // Push collected to the maximum u128 range
-    client.donate(&pool_id, &donor, &u128::MAX);
-    assert_eq!(client.get_total_raised(&pool_id), u128::MAX);
+    // Push collected to just below the goal so the pool stays Active
+    // (reaching the goal would move it to Completed and refuse donations).
+    client.donate(&pool_id, &donor, &(u128::MAX - 1));
+    assert_eq!(client.get_total_raised(&pool_id), u128::MAX - 1);
 
-    // Any further contribution must overflow checked_add rather than wrap
-    client.donate_with_token(&pool_id, &donor, &token, &1i128);
+    // A further contribution must overflow checked_add rather than wrap
+    client.donate_with_token(&pool_id, &donor, &token, &2i128);
 }
 
 /// Summing milestone amounts uses checked addition and rejects overflow.
@@ -167,13 +185,14 @@ fn test_milestone_sum_overflow_rejected() {
     let client = ContractClient::new(&env, &contract_id);
 
     let student = Address::generate(&env);
-    let (pool_id, _) = new_pool(&env, &client, 1_000u128);
+    let (pool_id, school) = new_school_pool(&env, &client, 1_000u128);
 
     let mut milestones = Vec::new(&env);
     milestones.push_back(Milestone { amount: u128::MAX });
     milestones.push_back(Milestone { amount: 1u128 });
 
     client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
+    client.approve_application(&pool_id, &school, &student, &true);
     client.setup_application_milestones(&pool_id, &student, &milestones);
 }
 
@@ -280,13 +299,14 @@ fn test_pool_target_matches_milestones_at_scale() {
 
     let student = Address::generate(&env);
     let goal = 5_000_000_000_000u128;
-    let (pool_id, _) = new_pool(&env, &client, goal);
+    let (pool_id, school) = new_school_pool(&env, &client, goal);
 
     let mut milestones = Vec::new(&env);
     milestones.push_back(Milestone { amount: 2_000_000_000_000u128 });
     milestones.push_back(Milestone { amount: 3_000_000_000_000u128 });
 
     client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "App"));
+    client.approve_application(&pool_id, &school, &student, &true);
     client.setup_application_milestones(&pool_id, &student, &milestones);
 
     let stored = client.get_milestones(&pool_id, &student);

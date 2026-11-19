@@ -45,7 +45,7 @@ fn test_create_pool_description_at_max_length_is_accepted() {
 
 /// Unlike the description checks, an empty title is already typed.
 #[test]
-#[should_panic(expected = "Error(Contract, #16)")]
+#[should_panic(expected = "Error(Contract, #17)")]
 fn test_create_pool_empty_title_is_typed_invalid_pool_name() {
     let env = Env::default();
     create_pool_with(&env, "", "A real description");

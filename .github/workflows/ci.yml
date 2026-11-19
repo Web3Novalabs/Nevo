@@ -88,6 +88,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32v1-none
+          components: clippy
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -99,17 +100,16 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('nevo_contract/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
+      # soroban-sdk 28 refuses plain `cargo build` for wasm and requires
+      # `stellar contract build` from stellar-cli v25.2.0+.
+      - name: Install stellar-cli
+        uses: stellar/stellar-cli@v28.1.0
+
       - name: Build contract
-        run: cargo build --release --target wasm32v1-none
+        run: stellar contract build
 
-      - name: Run tests
-        run: cargo test --lib
-
-            - name: Run Clippy
+      - name: Run Clippy
         run: cargo clippy --all-targets -- -D warnings
-
-      - name: Build contract
-        run: cargo build --release --target wasm32-unknown-unknown
 
       - name: Run tests
         run: cargo test --lib
@@ -126,3 +126,14 @@ jobs:
           use-quiet-mode: "yes"
           use-verbose-mode: "yes"
           config-file: ".github/mlc_config.json"
+
+  workflow-lint:
+    name: Workflows — Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint GitHub Actions workflows
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color

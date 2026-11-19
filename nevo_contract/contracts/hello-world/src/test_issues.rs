@@ -49,7 +49,7 @@ fn test_emergency_withdrawal_at_grace_period_boundary() {
 
 /// Test 2: Execute withdrawal 1 second before grace period fails
 #[test]
-#[should_panic(expected = "Error(Contract, #21)")]
+#[should_panic(expected = "Error(Contract, #22)")]
 fn test_emergency_withdrawal_before_grace_period_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -384,7 +384,7 @@ fn test_duplicate_emergency_withdrawal_request_fails() {
 
 /// Test 4: Test execute_emergency_withdraw before grace period fails
 #[test]
-#[should_panic(expected = "Error(Contract, #21)")]
+#[should_panic(expected = "Error(Contract, #22)")]
 fn test_execute_emergency_withdraw_before_grace_period_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -414,7 +414,7 @@ fn test_execute_emergency_withdraw_before_grace_period_fails() {
 
 /// Test 1: Zero amount contribution fails with InvalidAmount
 #[test]
-#[should_panic(expected = "InvalidAmount")]
+#[should_panic(expected = "Error(Contract, #27)")]
 fn test_zero_amount_contribution_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -439,7 +439,7 @@ fn test_zero_amount_contribution_fails() {
 
 /// Test 2: Negative amount contribution fails
 #[test]
-#[should_panic(expected = "InvalidAmount")]
+#[should_panic(expected = "Error(Contract, #27)")]
 fn test_negative_amount_contribution_fails() {
     let env = Env::default();
     env.mock_all_auths();

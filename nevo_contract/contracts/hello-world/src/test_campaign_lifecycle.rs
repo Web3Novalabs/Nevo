@@ -249,7 +249,7 @@ fn test_campaign_reaches_goal() {
 
     let pool = client.get_pool(&pool_id);
     assert_eq!(pool.3, goal);
-    assert_eq!(pool.4, false);
+    assert!(!pool.4);
 }
 
 /// A campaign becomes completed at its goal and rejects further donations.
@@ -328,7 +328,7 @@ fn test_campaign_balances_correct_throughout() {
     // Initial state
     let pool = client.get_pool(&pool_id);
     assert_eq!(pool.3, 0u128);
-    assert_eq!(pool.4, false);
+    assert!(!pool.4);
 
     // First donation
     let donor1 = Address::generate(&env);
@@ -351,7 +351,7 @@ fn test_campaign_balances_correct_throughout() {
     let pool = client.get_pool(&pool_id);
     assert_eq!(pool.3, goal);
     assert_eq!(pool.2, goal);
-    assert_eq!(pool.4, false);
+    assert!(!pool.4);
 }
 
 /// Test 6: Donations to a Paused campaign fail

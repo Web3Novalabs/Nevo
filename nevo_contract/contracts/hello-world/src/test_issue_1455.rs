@@ -12,7 +12,7 @@ use super::*;
 use soroban_sdk::{
     testutils::Address as _,
     token::StellarAssetClient,
-    Address, Env, String,
+    vec, Address, BytesN, Env, String,
 };
 
 fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
@@ -23,8 +23,31 @@ fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
     token.address()
 }
 
-fn approved_status(env: &Env) -> String {
-    String::from_str(env, "Approved")
+/// Register `school` and create a pool linked to it.
+fn create_school_pool(
+    env: &Env,
+    client: &ContractClient,
+    creator: &Address,
+    school: &Address,
+    title: &str,
+    goal: u128,
+) -> u32 {
+    client.register_school(school, &BytesN::from_array(env, &[1u8; 32]));
+    client.create_pool_for_school(
+        creator,
+        &String::from_str(env, title),
+        &String::from_str(env, "Milestone cap not enforced"),
+        &goal,
+        school,
+        &100_000u64,
+    )
+}
+
+/// Apply to the pool and have the linked school approve the application, so
+/// milestones can be configured (setup_application_milestones requires both).
+fn apply_and_approve(env: &Env, client: &ContractClient, pool_id: u32, school: &Address, student: &Address) {
+    client.apply_to_pool(&pool_id, student, &String::from_str(env, "application"));
+    client.approve_application(&pool_id, school, student, &true);
 }
 
 // =============================================================================
@@ -65,14 +88,10 @@ fn test_first_claimant_drains_pool_up_to_collected() {
     let token = create_token(&env, collected as i128, &contract_id);
 
     client.set_admin(&admin);
-    let pool_id = client.create_pool(
-        &creator,
-        &String::from_str(&env, "Issue 1455 Pool"),
-        &String::from_str(&env, "Milestone cap not enforced"),
-        &goal,
-        &100_000u64,
-    );
+    let school = Address::generate(&env);
+    let pool_id = create_school_pool(&env, &client, &creator, &school, "Issue 1455 Pool", goal);
     client.donate(&pool_id, &creator, &collected);
+    apply_and_approve(&env, &client, pool_id, &school, &student);
 
     // Milestones total = goal, as `setup_application_milestones` requires.
     let milestones = vec![
@@ -82,7 +101,6 @@ fn test_first_claimant_drains_pool_up_to_collected() {
         Milestone { amount: 300_000_000u128 },
     ];
     client.setup_application_milestones(&pool_id, &student, &milestones);
-    client.set_application_status(&pool_id, &student, &approved_status(&env));
 
     // Claim everything the pool holds. This succeeds today because
     // approved_amount was initialised to `collected` on first claim.
@@ -125,14 +143,12 @@ fn test_two_approved_students_each_see_whole_pool() {
     let token = create_token(&env, collected as i128, &contract_id);
 
     client.set_admin(&admin);
-    let pool_id = client.create_pool(
-        &creator,
-        &String::from_str(&env, "Issue 1455 Competition"),
-        &String::from_str(&env, "Two approved students, one pool"),
-        &goal,
-        &100_000u64,
-    );
+    let school = Address::generate(&env);
+    let pool_id =
+        create_school_pool(&env, &client, &creator, &school, "Issue 1455 Competition", goal);
     client.donate(&pool_id, &creator, &collected);
+    apply_and_approve(&env, &client, pool_id, &school, &student_a);
+    apply_and_approve(&env, &client, pool_id, &school, &student_b);
 
     let milestones = vec![
         &env,
@@ -141,8 +157,6 @@ fn test_two_approved_students_each_see_whole_pool() {
     ];
     client.setup_application_milestones(&pool_id, &student_a, &milestones);
     client.setup_application_milestones(&pool_id, &student_b, &milestones);
-    client.set_application_status(&pool_id, &student_a, &approved_status(&env));
-    client.set_application_status(&pool_id, &student_b, &approved_status(&env));
 
     // Student A claims the whole pool.
     client.claim_funds(&student_a, &pool_id, &(collected as i128), &token);

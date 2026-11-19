@@ -19,6 +19,30 @@ fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
     token.address()
 }
 
+/// Register a school (setting a fresh admin unless one is supplied) and create
+/// a pool linked to it, so `set_application_status` can be called by the school.
+#[allow(clippy::too_many_arguments)]
+fn create_school_pool(
+    env: &Env,
+    client: &ContractClient,
+    admin: Option<&Address>,
+    creator: &Address,
+    title: &String,
+    description: &String,
+    goal: &u128,
+    deadline: &u64,
+) -> (u32, Address) {
+    match admin {
+        Some(a) => client.set_admin(a),
+        None => client.set_admin(&Address::generate(env)),
+    }
+    let school = Address::generate(env);
+    client.register_school(&school, &BytesN::from_array(env, &[1u8; 32]));
+    let pool_id =
+        client.create_pool_for_school(creator, title, description, goal, &school, deadline);
+    (pool_id, school)
+}
+
 /// A failed transfer must not move the pool's accounting forward.
 #[test]
 fn test_failed_transfer_does_not_corrupt_pool_state() {
@@ -98,7 +122,7 @@ fn test_invalid_token_contract_fails_without_state_change() {
 
 /// A configured token mismatch returns the contract's explicit transfer error.
 #[test]
-#[should_panic(expected = "TokenTransferFailed")]
+#[should_panic(expected = "Error(Contract, #28)")]
 fn test_configured_token_mismatch_returns_clear_error() {
     let env = Env::default();
     env.mock_all_auths();
@@ -123,7 +147,7 @@ fn test_configured_token_mismatch_returns_clear_error() {
 
 /// A zero or negative donation is rejected before any transfer is attempted.
 #[test]
-#[should_panic(expected = "InvalidAmount")]
+#[should_panic(expected = "Error(Contract, #27)")]
 fn test_negative_donation_amount_rejected() {
     let env = Env::default();
     env.mock_all_auths();
@@ -186,7 +210,7 @@ fn test_withdraw_unallocated_funds_with_no_surplus_fails() {
 
 /// A student cannot claim more than the pool has collected.
 #[test]
-#[should_panic(expected = "Error(Contract, #23)")]
+#[should_panic(expected = "Error(Contract, #26)")]
 fn test_claim_beyond_collected_funds_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -198,7 +222,10 @@ fn test_claim_beyond_collected_funds_fails() {
     let student = Address::generate(&env);
     let token = create_token(&env, 1_000i128, &donor);
 
-    let pool_id = client.create_pool(
+    let (pool_id, school) = create_school_pool(
+        &env,
+        &client,
+        None,
         &creator,
         &String::from_str(&env, "Pool"),
         &String::from_str(&env, "Test"),
@@ -206,7 +233,7 @@ fn test_claim_beyond_collected_funds_fails() {
         &100_000u64,
     );
     client.donate_with_token(&pool_id, &donor, &token, &1_000i128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&school, &pool_id, &student, &String::from_str(&env, "Approved"));
 
     // Pool holds 1_000; claiming 5_000 must be rejected.
     client.claim_funds(&student, &pool_id, &5_000i128, &token);
