@@ -1,39 +1,15 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { signTransaction } from '@stellar/freighter-api';
-import {
-  Networks,
-  Transaction,
-  TransactionBuilder,
-} from '@stellar/stellar-sdk';
-import { Server } from '@stellar/stellar-sdk/rpc';
 import { useWalletStore } from '@/src/store/walletStore';
 import { useDonationsStore } from '@/src/store/donationsStore';
+import { useNotificationsStore } from '@/src/store/notificationsStore';
 import { contractService } from '@/lib/contract-service';
 import { parseApiError } from '@/lib/errors';
+import { useXdrTransaction } from '@/lib/useXdrTransaction';
 import type { Pool } from '@/src/store/poolsStore';
 import { CopyButton } from './CopyButton';
 import { WalletAddress } from './WalletAddress';
-
-const NETWORK_PASSPHRASE =
-  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ?? Networks.TESTNET;
-const RPC_URL =
-  process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ??
-  'https://soroban-testnet.stellar.org';
-
-async function submitSignedXdr(signedXdr: string): Promise<string> {
-  const server = new Server(RPC_URL);
-  const tx = TransactionBuilder.fromXDR(
-    signedXdr,
-    NETWORK_PASSPHRASE
-  ) as Transaction;
-  const result = await server.sendTransaction(tx);
-  if (result.status === 'ERROR') {
-    throw new Error(result.errorResult?.toString() ?? 'Transaction failed');
-  }
-  return result.hash;
-}
 
 type Asset = 'XLM' | 'USDC';
 type Step = 'form' | 'loading' | 'success' | 'error';
@@ -57,6 +33,8 @@ export function DonateModal({
 }: DonateModalProps) {
   const { publicKey, balances } = useWalletStore();
   const { addDonation } = useDonationsStore();
+  const { addNotification } = useNotificationsStore();
+  const { signAndSubmit } = useXdrTransaction();
 
   const [asset, setAsset] = useState<Asset>('XLM');
   const [amount, setAmount] = useState('');
@@ -155,20 +133,8 @@ export function DonateModal({
         amountInStroops
       );
 
-      // Sign with Freighter
-      const signResult = await signTransaction(unsignedXdr, {
-        networkPassphrase: NETWORK_PASSPHRASE,
-        address: publicKey,
-      });
-
-      if (signResult.error) {
-        setErrorMsg(signResult.error || 'Donation cancelled.');
-        setStep('error');
-        return;
-      }
-
-      // Submit the signed XDR
-      const hash = await submitSignedXdr(signResult.signedTxXdr);
+      // Sign and submit through the shared wallet abstraction
+      const hash = await signAndSubmit(unsignedXdr, publicKey);
 
       const donation = {
         id: `mock-${Date.now()}`,
@@ -184,32 +150,42 @@ export function DonateModal({
       addDonation(donation);
       setLastTxHash(hash);
       setTxHash(hash);
-      setLastTxHash(hash);
       setStep('success');
+      addNotification({
+        type: 'success',
+        title: 'Donation successful',
+        message: `You donated ${amount} ${asset} to ${pool.title}.`,
+      });
       onDonationSuccess?.();
     } catch (err) {
       console.error(err);
       const msg = parseApiError(err);
+      let friendlyMsg: string;
       if (
         msg.toLowerCase().includes('cancel') ||
         msg.toLowerCase().includes('reject') ||
         msg.toLowerCase().includes('declined')
       ) {
-        setErrorMsg('Donation cancelled.');
+        friendlyMsg = 'Donation cancelled.';
       } else if (msg.toLowerCase().includes('closed')) {
-        setErrorMsg('Pool is closed.');
+        friendlyMsg = 'Pool is closed.';
       } else if (
         msg.toLowerCase().includes('insufficient') ||
         msg.toLowerCase().includes('balance') ||
         msg.toLowerCase().includes('underfunded')
       ) {
-        setErrorMsg('Insufficient balance.');
+        friendlyMsg = 'Insufficient balance.';
       } else {
-        setErrorMsg(
-          msg || 'Transaction rejected by the network. Please try again.'
-        );
+        friendlyMsg =
+          msg || 'Transaction rejected by the network. Please try again.';
       }
+      setErrorMsg(friendlyMsg);
       setStep('error');
+      addNotification({
+        type: 'error',
+        title: 'Donation failed',
+        message: friendlyMsg,
+      });
     }
   }
 
@@ -384,9 +360,9 @@ export function DonateModal({
             aria-busy="true"
           >
             <div className="size-12 animate-spin rounded-full border-4 border-[var(--color-border)] border-t-brand-600" />
-            <p className="text-sm font-medium">Sign with Freighter…</p>
+            <p className="text-sm font-medium">Sign transaction…</p>
             <p className="text-xs text-[var(--color-text-muted)]">
-              Please approve the transaction in your Freighter wallet.
+              Please approve the transaction in your wallet.
             </p>
           </div>
         )}

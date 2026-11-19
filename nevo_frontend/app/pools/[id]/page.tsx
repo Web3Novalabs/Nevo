@@ -8,11 +8,22 @@ import { EmptyState } from '@/components/EmptyState';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { WalletAddress } from '@/components/WalletAddress';
 import { CopyButton } from '@/components/CopyButton';
-import { toast } from '@/components/Toast';
+import { useNotificationCenter } from '@/components/NotificationCenter';
 import { usePoolsStore } from '@/src/store/poolsStore';
 import type { Pool } from '@/src/store/poolsStore';
 import { useWalletStore } from '@/src/store/walletStore';
 import { closePool, submitSignedXdr, withdrawPool } from '@/lib/api-client';
+import { signTransaction } from '@/lib/stellar';
+import { NETWORK_PASSPHRASE } from '@/lib/env';
+import {
+  closePool,
+  submitSignedXdr,
+  withdrawPool,
+  getPoolComments,
+  createPoolComment,
+  updatePoolComment,
+  deletePoolComment,
+} from '@/lib/api-client';
 import { signTransaction } from '@stellar/freighter-api';
 
 // Testnet XLM native contract address (same as api-client)
@@ -47,6 +58,35 @@ interface Comment {
   replies: Comment[];
 }
 
+interface ApiComment {
+  id: string;
+  poolId: string;
+  authorWallet: string;
+  text: string;
+  parentId: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+  deletedAt?: string | null;
+  replies?: ApiComment[];
+}
+
+function mapApiComment(raw: ApiComment): Comment {
+  return {
+    id: String(raw.id),
+    poolId: String(raw.poolId),
+    authorAddress: raw.authorWallet,
+    text: raw.text,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt ?? undefined,
+    parentId: raw.parentId ?? null,
+    replies: (raw.replies ?? []).map(mapApiComment),
+  };
+}
+
+function mapApiComments(raw: ApiComment[]): Comment[] {
+  return raw.map(mapApiComment);
+}
+
 function PoolDetailPageContent() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -58,9 +98,12 @@ function PoolDetailPageContent() {
   } = usePoolsStore();
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(true);
+  const [commentsLoading, setCommentsLoading] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [withdrawStep, setWithdrawStep] = useState<WithdrawStep>('idle');
+  const { notify } = useNotificationCenter();
 
   const handleWithdraw = async () => {
     if (!pool || !publicKey) return;
@@ -69,24 +112,24 @@ function PoolDetailPageContent() {
       const { unsignedXdr } = await withdrawPool(pool.id);
 
       setWithdrawStep('signing');
-      const signedResult = await signTransaction(unsignedXdr, {
-        networkPassphrase:
-          process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-          'Test SDF Network ; September 2015',
+      const signedTxXdr = await signTransaction(unsignedXdr, {
+        networkPassphrase: NETWORK_PASSPHRASE,
       });
 
-      if (signedResult.error) {
-        throw new Error(signedResult.error);
-      }
-
       setWithdrawStep('submitting');
-      await submitSignedXdr(signedResult.signedTxXdr);
-      toast('Withdrawal successful');
+      await submitSignedXdr(signedTxXdr);
+      notify({ type: 'success', title: 'Withdrawal successful' });
 
+      // TODO(#1736): poll RPC getTransaction(hash) until SUCCESS/FAILED before refresh
+      setContributors([]);
       await fetchPool(Number(pool.id));
     } catch (err: unknown) {
       const error = err as Error;
-      toast(error.message || 'Failed to withdraw funds', 'error');
+      notify({
+        type: 'error',
+        title: 'Failed to withdraw funds',
+        message: error.message,
+      });
       console.error(error);
     } finally {
       setWithdrawStep('idle');
@@ -112,22 +155,20 @@ function PoolDetailPageContent() {
       setIsClosing(true);
       const { unsignedXdr } = await closePool(pool.id);
 
-      const signedResult = await signTransaction(unsignedXdr, {
-        networkPassphrase:
-          process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-          'Test SDF Network ; September 2015',
+      const signedTxXdr = await signTransaction(unsignedXdr, {
+        networkPassphrase: NETWORK_PASSPHRASE,
       });
 
-      if (signedResult.error) {
-        throw new Error(signedResult.error);
-      }
-
-      await submitSignedXdr(signedResult.signedTxXdr);
-      toast('Pool closed successfully');
+      await submitSignedXdr(signedTxXdr);
+      notify({ type: 'success', title: 'Pool closed successfully' });
 
       await fetchPool(Number(pool.id));
     } catch (err: unknown) {
-      toast(parseApiError(err), 'error');
+      notify({
+        type: 'error',
+        title: 'Failed to close pool',
+        message: parseApiError(err),
+      });
       console.error(err);
     } finally {
       setIsClosing(false);
@@ -146,12 +187,37 @@ function PoolDetailPageContent() {
         router.replace('/pools');
       } else {
         setContributors([]);
-        // TODO: replace with real API call: apiClient.get(`/pools/${id}/comments`)
-        setComments([]);
       }
     };
     loadPool();
   }, [id, fetchPool, router]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const loadComments = async () => {
+      setCommentsLoading(true);
+      try {
+        const data = await getPoolComments(id);
+        if (!cancelled) setComments(data);
+        const { comments: raw } = await getPoolComments(id);
+        if (!cancelled) {
+          setComments(mapApiComments(raw as ApiComment[]));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error(err);
+          toast('Failed to load comments', 'error');
+        }
+      } finally {
+        if (!cancelled) setCommentsLoading(false);
+      }
+    };
+    loadComments();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   if (loading) {
     return <PoolDetailSkeleton />;
@@ -445,6 +511,7 @@ function PoolDetailPageContent() {
               comments={comments}
               setComments={setComments}
               currentUserAddress={publicKey}
+              loading={commentsLoading}
             />
           </section>
 
@@ -647,6 +714,7 @@ interface CommentsSectionProps {
   comments: Comment[];
   setComments: React.Dispatch<React.SetStateAction<Comment[]>>;
   currentUserAddress: string | null;
+  loading?: boolean;
 }
 
 function CommentsSection({
@@ -654,11 +722,13 @@ function CommentsSection({
   comments,
   setComments,
   currentUserAddress,
+  loading = false,
 }: CommentsSectionProps) {
-  function handleAddComment(text: string) {
+  async function handleAddComment(text: string) {
     if (!currentUserAddress) return;
+    const optimisticId = `optimistic-${crypto.randomUUID()}`;
     const newComment: Comment = {
-      id: `c-${crypto.randomUUID()}`,
+      id: optimisticId,
       poolId,
       authorAddress: currentUserAddress,
       text,
@@ -666,14 +736,31 @@ function CommentsSection({
       parentId: null,
       replies: [],
     };
-    // TODO: replace with real API call: apiClient.post(`/pools/${poolId}/comments`, { text })
     setComments((prev) => [newComment, ...prev]);
+    try {
+      const saved = await createPoolComment(poolId, { text });
+      setComments((prev) =>
+        prev.map((c) => (c.id === optimisticId ? { ...saved, replies: [] } : c))
+      );
+    } catch (err) {
+      console.error(err);
+      setComments((prev) => prev.filter((c) => c.id !== optimisticId));
+      toast('Failed to post comment', 'error');
+    try {
+      const { comment } = await createPoolComment(poolId, { text });
+      const mapped = mapApiComment(comment as ApiComment);
+      setComments((prev) => [mapped, ...prev]);
+    } catch (err) {
+      console.error(err);
+      toast(parseApiError(err), 'error');
+    }
   }
 
-  function handleAddReply(parentId: string, text: string) {
+  async function handleAddReply(parentId: string, text: string) {
     if (!currentUserAddress) return;
+    const optimisticId = `optimistic-${crypto.randomUUID()}`;
     const newReply: Comment = {
-      id: `c-${crypto.randomUUID()}`,
+      id: optimisticId,
       poolId,
       authorAddress: currentUserAddress,
       text,
@@ -681,21 +768,47 @@ function CommentsSection({
       parentId,
       replies: [],
     };
-    // TODO: replace with real API call: apiClient.post(`/pools/${poolId}/comments`, { text, parentId })
     setComments((prev) =>
       prev.map((c) =>
         c.id === parentId ? { ...c, replies: [...c.replies, newReply] } : c
       )
     );
+    try {
+      const saved = await createPoolComment(poolId, { text, parentId });
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === parentId
+            ? {
+                ...c,
+                replies: c.replies.map((r) =>
+                  r.id === optimisticId ? { ...saved, replies: [] } : r
+                ),
+              }
+    try {
+      const { comment } = await createPoolComment(poolId, { text, parentId });
+      const mapped = mapApiComment(comment as ApiComment);
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === parentId
+            ? { ...c, replies: [...c.replies, mapped] }
+            : c
+        )
+      );
+    } catch (err) {
+      console.error(err);
+      toast(parseApiError(err), 'error');
+    }
   }
 
-  function handleEditComment(
+  async function handleEditComment(
     id: string,
     text: string,
     isReply: boolean,
     parentId?: string
   ) {
-    // TODO: replace with real API call: apiClient.put(`/pools/${poolId}/comments/${id}`, { text })
+    if (!currentUserAddress) return;
+    const previous = comments;
+    const updatedAt = new Date().toISOString();
     if (isReply && parentId) {
       setComments((prev) =>
         prev.map((c) =>
@@ -703,9 +816,7 @@ function CommentsSection({
             ? {
                 ...c,
                 replies: c.replies.map((r) =>
-                  r.id === id
-                    ? { ...r, text, updatedAt: new Date().toISOString() }
-                    : r
+                  r.id === id ? { ...r, text, updatedAt } : r
                 ),
               }
             : c
@@ -713,19 +824,49 @@ function CommentsSection({
       );
     } else {
       setComments((prev) =>
-        prev.map((c) =>
-          c.id === id ? { ...c, text, updatedAt: new Date().toISOString() } : c
-        )
+        prev.map((c) => (c.id === id ? { ...c, text, updatedAt } : c))
       );
+    try {
+      const { comment } = await updatePoolComment(poolId, id, { text });
+      const updatedAt = (comment as ApiComment).updatedAt ?? new Date().toISOString();
+      if (isReply && parentId) {
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === parentId
+              ? {
+                  ...c,
+                  replies: c.replies.map((r) =>
+                    r.id === id ? { ...r, text, updatedAt } : r
+                  ),
+                }
+              : c
+          )
+        );
+      } else {
+        setComments((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, text, updatedAt } : c))
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      toast(parseApiError(err), 'error');
+    }
+    try {
+      await updatePoolComment(poolId, id, { text });
+    } catch (err) {
+      console.error(err);
+      setComments(previous);
+      toast('Failed to update comment', 'error');
     }
   }
 
-  function handleDeleteComment(
+  async function handleDeleteComment(
     id: string,
     isReply: boolean,
     parentId?: string
   ) {
-    // TODO: replace with real API call: apiClient.delete(`/pools/${poolId}/comments/${id}`)
+    if (!currentUserAddress) return;
+    const previous = comments;
     if (isReply && parentId) {
       setComments((prev) =>
         prev.map((c) =>
@@ -736,6 +877,29 @@ function CommentsSection({
       );
     } else {
       setComments((prev) => prev.filter((c) => c.id !== id));
+    try {
+      await deletePoolComment(poolId, id);
+      if (isReply && parentId) {
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === parentId
+              ? { ...c, replies: c.replies.filter((r) => r.id !== id) }
+              : c
+          )
+        );
+      } else {
+        setComments((prev) => prev.filter((c) => c.id !== id));
+      }
+    } catch (err) {
+      console.error(err);
+      toast(parseApiError(err), 'error');
+    }
+    try {
+      await deletePoolComment(poolId, id);
+    } catch (err) {
+      console.error(err);
+      setComments(previous);
+      toast('Failed to delete comment', 'error');
     }
   }
 
@@ -747,7 +911,16 @@ function CommentsSection({
         placeholder="Share a thought or ask a question…"
       />
 
-      {comments.length === 0 ? (
+      {loading ? (
+        <div
+          className="flex flex-col gap-3"
+          aria-busy="true"
+          aria-label="Loading comments"
+        >
+          <div className="h-20 w-full animate-pulse rounded-xl bg-[var(--color-border)]" />
+          <div className="h-20 w-full animate-pulse rounded-xl bg-[var(--color-border)]" />
+        </div>
+      ) : comments.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-8 text-center">
           <p className="font-semibold">No comments yet</p>
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">
@@ -781,7 +954,7 @@ function CommentsSection({
 // ── CommentForm ──────────────────────────────────────────────────────────────
 
 interface CommentFormProps {
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string) => void | Promise<void>;
   currentUserAddress: string | null;
   placeholder?: string;
   initialValue?: string;
@@ -799,12 +972,13 @@ function CommentForm({
 }: CommentFormProps) {
   const [text, setText] = useState(initialValue);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) return;
-    onSubmit(trimmed);
+    void onSubmit(trimmed);
     setText('');
+    await onSubmit(trimmed);
   }
 
   if (!currentUserAddress) {
@@ -856,11 +1030,11 @@ function CommentForm({
 interface CommentItemProps {
   comment: Comment;
   currentUserAddress: string | null;
-  onReply: (text: string) => void;
-  onEdit: (text: string) => void;
-  onDelete: () => void;
-  onEditReply: (replyId: string, text: string) => void;
-  onDeleteReply: (replyId: string) => void;
+  onReply: (text: string) => void | Promise<void>;
+  onEdit: (text: string) => void | Promise<void>;
+  onDelete: () => void | Promise<void>;
+  onEditReply: (replyId: string, text: string) => void | Promise<void>;
+  onDeleteReply: (replyId: string) => void | Promise<void>;
   isReply?: boolean;
 }
 
@@ -922,7 +1096,7 @@ function CommentItem({
             </button>
             <button
               type="button"
-              onClick={onDelete}
+              onClick={() => void onDelete()}
               className="text-xs text-[var(--color-text-muted)] hover:text-red-600 transition-colors"
               aria-label="Delete comment"
             >
@@ -936,7 +1110,9 @@ function CommentItem({
         <div className="mt-2">
           <CommentForm
             onSubmit={(text) => {
-              onEdit(text);
+              void onEdit(text);
+            onSubmit={async (text) => {
+              await onEdit(text);
               setIsEditing(false);
             }}
             currentUserAddress={currentUserAddress}
@@ -966,7 +1142,9 @@ function CommentItem({
             <div className="mt-3">
               <CommentForm
                 onSubmit={(text) => {
-                  onReply(text);
+                  void onReply(text);
+                onSubmit={async (text) => {
+                  await onReply(text);
                   setShowReplyForm(false);
                 }}
                 currentUserAddress={currentUserAddress}
@@ -997,6 +1175,15 @@ function CommentItem({
         </div>
       )}
     </li>
+  );
+}
+
+function parseApiError(err: unknown): string {
+  const error = err as { response?: { data?: { message?: string } }; message?: string };
+  return (
+    error?.response?.data?.message ||
+    error?.message ||
+    'Something went wrong. Please try again.'
   );
 }
 

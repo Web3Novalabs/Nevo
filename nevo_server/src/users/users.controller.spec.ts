@@ -27,11 +27,15 @@ const makeReq = (publicKey: string) =>
 
 describe('UsersController', () => {
   let controller: UsersController;
-  let usersService: { updateDisplayName: jest.Mock };
+  let usersService: {
+    updateDisplayName: jest.Mock;
+    getPublicProfile: jest.Mock;
+  };
 
   beforeEach(async () => {
     usersService = {
       updateDisplayName: jest.fn(),
+      getPublicProfile: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -159,6 +163,79 @@ describe('UsersController', () => {
     });
   });
 
+  describe('getPublicProfile (GET /users/:publicKey)', () => {
+    const publicKey = 'GABC1234567890';
+
+    it('returns the public profile DTO from usersService', async () => {
+      const profile = {
+        publicKey,
+        displayName: 'Alice',
+        joinedAt: new Date('2024-01-01T00:00:00.000Z'),
+        poolsCreated: 3,
+        totalRaised: '1500.0000000',
+      };
+      usersService.getPublicProfile.mockResolvedValue(profile);
+
+      const result = await controller.getPublicProfile(publicKey);
+
+      expect(usersService.getPublicProfile).toHaveBeenCalledWith(publicKey);
+      expect(result).toEqual(profile);
+    });
+
+    it('does not expose private fields such as id, createdAt or updatedAt', async () => {
+      usersService.getPublicProfile.mockResolvedValue({
+        publicKey,
+        displayName: 'Alice',
+        joinedAt: new Date('2024-01-01T00:00:00.000Z'),
+        poolsCreated: 0,
+        totalRaised: '0.0000000',
+      });
+
+      const result = (await controller.getPublicProfile(publicKey)) as Record<
+        string,
+        unknown
+      >;
+
+      expect(result).not.toHaveProperty('id');
+      expect(result).not.toHaveProperty('createdAt');
+      expect(result).not.toHaveProperty('updatedAt');
+    });
+
+    it('throws NotFoundException when the user does not exist', async () => {
+      usersService.getPublicProfile.mockResolvedValue(null);
+
+      await expect(controller.getPublicProfile('GUNKNOWN')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws NotFoundException with "User not found" message', async () => {
+      usersService.getPublicProfile.mockResolvedValue(null);
+
+      await expect(controller.getPublicProfile('GUNKNOWN')).rejects.toThrow(
+        'User not found',
+      );
+    });
+
+    it('propagates unexpected errors from usersService', async () => {
+      usersService.getPublicProfile.mockRejectedValue(
+        new Error('DB connection lost'),
+      );
+
+      await expect(controller.getPublicProfile(publicKey)).rejects.toThrow(
+        'DB connection lost',
+      );
+    });
+
+    it('does not apply JwtAuthGuard to the public profile route', () => {
+      const metadata = Reflect.getMetadata(
+        '__guards__',
+        UsersController.prototype.getPublicProfile,
+      );
+      expect(metadata).toBeUndefined();
+    });
+  });
+
   describe('JwtAuthGuard protection on updateMe route', () => {
     it('applies JwtAuthGuard to the updateMe method', () => {
       const metadata = Reflect.getMetadata(
@@ -188,7 +265,10 @@ describe('UsersController', () => {
 
 describe('UsersController (PATCH /users/me validation)', () => {
   let app: INestApplication;
-  let usersService: { updateDisplayName: jest.Mock };
+  let usersService: {
+    updateDisplayName: jest.Mock;
+    getPublicProfile: jest.Mock;
+  };
 
   const jwtSecret = process.env.JWT_SECRET ?? JWT_SECRET_FALLBACK;
   const signToken = (publicKey: string) =>
@@ -197,6 +277,7 @@ describe('UsersController (PATCH /users/me validation)', () => {
   beforeEach(async () => {
     usersService = {
       updateDisplayName: jest.fn().mockResolvedValue(makeUser()),
+      getPublicProfile: jest.fn(),
     };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -251,5 +332,82 @@ describe('UsersController (PATCH /users/me validation)', () => {
       'Bob',
     );
     expect(res.body).toMatchObject({ displayName: 'Bob' });
+  });
+});
+
+describe('UsersController (GET /users/:publicKey)', () => {
+  let app: INestApplication;
+  let usersService: {
+    updateDisplayName: jest.Mock;
+    getPublicProfile: jest.Mock;
+  };
+
+  const validKey = 'GABC1234567890';
+
+  beforeEach(async () => {
+    usersService = {
+      updateDisplayName: jest.fn(),
+      getPublicProfile: jest.fn(),
+    };
+
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      controllers: [UsersController],
+      providers: [
+        { provide: UsersService, useValue: usersService },
+        JwtStrategy,
+      ],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+    jest.clearAllMocks();
+  });
+
+  it('returns 200 with the public DTO for a valid key', async () => {
+    usersService.getPublicProfile.mockResolvedValue({
+      publicKey: validKey,
+      displayName: 'Alice',
+      joinedAt: new Date('2024-01-01T00:00:00.000Z'),
+      poolsCreated: 2,
+      totalRaised: '100.0000000',
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/users/${validKey}`)
+      .expect(200);
+
+    expect(usersService.getPublicProfile).toHaveBeenCalledWith(validKey);
+    expect(res.body).toMatchObject({
+      publicKey: validKey,
+      displayName: 'Alice',
+      poolsCreated: 2,
+      totalRaised: '100.0000000',
+    });
+    expect(res.body).not.toHaveProperty('id');
+    expect(res.body).not.toHaveProperty('createdAt');
+    expect(res.body).not.toHaveProperty('updatedAt');
+  });
+
+  it('returns 400 for an invalid key format', async () => {
+    await request(app.getHttpServer()).get('/users/not-a-key').expect(400);
+
+    expect(usersService.getPublicProfile).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for an unknown key', async () => {
+    usersService.getPublicProfile.mockResolvedValue(null);
+
+    await request(app.getHttpServer()).get(`/users/${validKey}`).expect(404);
   });
 });

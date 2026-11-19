@@ -37,9 +37,19 @@ export class AuthService {
     const accessToken = this.jwtService.sign({
       sub: user.id,
       publicKey: user.publicKey,
+      tokenVersion: user.tokenVersion,
     });
 
     return { accessToken, user };
+  }
+
+  async logout(publicKey: string): Promise<void> {
+    const user = await this.usersService.findByPublicKey(publicKey);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    await this.usersService.incrementTokenVersion(user.id);
   }
 
   private verifySignature(

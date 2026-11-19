@@ -30,6 +30,13 @@ function extractTxHash(
   return result.txHash ?? result.hash ?? '';
 }
 
+// TODO(#1737): map contract codes and RPC timeouts to user-facing messages
+function toUserMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : 'Failed to submit transaction';
+  if (/declin|reject/i.test(raw)) return 'You declined the transaction in your wallet.';
+  return raw;
+}
+
 export function useXdrTransaction() {
   const [status, setStatus] = useState<TxStatus>('idle');
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -54,8 +61,7 @@ export function useXdrTransaction() {
         setStatus('success');
         return hash;
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to submit transaction';
+        const message = toUserMessage(err);
         setError(message);
         setStatus('error');
         throw err;

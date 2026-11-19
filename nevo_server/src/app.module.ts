@@ -7,6 +7,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
+import { CommentsModule } from './comments/comments.module.js';
 import { ContractModule } from './contract/contract.module.js';
 import { LoggingMiddleware } from './common/logging.middleware.js';
 import { GlobalExceptionFilter } from './common/global-exception.filter.js';
@@ -30,6 +31,7 @@ import { UsersModule } from './users/users.module.js';
       },
     ]),
     AuthModule,
+    CommentsModule,
     ContractModule,
     DonationsModule,
     SyncModule,

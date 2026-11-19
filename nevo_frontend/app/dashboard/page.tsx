@@ -2,67 +2,21 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { signTransaction } from '@stellar/freighter-api';
 import { useWalletStore } from '@/src/store/walletStore';
 import { EmptyState } from '@/components/EmptyState';
 import ConnectWallet from '@/components/ConnectWallet';
 import { WalletAddress } from '@/components/WalletAddress';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { toast } from '@/components/Toast';
+import { useXdrTransaction } from '@/src/hooks/useXdrTransaction';
 import type { Pool } from '@/src/store/poolsStore';
 import {
-  apiClient,
+  fetchCreatorPools,
   submitSignedXdr,
+  apiClient,
   withdrawPool,
   closePool,
 } from '@/lib/api-client';
-
-// TODO: Replace with real API call once backend pool endpoints are implemented
-const MOCK_CREATOR_POOLS: Pool[] = [
-  {
-    id: '1',
-    title: 'Clean Water Initiative',
-    description: 'Providing clean drinking water to rural communities in need.',
-    category: 'Humanitarian',
-    status: 'Active',
-    target: 10000,
-    raised: 6800,
-    imageColor: '#27926e',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2025-03-01',
-  },
-  {
-    id: '2',
-    title: 'Open Source Dev Fund',
-    description: 'Supporting open source contributors building on Stellar.',
-    category: 'Technology',
-    status: 'Active',
-    target: 5000,
-    raised: 5000,
-    imageColor: '#1c7459',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2025-01-15',
-  },
-  {
-    id: '3',
-    title: 'Community Garden Project',
-    description: 'Building urban gardens to improve food security locally.',
-    category: 'Environment',
-    status: 'Completed',
-    target: 3000,
-    raised: 3200,
-    imageColor: '#47ae88',
-    creator: 'GABCDE1234567890ABCDE1234567890ABCDE1234567890ABCDE1234567890',
-    createdAt: '2024-11-10',
-  },
-];
-
-// TODO: Replace with real contributor counts from backend
-const MOCK_CONTRIBUTOR_COUNTS: Record<string, number> = {
-  '1': 42,
-  '2': 87,
-  '3': 31,
-};
 
 type ActionModal =
   | { type: 'withdraw'; pool: Pool }
@@ -77,15 +31,21 @@ function DashboardPageContent() {
   const [actionModal, setActionModal] = useState<ActionModal>(null);
   const [confirming, setConfirming] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { signAndSubmit } = useXdrTransaction();
 
   const loadPools = useCallback(async () => {
     if (!publicKey) return;
     setLoadingPools(true);
+    setError(null);
     try {
-      const data = await apiClient.get<Pool[]>(`/pools?creator=${publicKey}`);
+      const data = await fetchCreatorPools(publicKey);
       setPools(data ?? []);
-    } catch {
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to load pools';
+      console.error('Failed to load pools:', err);
       setPools([]);
+      setError(message);
     } finally {
       setLoadingPools(false);
     }
@@ -97,28 +57,14 @@ function DashboardPageContent() {
 
   useEffect(() => {
     if (!publicKey) return;
-    // TODO: Replace with real fetch filtered by creator === publicKey
-    const timer = setTimeout(() => {
-      try {
-        setPools(MOCK_CREATOR_POOLS);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to load pools';
-        console.error('Failed to load pools:', err);
-        setError(message);
-        toast(message, 'error');
-      } finally {
-        setLoadingPools(false);
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [publicKey]);
+    void loadPools();
+  }, [publicKey, loadPools]);
 
   // ── Summary metrics ────────────────────────────────────────────────────
   const totalRaised = pools.reduce((s, p) => s + p.raised, 0);
   const activePools = pools.filter((p) => p.status === 'Active').length;
-  const totalContributors = Object.values(MOCK_CONTRIBUTOR_COUNTS).reduce(
-    (s, n) => s + n,
+  const totalContributors = pools.reduce(
+    (s, p) => s + (p.donorCount ?? 0),
     0
   );
 
@@ -155,17 +101,7 @@ function DashboardPageContent() {
       const poolIds = Array.from(selectedIds);
       for (const poolId of poolIds) {
         const { unsignedXdr } = await closePool(poolId);
-        const signedResult = await signTransaction(unsignedXdr, {
-          networkPassphrase:
-            process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-            'Test SDF Network ; September 2015',
-        });
-
-        if (signedResult.error) {
-          throw new Error(signedResult.error);
-        }
-
-        await submitSignedXdr(signedResult.signedTxXdr);
+        await signAndSubmit(unsignedXdr);
       }
 
       toast(
@@ -266,6 +202,13 @@ function DashboardPageContent() {
         >
           <p className="font-medium">Failed to load pools</p>
           <p className="mt-1">{error}</p>
+          <button
+            onClick={() => void loadPools()}
+            className="mt-3 rounded-lg border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 dark:border-red-700 dark:hover:bg-red-900"
+            aria-label="Retry loading pools"
+          >
+            Retry
+          </button>
         </div>
       ) : pools.length === 0 ? (
         <EmptyState
@@ -301,7 +244,7 @@ function DashboardPageContent() {
               <PoolRow
                 key={pool.id}
                 pool={pool}
-                contributors={MOCK_CONTRIBUTOR_COUNTS[pool.id] ?? 0}
+                contributors={pool.donorCount ?? 0}
                 selected={selectedIds.has(pool.id)}
                 onToggle={() => toggleOne(pool.id)}
                 onWithdraw={() => setActionModal({ type: 'withdraw', pool })}
@@ -327,31 +270,11 @@ function DashboardPageContent() {
             try {
               if (actionModal.type === 'withdraw') {
                 const { unsignedXdr } = await withdrawPool(actionModal.pool.id);
-                const signedResult = await signTransaction(unsignedXdr, {
-                  networkPassphrase:
-                    process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-                    'Test SDF Network ; September 2015',
-                });
-
-                if (signedResult.error) {
-                  throw new Error(signedResult.error);
-                }
-
-                await submitSignedXdr(signedResult.signedTxXdr);
+                await signAndSubmit(unsignedXdr);
                 toast('Withdrawal successful');
               } else {
                 const { unsignedXdr } = await closePool(actionModal.pool.id);
-                const signedResult = await signTransaction(unsignedXdr, {
-                  networkPassphrase:
-                    process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-                    'Test SDF Network ; September 2015',
-                });
-
-                if (signedResult.error) {
-                  throw new Error(signedResult.error);
-                }
-
-                await submitSignedXdr(signedResult.signedTxXdr);
+                await signAndSubmit(unsignedXdr);
                 toast('Pool archived successfully');
               }
             } catch (err: unknown) {

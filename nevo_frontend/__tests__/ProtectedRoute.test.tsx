@@ -36,6 +36,28 @@ describe('ProtectedRoute', () => {
     expect(mockPush).toHaveBeenCalledWith('/login?from=%2Fdashboard');
   });
 
+  it('includes a next query param so the login page can redirect back after login', () => {
+    (useWalletStore as unknown as jest.Mock).mockReturnValue({
+      isAuthenticated: false,
+      loading: false,
+      initialize: jest.fn(),
+    });
+
+    render(
+      <ProtectedRoute>
+        <div data-testid="protected-content">Secret</div>
+      </ProtectedRoute>
+    );
+
+    expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument();
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    const redirectUrl = mockPush.mock.calls[0][0] as string;
+    expect(redirectUrl.startsWith('/login?')).toBe(true);
+    const params = new URLSearchParams(redirectUrl.split('?')[1]);
+    expect(params.get('next')).toBe('/dashboard');
+    expect(params.get('from')).toBe('/dashboard');
+  });
+
   it('renders children when the user is authenticated', () => {
     (useWalletStore as unknown as jest.Mock).mockReturnValue({
       isAuthenticated: true,

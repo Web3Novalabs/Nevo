@@ -372,4 +372,63 @@ describe('AuthController (challenge/verify)', () => {
       });
     });
   });
+
+  describe('POST /auth/logout', () => {
+    it('returns 401 without a token', async () => {
+      const logoutSpy = jest.spyOn(authService, 'logout');
+
+      await request(app.getHttpServer()).post('/auth/logout').expect(401);
+
+      expect(logoutSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns 200 with a valid token and calls authService.logout with the JWT publicKey', async () => {
+      const logoutSpy = jest
+        .spyOn(authService, 'logout')
+        .mockResolvedValue(undefined);
+
+      await request(app.getHttpServer())
+        .post('/auth/logout')
+        .set('Authorization', `Bearer valid-token`)
+        .expect(200);
+
+      expect(logoutSpy).toHaveBeenCalledTimes(1);
+      expect(logoutSpy).toHaveBeenCalledWith(publicKey);
+    });
+  });
+
+  describe('AuthController -> AuthService.generateChallenge dead code proof (Issue #1490)', () => {
+    it('GET /auth/challenge calls NonceService.generateNonce and NEVER calls AuthService.generateChallenge', async () => {
+      const authServiceSpy = jest.spyOn(authService, 'generateChallenge');
+      const nonceServiceSpy = jest
+        .spyOn(nonceService, 'generateNonce')
+        .mockResolvedValue('nonce-service-generated-nonce');
+
+      const response = await request(app.getHttpServer())
+        .get('/auth/challenge')
+        .query({ publicKey })
+        .expect(200);
+
+      expect(response.body).toEqual({ nonce: 'nonce-service-generated-nonce' });
+      // Proves: AuthController delegates to NonceService.generateNonce
+      expect(nonceServiceSpy).toHaveBeenCalledTimes(1);
+      expect(nonceServiceSpy).toHaveBeenCalledWith(publicKey);
+      // Proves: AuthService.generateChallenge is never called (dead/unreachable code)
+      expect(authServiceSpy).not.toHaveBeenCalled();
+    });
+
+    it('direct controller call verifies NonceService is invoked and AuthService.generateChallenge is untouched', async () => {
+      const authServiceSpy = jest.spyOn(authService, 'generateChallenge');
+      const nonceServiceSpy = jest
+        .spyOn(nonceService, 'generateNonce')
+        .mockResolvedValue('direct-call-nonce');
+
+      const controller = app.get<AuthController>(AuthController);
+      const result = await controller.challenge(publicKey);
+
+      expect(result).toEqual({ nonce: 'direct-call-nonce' });
+      expect(nonceServiceSpy).toHaveBeenCalledWith(publicKey);
+      expect(authServiceSpy).not.toHaveBeenCalled();
+    });
+  });
 });

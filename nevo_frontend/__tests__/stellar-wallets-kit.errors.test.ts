@@ -1,79 +1,75 @@
 import {
-  isConnected,
-  requestAccess,
-  getAddress,
-  signMessage,
-} from '@stellar/freighter-api';
-import {
   connect,
   getPublicKey,
   signWithWallet,
 } from '@/app/stellar-wallets-kit';
 
-jest.mock('@stellar/freighter-api', () => ({
-  isConnected: jest.fn(),
-  requestAccess: jest.fn(),
-  getAddress: jest.fn(),
-  signMessage: jest.fn(),
+const mockGetAddress = jest.fn();
+const mockSignMessage = jest.fn();
+const mockSetWallet = jest.fn();
+const mockGetSelectedWallet = jest.fn();
+
+jest.mock('@creit.tech/stellar-wallets-kit', () => ({
+  StellarWalletsKit: {
+    init: jest.fn(),
+    getAddress: (...args: unknown[]) => mockGetAddress(...args),
+    signMessage: (...args: unknown[]) => mockSignMessage(...args),
+    setWallet: (...args: unknown[]) => mockSetWallet(...args),
+    getSelectedWallet: (...args: unknown[]) => mockGetSelectedWallet(...args),
+  },
 }));
 
-const mockIsConnected = isConnected as jest.Mock;
-const mockRequestAccess = requestAccess as jest.Mock;
-const mockGetAddress = getAddress as jest.Mock;
-const mockSignMessage = signMessage as jest.Mock;
+jest.mock('@creit.tech/stellar-wallets-kit/modules/utils', () => ({
+  defaultModules: jest.fn(() => []),
+}));
 
 describe('stellar-wallets-kit error paths', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    localStorage.clear();
   });
 
   describe('getPublicKey', () => {
-    it('returns null instead of throwing when isConnected() throws', async () => {
-      mockIsConnected.mockRejectedValue(new Error('extension crashed'));
+    it('returns null instead of throwing when the kit throws', async () => {
+      mockGetAddress.mockRejectedValue(new Error('wallet crashed'));
 
       await expect(getPublicKey()).resolves.toBeNull();
-      expect(mockGetAddress).not.toHaveBeenCalled();
     });
   });
 
   describe('connect', () => {
-    it('throws when Freighter is not connected', async () => {
-      mockIsConnected.mockResolvedValue({ isConnected: false });
+    it('throws when no wallet is selected or available', async () => {
+      mockGetSelectedWallet.mockReturnValue(undefined);
+      mockGetAddress.mockRejectedValue(new Error('No wallet selected'));
       const onConnect = jest.fn();
 
-      await expect(connect(onConnect)).rejects.toThrow(
-        'Freighter extension is not installed.'
-      );
-      expect(mockRequestAccess).not.toHaveBeenCalled();
+      await expect(connect(onConnect)).rejects.toThrow();
       expect(onConnect).not.toHaveBeenCalled();
     });
 
-    it('throws access.error and never calls onConnect when requestAccess fails', async () => {
-      mockIsConnected.mockResolvedValue({ isConnected: true });
-      mockRequestAccess.mockResolvedValue({
-        address: '',
-        error: 'User declined access',
-      });
+    it('throws and never calls onConnect when the kit returns no address', async () => {
+      mockGetSelectedWallet.mockReturnValue({ id: 'xbull' });
+      mockGetAddress.mockResolvedValue({ address: '' });
       const onConnect = jest.fn();
 
-      await expect(connect(onConnect)).rejects.toThrow('User declined access');
+      await expect(connect(onConnect)).rejects.toThrow();
       expect(onConnect).not.toHaveBeenCalled();
     });
   });
 
   describe('signWithWallet', () => {
-    it('returns result.signature on a successful signMessage call', async () => {
-      mockSignMessage.mockResolvedValue({ signature: 'signed-nonce' });
+    it('returns the signature on a successful signMessage call', async () => {
+      mockSignMessage.mockResolvedValue({ signedMessage: 'signed-nonce' });
 
       await expect(signWithWallet('nonce')).resolves.toBe('signed-nonce');
-      expect(mockSignMessage).toHaveBeenCalledWith('nonce');
+      expect(mockSignMessage).toHaveBeenCalledWith(
+        'nonce',
+        expect.objectContaining({ address: expect.any(String) })
+      );
     });
 
-    it('throws the error message when signMessage returns an error', async () => {
-      mockSignMessage.mockResolvedValue({
-        signature: 'ignored',
-        error: 'User rejected the request',
-      });
+    it('surfaces kit signing errors', async () => {
+      mockSignMessage.mockRejectedValue(new Error('User rejected the request'));
 
       await expect(signWithWallet('nonce')).rejects.toThrow(
         'User rejected the request'
