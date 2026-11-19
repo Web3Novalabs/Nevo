@@ -1,11 +1,12 @@
 import type { DataSourceOptions } from 'typeorm';
+import { Comment } from './comments/comment.entity.js';
 import { Donation } from './donations/donation.entity.js';
 import { Nonce } from './auth/nonce.entity.js';
 import { Pool } from './pools/pool.entity.js';
 import { SyncState } from './sync/sync-state.entity.js';
 import { User } from './users/user.entity.js';
 
-const ENTITIES = [User, Pool, Donation, SyncState, Nonce];
+const ENTITIES = [User, Pool, Donation, SyncState, Nonce, Comment];
 
 /**
  * Builds the Postgres connection options shared by the Nest application and the

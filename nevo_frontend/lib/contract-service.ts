@@ -2,18 +2,15 @@ import {
   Address,
   Contract,
   Keypair,
-  Networks,
   TransactionBuilder,
   scValToNative,
   nativeToScVal,
 } from '@stellar/stellar-sdk';
 import { Server } from '@stellar/stellar-sdk/rpc';
+import { networkPassphrase, sorobanRpcUrl } from './env';
 
-const RPC_URL =
-  process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ??
-  'https://soroban-testnet.stellar.org';
-const NETWORK_PASSPHRASE =
-  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ?? Networks.TESTNET;
+const RPC_URL = sorobanRpcUrl;
+const NETWORK_PASSPHRASE = networkPassphrase;
 const BASE_FEE = '100';
 const TX_TIMEOUT = 30;
 

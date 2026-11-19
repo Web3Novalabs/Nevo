@@ -372,6 +372,30 @@ describe('AuthController (challenge/verify)', () => {
     });
   });
 
+  describe('POST /auth/logout', () => {
+    it('returns 401 without a token', async () => {
+      const logoutSpy = jest.spyOn(authService, 'logout');
+
+      await request(app.getHttpServer()).post('/auth/logout').expect(401);
+
+      expect(logoutSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns 200 with a valid token and calls authService.logout with the JWT publicKey', async () => {
+      const logoutSpy = jest
+        .spyOn(authService, 'logout')
+        .mockResolvedValue(undefined);
+
+      await request(app.getHttpServer())
+        .post('/auth/logout')
+        .set('Authorization', `Bearer valid-token`)
+        .expect(200);
+
+      expect(logoutSpy).toHaveBeenCalledTimes(1);
+      expect(logoutSpy).toHaveBeenCalledWith(publicKey);
+    });
+  });
+
   describe('AuthController -> AuthService.generateChallenge dead code proof (Issue #1490)', () => {
     it('GET /auth/challenge calls NonceService.generateNonce and NEVER calls AuthService.generateChallenge', async () => {
       const authServiceSpy = jest.spyOn(authService, 'generateChallenge');

@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWalletStore } from '@/src/store/walletStore';
 import { Spinner } from '@/components/Spinner';
-import { isFreighterInstalled } from '@/app/stellar-wallets-kit';
-
-const FREIGHTER_INSTALL_URL = 'https://www.freighter.app/';
+import {
+  SUPPORTED_WALLETS,
+  isWalletAvailable,
+  type WalletId,
+} from '@/app/stellar-wallets-kit';
 
 function shortKey(key: string) {
   return `${key.slice(0, 4)}…${key.slice(-4)}`;
@@ -23,16 +25,21 @@ export default function ConnectWallet() {
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [open, setOpen] = useState(false);
-  // undefined = not yet checked (SSR), true/false = detection result
-  const [freighterInstalled, setFreighterInstalled] = useState<
-    boolean | undefined
+  const [pickerOpen, setPickerOpen] = useState(false);
+  // undefined = not yet checked (SSR), otherwise per-wallet detection results
+  const [availability, setAvailability] = useState<
+    Record<WalletId, boolean> | undefined
   >(undefined);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    const results = {} as Record<WalletId, boolean>;
+    for (const wallet of SUPPORTED_WALLETS) {
+      results[wallet.id] = isWalletAvailable(wallet.id);
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setFreighterInstalled(isFreighterInstalled());
+    setAvailability(results);
     initialize();
   }, [initialize]);
 
@@ -63,17 +70,15 @@ export default function ConnectWallet() {
     };
   }, [open]);
 
-  async function handleConnect() {
-    // Guard: do not attempt the flow if the extension is missing
-    if (!freighterInstalled) return;
-
+  async function handleConnect(walletId: WalletId) {
     setError(null);
     setVerifying(true);
     try {
-      await connectWallet();
+      await connectWallet(walletId);
+      setPickerOpen(false);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Connection failed';
-      // Freighter surfaces rejection as an error message string
+      // Wallets surface rejection as an error message string
       const isRejected =
         message.toLowerCase().includes('rejected') ||
         message.toLowerCase().includes('denied') ||
@@ -96,7 +101,7 @@ export default function ConnectWallet() {
 
   // Wait until the client has run the detection before rendering the button
   // to avoid a flash of the wrong state on hydration.
-  if (freighterInstalled === undefined) {
+  if (availability === undefined) {
     return (
       <div
         className="h-8 w-28 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-800"
@@ -105,30 +110,19 @@ export default function ConnectWallet() {
     );
   }
 
-  if (!freighterInstalled) {
-    return (
-      <p className="text-xs text-[var(--color-text-muted)]" role="alert">
-        Freighter wallet not found.{' '}
-        <a
-          href={FREIGHTER_INSTALL_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline hover:text-brand-600 transition-colors"
-        >
-          Install Freighter
-        </a>
-      </p>
-    );
-  }
-
   if (!publicKey) {
     return (
       <div className="flex flex-col items-end gap-1">
         <button
           type="button"
-          onClick={handleConnect}
+          onClick={() => {
+            setError(null);
+            setPickerOpen(true);
+          }}
           disabled={verifying}
           aria-busy={verifying}
+          aria-haspopup="dialog"
+          aria-expanded={pickerOpen}
           className="flex items-center gap-2 rounded-full bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {verifying ? (
@@ -140,10 +134,73 @@ export default function ConnectWallet() {
             'Connect Wallet'
           )}
         </button>
-        {error && (
+        {error && !pickerOpen && (
           <p className="text-xs text-red-500" role="alert">
             {error}
           </p>
+        )}
+
+        {pickerOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            onClick={() => {
+              if (!verifying) setPickerOpen(false);
+            }}
+          >
+            <div
+              className="w-full max-w-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-lg"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Choose a wallet"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold">Connect a wallet</h2>
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(false)}
+                  disabled={verifying}
+                  aria-label="Close wallet picker"
+                  className="rounded p-1 text-[var(--color-text-muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                >
+                  ✕
+                </button>
+              </div>
+              <ul className="space-y-2">
+                {SUPPORTED_WALLETS.map((wallet) => {
+                  const installed = availability[wallet.id];
+                  return (
+                    <li key={wallet.id}>
+                      <button
+                        type="button"
+                        onClick={() => handleConnect(wallet.id)}
+                        disabled={verifying}
+                        className="flex w-full items-center justify-between rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                      >
+                        <span>{wallet.name}</span>
+                        {!installed && (
+                          <span className="text-xs font-normal text-[var(--color-text-muted)]">
+                            Not detected
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              {verifying && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+                  <Spinner size="sm" label="Verifying…" />
+                  Verifying…
+                </div>
+              )}
+              {error && (
+                <p className="mt-3 text-xs text-red-500" role="alert">
+                  {error}
+                </p>
+              )}
+            </div>
+          </div>
         )}
       </div>
     );

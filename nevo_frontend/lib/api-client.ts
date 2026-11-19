@@ -14,6 +14,7 @@ import type {
   ApiUser,
   PaginatedResponse,
 } from './api-types';
+import type { paths } from './api-schema';
 import { env, validatePublicEnv } from './env';
 import { clearAuth, getToken } from './jwt-storage';
 import { toast } from '../components/Toast';
@@ -21,6 +22,54 @@ import { toast } from '../components/Toast';
 validatePublicEnv();
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+// ─── Generated OpenAPI helpers ───────────────────────────────────────────────
+// These derive request/response shapes directly from the generated schema so
+// that calling a route that doesn't exist, or sending the wrong body shape,
+// fails typecheck.
+
+export type ApiPath = keyof paths;
+
+type PathItem<Path extends ApiPath> = paths[Path];
+
+type OperationFor<
+  Path extends ApiPath,
+  Method extends Lowercase<HttpMethod>,
+> = PathItem<Path> extends Record<Method, infer Operation> ? Operation : never;
+
+/** JSON request body for a given path + method (never if none declared). */
+export type ApiRequestBody<
+  Path extends ApiPath,
+  Method extends Lowercase<HttpMethod>,
+> = OperationFor<Path, Method> extends {
+  requestBody: { content: { 'application/json': infer Body } };
+}
+  ? Body
+  : never;
+
+/** JSON response body for a given path + method (never if none declared). */
+export type ApiResponseBody<
+  Path extends ApiPath,
+  Method extends Lowercase<HttpMethod>,
+> = OperationFor<Path, Method> extends {
+  responses: { 200: { content: { 'application/json': infer Body } } };
+}
+  ? Body
+  : OperationFor<Path, Method> extends {
+        responses: { 201: { content: { 'application/json': infer Body } } };
+      }
+    ? Body
+    : never;
+
+/** Query parameters for a given path + method. */
+export type ApiQueryParams<
+  Path extends ApiPath,
+  Method extends Lowercase<HttpMethod>,
+> = OperationFor<Path, Method> extends {
+  parameters: { query?: infer Query };
+}
+  ? Query
+  : never;
 
 export interface RequestConfig extends Omit<RequestInit, 'method' | 'body'> {
   params?: Record<string, string | number | boolean | undefined>;
@@ -488,8 +537,58 @@ export class ApiClient {
     return this.request<T>(endpoint, 'PUT', { ...config, body });
   }
 
+  patch<T>(endpoint: string, body?: unknown, config?: RequestConfig) {
+    return this.request<T>(endpoint, 'PATCH', { ...config, body });
+  }
+
   delete<T>(endpoint: string, config?: RequestConfig) {
     return this.request<T>(endpoint, 'DELETE', config);
+  }
+
+  // ─── Typed helpers ─────────────────────────────────────────────────────────
+  // These constrain the endpoint to a path that actually exists in the
+  // generated OpenAPI schema and infer the request/response shapes from it.
+
+  typedGet<Path extends ApiPath>(
+    endpoint: Path,
+    config?: Omit<RequestConfig, 'body'> & {
+      params?: ApiQueryParams<Path, 'get'>;
+    }
+  ): Promise<ApiResponseBody<Path, 'get'>> {
+    return this.request<ApiResponseBody<Path, 'get'>>(endpoint, 'GET', config);
+  }
+
+  typedPost<Path extends ApiPath>(
+    endpoint: Path,
+    body?: ApiRequestBody<Path, 'post'>,
+    config?: RequestConfig
+  ): Promise<ApiResponseBody<Path, 'post'>> {
+    return this.request<ApiResponseBody<Path, 'post'>>(endpoint, 'POST', {
+      ...config,
+      body,
+    });
+  }
+
+  typedPatch<Path extends ApiPath>(
+    endpoint: Path,
+    body?: ApiRequestBody<Path, 'patch'>,
+    config?: RequestConfig
+  ): Promise<ApiResponseBody<Path, 'patch'>> {
+    return this.request<ApiResponseBody<Path, 'patch'>>(endpoint, 'PATCH', {
+      ...config,
+      body,
+    });
+  }
+
+  typedDelete<Path extends ApiPath>(
+    endpoint: Path,
+    config?: RequestConfig
+  ): Promise<ApiResponseBody<Path, 'delete'>> {
+    return this.request<ApiResponseBody<Path, 'delete'>>(
+      endpoint,
+      'DELETE',
+      config
+    );
   }
 }
 
@@ -535,39 +634,41 @@ apiClient.addResponseInterceptor((response) => {
 });
 
 // ─── API call functions ──────────────────────────────────────────────────────
+// Every function below is typed against the generated OpenAPI schema. Passing
+// an endpoint that doesn't exist, or a body of the wrong shape, is a type error.
 
-export function updateProfile(displayName: string): Promise<ApiProfile> {
-  return apiClient.request<ApiProfile>('/users/me', 'PATCH', {
-    body: { displayName },
+export function updateProfile(
+  displayName: string
+): Promise<ApiResponseBody<'/users/me', 'patch'>> {
+  return apiClient.typedPatch('/users/me', { displayName }, {
     requireAuth: true,
   });
 }
 
-export interface CreatePoolPayload {
-  title: string;
-  description: string;
-  category: string;
-  goal?: string;
-  goalAmount?: string;
-  imageUrl?: string;
-  duration?: number;
-  tags?: string;
-}
+export type CreatePoolPayload = ApiRequestBody<'/pools', 'post'>;
 
-export interface CreatePoolResponse {
-  poolId: number;
-  unsignedXdr: string;
-}
+export type CreatePoolResponse = ApiResponseBody<'/pools', 'post'>;
 
-export function fetchMyDonations(limit?: number): Promise<ApiDonation[]> {
-  return apiClient.get<ApiDonation[]>(
+export function fetchMyDonations(
+  limit?: number
+): Promise<ApiResponseBody<'/users/me/donations', 'get'>> {
+  return apiClient.typedGet(
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<PaginatedResponse<ApiDonation>> {
+  return apiClient.get<PaginatedResponse<ApiDonation>>(
     '/users/me/donations',
-    limit ? { params: { limit } } : undefined
+    params ? { params } : undefined
   );
 }
 
-export function fetchMyProfile(): Promise<ApiUser> {
-  return apiClient.get<ApiUser>('/users/me');
+export function fetchPoolDonations(
+  poolId: string | number,
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<PaginatedResponse<ApiDonation>> {
+  return apiClient.get<PaginatedResponse<ApiDonation>>(
+    `/pools/${poolId}/donations`,
+    params ? { params } : undefined
+  );
 }
 
 export function fetchCreatorPools(publicKey: string): Promise<ApiPool[]> {
@@ -594,43 +695,45 @@ export function fetchTransactions(
     params: params as Record<string, string | number | boolean | undefined>,
     requireAuth: true,
   });
+export function fetchCreatorPools(
+  publicKey: string
+): Promise<ApiResponseBody<'/pools', 'get'>> {
+  return apiClient.typedGet('/pools', { params: { creator: publicKey } });
 }
 
 export function fetchPools(
-  params?: Record<string, string | number | boolean | undefined>
-): Promise<PaginatedResponse<ApiPool>> {
-  return apiClient.get<PaginatedResponse<ApiPool>>('/pools', { params });
+  params?: ApiQueryParams<'/pools', 'get'>
+): Promise<ApiResponseBody<'/pools', 'get'>> {
+  return apiClient.typedGet('/pools', { params });
 }
 
-export function fetchPool(id: string | number): Promise<ApiPool> {
-  return apiClient.get<ApiPool>(`/pools/${id}`);
+export function fetchPool(
+  id: string | number
+): Promise<ApiResponseBody<'/pools/{id}', 'get'>> {
+  return apiClient.typedGet(`/pools/${id}` as '/pools/{id}');
 }
 
 export function createPool(
   payload: CreatePoolPayload
 ): Promise<CreatePoolResponse> {
-  return apiClient.post<CreatePoolResponse>('/pools', payload, {
-    requireAuth: true,
-  });
+  return apiClient.typedPost('/pools', payload, { requireAuth: true });
 }
 
 export function closePool(
   poolId: string | number
-): Promise<{ unsignedXdr: string }> {
-  return apiClient.post<{ unsignedXdr: string }>(
-    `/pools/${poolId}/close`,
+): Promise<ApiResponseBody<'/pools/{id}/close', 'post'>> {
+  return apiClient.typedPost(
+    `/pools/${poolId}/close` as '/pools/{id}/close',
     undefined,
-    {
-      requireAuth: true,
-    }
+    { requireAuth: true }
   );
 }
 
 export function withdrawPool(
   poolId: string | number
-): Promise<{ unsignedXdr: string }> {
-  return apiClient.post<{ unsignedXdr: string }>(
-    `/pools/${poolId}/withdraw`,
+): Promise<ApiResponseBody<'/pools/{id}/withdraw', 'post'>> {
+  return apiClient.typedPost(
+    `/pools/${poolId}/withdraw` as '/pools/{id}/withdraw',
     undefined,
     { requireAuth: true }
   );
@@ -640,36 +743,157 @@ export function donate(
   poolId: number,
   amount: string,
   tokenAddress: string
-): Promise<void> {
-  return apiClient.post('/donations', { poolId, amount, tokenAddress });
+): Promise<ApiResponseBody<'/pools/{id}/donations', 'post'>> {
+  return apiClient.typedPost(
+    `/pools/${poolId}/donations` as '/pools/{id}/donations',
+    { amount, tokenAddress },
+    { requireAuth: true }
+  );
 }
 
-export function submitSignedXdr(xdr: string): Promise<{ txHash: string }> {
-  return apiClient.post<{ txHash: string }>('/transactions/submit', { xdr });
+export function submitSignedXdr(
+  xdr: string
+): Promise<ApiResponseBody<'/transactions/submit', 'post'>> {
+  return apiClient.typedPost('/transactions/submit', { xdr });
 }
 
 export function verifyAuthSignature(
   publicKey: string,
   nonce: string,
   signature: string
-): Promise<{ accessToken: string }> {
-  return apiClient.post<{ accessToken: string }>('/auth/verify', {
+): Promise<ApiResponseBody<'/auth/verify', 'post'>> {
+  return apiClient.typedPost('/auth/verify', {
     publicKey,
     signature,
     message: nonce,
   });
 }
 
-export interface AuthChallenge {
-  nonce: string;
-  expiresAt: number;
-}
+export type AuthChallenge = ApiResponseBody<'/auth/challenge', 'get'>;
 
-export function fetchAuthChallenge(publicKey: string): Promise<AuthChallenge> {
-  return apiClient.get<AuthChallenge>('/auth/challenge', {
+export function fetchAuthChallenge(
+  publicKey: string
+): Promise<AuthChallenge> {
+  return apiClient.typedGet('/auth/challenge', {
     params: { publicKey },
     requireAuth: false,
     cacheResponse: false,
+  });
+}
+
+// ─── Pool comments ──────────────────────────────────────────────────────────
+
+export type PoolComment = ApiResponseBody<'/pools/{id}/comments', 'get'> extends
+  (infer Item)[]
+  ? Item
+  : never;
+
+export type CreateCommentPayload = ApiRequestBody<
+  '/pools/{id}/comments',
+  'post'
+>;
+
+export type UpdateCommentPayload = ApiRequestBody<
+  '/pools/{id}/comments/{commentId}',
+  'patch'
+>;
+
+export function fetchPoolComments(
+  poolId: string | number
+): Promise<PoolComment[]> {
+  return apiClient.typedGet(
+    `/pools/${poolId}/comments` as '/pools/{id}/comments'
+  );
+}
+
+export function createPoolComment(
+  poolId: string | number,
+  payload: CreateCommentPayload
+): Promise<PoolComment> {
+  return apiClient.typedPost(
+    `/pools/${poolId}/comments` as '/pools/{id}/comments',
+    payload,
+// ─── Comments ────────────────────────────────────────────────────────────────
+
+export interface ApiComment {
+  id: string;
+  poolId: number;
+  authorWallet: string;
+  text: string;
+  parentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  replies?: ApiComment[];
+}
+
+export interface CommentThread {
+  data: ApiComment[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export function fetchComments(
+  poolId: string | number,
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<CommentThread> {
+  return apiClient.get<CommentThread>(
+    `/pools/${poolId}/comments`,
+    params ? { params } : undefined
+  );
+}
+
+export function postComment(
+  poolId: string | number,
+  text: string,
+  parentId?: string | null
+): Promise<ApiComment> {
+  return apiClient.post<ApiComment>(
+    `/pools/${poolId}/comments`,
+    { text, parentId: parentId ?? null },
+    { requireAuth: true }
+  );
+}
+
+export function updatePoolComment(
+  poolId: string | number,
+  commentId: string | number,
+  payload: UpdateCommentPayload
+): Promise<PoolComment> {
+  return apiClient.typedPatch(
+    `/pools/${poolId}/comments/${commentId}` as '/pools/{id}/comments/{commentId}',
+    payload,
+    { requireAuth: true }
+  );
+}
+
+export function deletePoolComment(
+  poolId: string | number,
+  commentId: string | number
+): Promise<void> {
+  return apiClient.typedDelete(
+    `/pools/${poolId}/comments/${commentId}` as '/pools/{id}/comments/{commentId}',
+    { requireAuth: true }
+  );
+export function updateComment(
+  poolId: string | number,
+  commentId: string,
+  text: string
+): Promise<ApiComment> {
+  return apiClient.request<ApiComment>(
+    `/pools/${poolId}/comments/${commentId}`,
+    'PATCH',
+    { body: { text }, requireAuth: true }
+  );
+}
+
+export function deleteComment(
+  poolId: string | number,
+  commentId: string
+): Promise<void> {
+  return apiClient.delete<void>(`/pools/${poolId}/comments/${commentId}`, {
+    requireAuth: true,
   });
 }
 

@@ -1,5 +1,11 @@
 import { useWalletStore } from '@/src/store/walletStore';
-import { connect, disconnect, getPublicKey, signWithWallet } from '@/app/stellar-wallets-kit';
+import {
+  connect,
+  disconnect,
+  getPublicKey,
+  signWithWallet,
+  setWallet,
+} from '@/app/stellar-wallets-kit';
 import { fetchAuthChallenge, verifyAuthSignature } from '@/lib/api-client';
 import { getAccountBalances } from '@/lib/stellar';
 import { clearToken, getToken, setToken } from '@/lib/jwt-storage';
@@ -9,6 +15,7 @@ jest.mock('@/app/stellar-wallets-kit', () => ({
   connect: jest.fn(),
   disconnect: jest.fn(),
   signWithWallet: jest.fn(),
+  setWallet: jest.fn(),
 }));
 
 jest.mock('@/lib/api-client', () => ({
@@ -29,6 +36,8 @@ describe('walletStore disconnectWallet', () => {
       publicKey: 'GABC123',
       balances: null,
       loading: false,
+      isAuthenticated: true,
+      walletId: 'xbull',
     });
     (disconnect as jest.Mock).mockResolvedValue(undefined);
   });
@@ -73,6 +82,11 @@ describe('walletStore disconnectWallet', () => {
       expect(parsed.state).not.toHaveProperty('isAuthenticated');
       expect(parsed.state).not.toHaveProperty('accessToken');
     }
+  it('clears the selected wallet id on disconnect', async () => {
+    await useWalletStore.getState().disconnectWallet();
+
+    expect(useWalletStore.getState().walletId).toBeNull();
+    expect(disconnect).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -89,8 +103,11 @@ describe('walletStore connectWallet SEP-10 auth', () => {
       publicKey: null,
       balances: null,
       loading: false,
+      isAuthenticated: false,
+      walletId: null,
     });
 
+    (setWallet as jest.Mock).mockResolvedValue(undefined);
     (connect as jest.Mock).mockImplementation(async (onConnect) => {
       await onConnect();
     });
@@ -148,5 +165,34 @@ describe('walletStore connectWallet SEP-10 auth', () => {
 
     expect(useWalletStore.getState().isAuthenticated).toBe(false);
     expect(getToken()).toBeNull();
+  });
+
+  it('connects through the selected wallet and persists its id', async () => {
+    await useWalletStore.getState().connectWallet(undefined, 'albedo');
+
+    expect(setWallet).toHaveBeenCalledWith('albedo');
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(useWalletStore.getState().walletId).toBe('albedo');
+    expect(useWalletStore.getState().isAuthenticated).toBe(true);
+  });
+
+  it('reuses the previously persisted wallet id when none is passed', async () => {
+    useWalletStore.setState({ walletId: 'lobstr' });
+
+    await useWalletStore.getState().connectWallet();
+
+    expect(setWallet).toHaveBeenCalledWith('lobstr');
+    expect(useWalletStore.getState().walletId).toBe('lobstr');
+  });
+
+  it('does not persist a wallet id when the connection fails', async () => {
+    (connect as jest.Mock).mockRejectedValue(new Error('User rejected'));
+
+    await expect(
+      useWalletStore.getState().connectWallet(undefined, 'xbull')
+    ).rejects.toThrow('User rejected');
+
+    expect(useWalletStore.getState().walletId).toBeNull();
+    expect(useWalletStore.getState().isAuthenticated).toBe(false);
   });
 });
