@@ -4,6 +4,8 @@ import Navbar from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { ToastContainer } from '@/components/Toast';
 
+// TODO(#1734): wrap app in i18next provider and add a language switcher
+const SUPPORTED_LOCALES = ['en', 'es'] as const;
 // Using system fonts to avoid network fetch during build (CI friendly)
 
 export const metadata: Metadata = {
