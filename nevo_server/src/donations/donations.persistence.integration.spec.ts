@@ -75,4 +75,89 @@ describeWithDatabase('Donations persistence (Postgres)', () => {
 
     expect(donation.asset).toBe('aBc123');
   });
+
+  describe('paginated queries', () => {
+    const seed = async () => {
+      for (let i = 0; i < 5; i++) {
+        await service.recordDonation({
+          poolId: 'pool-1',
+          donorWallet: 'GDONOR',
+          amount: '100',
+          asset: 'XLM',
+          txHash: `tx-pool-${i}`,
+        });
+      }
+      for (let i = 0; i < 3; i++) {
+        await service.recordDonation({
+          poolId: 'pool-2',
+          donorWallet: 'GOTHER',
+          amount: '50',
+          asset: 'XLM',
+          txHash: `tx-other-${i}`,
+        });
+      }
+    };
+
+    it('findByPool returns { data, total, page, limit } with the full total', async () => {
+      await seed();
+
+      const result = await service.findByPool('pool-1', { page: 1, limit: 2 });
+
+      expect(result.total).toBe(5);
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(2);
+      expect(result.data).toHaveLength(2);
+      expect(result.data.every((d) => d.poolId === 'pool-1')).toBe(true);
+    });
+
+    it('findByPool paginates through the correct window', async () => {
+      await seed();
+
+      const first = await service.findByPool('pool-1', { page: 1, limit: 2 });
+      const second = await service.findByPool('pool-1', { page: 2, limit: 2 });
+      const third = await service.findByPool('pool-1', { page: 3, limit: 2 });
+
+      expect(first.data).toHaveLength(2);
+      expect(second.data).toHaveLength(2);
+      expect(third.data).toHaveLength(1);
+      expect(third.total).toBe(5);
+      expect(third.page).toBe(3);
+      expect(third.limit).toBe(2);
+
+      const ids = new Set(
+        [...first.data, ...second.data, ...third.data].map((d) => d.id),
+      );
+      expect(ids.size).toBe(5);
+    });
+
+    it('findByDonor returns { data, total, page, limit } with the full total', async () => {
+      await seed();
+
+      const result = await service.findByDonor('GDONOR', { page: 1, limit: 2 });
+
+      expect(result.total).toBe(5);
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(2);
+      expect(result.data).toHaveLength(2);
+      expect(result.data.every((d) => d.donorWallet === 'GDONOR')).toBe(true);
+    });
+
+    it('findByDonor paginates through the correct window', async () => {
+      await seed();
+
+      const first = await service.findByDonor('GDONOR', { page: 1, limit: 2 });
+      const second = await service.findByDonor('GDONOR', { page: 2, limit: 2 });
+      const third = await service.findByDonor('GDONOR', { page: 3, limit: 2 });
+
+      expect(first.data).toHaveLength(2);
+      expect(second.data).toHaveLength(2);
+      expect(third.data).toHaveLength(1);
+      expect(third.total).toBe(5);
+
+      const ids = new Set(
+        [...first.data, ...second.data, ...third.data].map((d) => d.id),
+      );
+      expect(ids.size).toBe(5);
+    });
+  });
 });

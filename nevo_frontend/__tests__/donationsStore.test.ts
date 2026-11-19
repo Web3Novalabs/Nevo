@@ -43,4 +43,30 @@ describe('donationsStore', () => {
     useDonationsStore.getState().setActiveDonation(mockDonation);
     expect(useDonationsStore.getState().activeDonation).toEqual(mockDonation);
   });
+
+  it('populates history from a paginated API response', () => {
+    const response = {
+      data: [mockDonation, { ...mockDonation, id: '2' }],
+      total: 2,
+      page: 1,
+      limit: 10,
+    };
+    useDonationsStore.getState().setHistory(response.data);
+    expect(useDonationsStore.getState().history).toHaveLength(2);
+    expect(useDonationsStore.getState().history.map((d) => d.id)).toEqual([
+      '1',
+      '2',
+    ]);
+  });
+
+  it('ignores pagination metadata when populating history', () => {
+    const response = {
+      data: [mockDonation],
+      total: 42,
+      page: 3,
+      limit: 5,
+    };
+    useDonationsStore.getState().setHistory(response.data);
+    expect(useDonationsStore.getState().history).toEqual([mockDonation]);
+  });
 });
