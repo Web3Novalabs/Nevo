@@ -18,12 +18,22 @@ describe('DonationsController (unit)', () => {
     findByPool: jest
       .fn()
       .mockImplementation((poolId: string, sort: string) =>
-        Promise.resolve([{ id: 'don-1', poolId, sort }]),
+        Promise.resolve({
+          data: [{ id: 'don-1', poolId, sort }],
+          total: 1,
+          page: 1,
+          limit: 10,
+        }),
       ),
     findByDonor: jest
       .fn()
       .mockImplementation((donor: string, sort: string) =>
-        Promise.resolve([{ id: 'don-1', donor, sort }]),
+        Promise.resolve({
+          data: [{ id: 'don-1', donor, sort }],
+          total: 1,
+          page: 1,
+          limit: 10,
+        }),
       ),
   };
 
@@ -59,9 +69,12 @@ describe('DonationsController (unit)', () => {
         undefined,
         undefined,
       );
-      expect(result).toEqual([
-        { id: 'don-1', poolId: 'pool-123', sort: 'newest' },
-      ]);
+      expect(result).toEqual({
+        data: [{ id: 'don-1', poolId: 'pool-123', sort: 'newest' }],
+        total: 1,
+        page: 1,
+        limit: 10,
+      });
     });
 
     it('calls service.findByPool with sortBy="largest" when query param is passed', async () => {
@@ -74,9 +87,12 @@ describe('DonationsController (unit)', () => {
         undefined,
         undefined,
       );
-      expect(result).toEqual([
-        { id: 'don-1', poolId: 'pool-123', sort: 'largest' },
-      ]);
+      expect(result).toEqual({
+        data: [{ id: 'don-1', poolId: 'pool-123', sort: 'largest' }],
+        total: 1,
+        page: 1,
+        limit: 10,
+      });
     });
 
     it('forwards pagination params to the service', async () => {
@@ -87,6 +103,20 @@ describe('DonationsController (unit)', () => {
         2,
         5,
       );
+    });
+
+    it('returns the service result unchanged', async () => {
+      const paginated = {
+        data: [{ id: 'don-9', poolId: 'pool-123', sort: 'newest' }],
+        total: 42,
+        page: 3,
+        limit: 7,
+      };
+      mockDonationsService.findByPool.mockResolvedValueOnce(paginated);
+
+      const result = await controller.findByPool('pool-123', {});
+
+      expect(result).toBe(paginated);
     });
 
     it('falls back to "newest" when an unrecognised sortBy is supplied', async () => {
@@ -113,9 +143,12 @@ describe('DonationsController (unit)', () => {
         undefined,
         undefined,
       );
-      expect(result).toEqual([
-        { id: 'don-1', donor: 'GABC123', sort: 'newest' },
-      ]);
+      expect(result).toEqual({
+        data: [{ id: 'don-1', donor: 'GABC123', sort: 'newest' }],
+        total: 1,
+        page: 1,
+        limit: 10,
+      });
     });
 
     it('calls service.findByDonor with sortBy="largest" when query param is passed', async () => {
@@ -152,6 +185,21 @@ describe('DonationsController (unit)', () => {
         10,
       );
     });
+
+    it('returns the service result unchanged', async () => {
+      const req = { user: { publicKey: 'GABC123' } } as any;
+      const paginated = {
+        data: [{ id: 'don-9', donor: 'GABC123', sort: 'newest' }],
+        total: 42,
+        page: 3,
+        limit: 7,
+      };
+      mockDonationsService.findByDonor.mockResolvedValueOnce(paginated);
+
+      const result = await controller.findMyDonations(req, {});
+
+      expect(result).toBe(paginated);
+    });
   });
 });
 
@@ -168,8 +216,12 @@ describe('DonationsController (guard / HTTP)', () => {
 
   beforeEach(async () => {
     donationsService = {
-      findByPool: jest.fn().mockResolvedValue([]),
-      findByDonor: jest.fn().mockResolvedValue([]),
+      findByPool: jest
+        .fn()
+        .mockResolvedValue({ data: [], total: 0, page: 1, limit: 10 }),
+      findByDonor: jest
+        .fn()
+        .mockResolvedValue({ data: [], total: 0, page: 1, limit: 10 }),
     };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -229,9 +281,25 @@ describe('DonationsController (guard / HTTP)', () => {
       expect(donationsService.findByPool).toHaveBeenCalledWith(
         'pool-1',
         DonationSortBy.newest,
-        '2',
-        '5',
+        2,
+        5,
       );
+    });
+
+    it('returns the paginated response body', async () => {
+      const paginated = {
+        data: [{ id: 'don-1', poolId: 'pool-1' }],
+        total: 1,
+        page: 1,
+        limit: 10,
+      };
+      donationsService.findByPool.mockResolvedValueOnce(paginated);
+
+      const res = await request(app.getHttpServer())
+        .get('/pools/pool-1/donations')
+        .expect(200);
+
+      expect(res.body).toEqual(paginated);
     });
   });
 
@@ -305,9 +373,28 @@ describe('DonationsController (guard / HTTP)', () => {
       expect(donationsService.findByDonor).toHaveBeenCalledWith(
         publicKey,
         DonationSortBy.newest,
-        '2',
-        '10',
+        2,
+        10,
       );
+    });
+
+    it('returns the paginated response body for an authenticated user', async () => {
+      const publicKey = 'GABC123XYZ';
+      const token = signToken(publicKey);
+      const paginated = {
+        data: [{ id: 'don-1', donor: publicKey }],
+        total: 1,
+        page: 1,
+        limit: 10,
+      };
+      donationsService.findByDonor.mockResolvedValueOnce(paginated);
+
+      const res = await request(app.getHttpServer())
+        .get('/users/me/donations')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(res.body).toEqual(paginated);
     });
   });
 });
@@ -321,8 +408,12 @@ describe('DonationsController (ValidationPipe)', () => {
 
   beforeEach(async () => {
     donationsService = {
-      findByPool: jest.fn().mockResolvedValue([]),
-      findByDonor: jest.fn().mockResolvedValue([]),
+      findByPool: jest
+        .fn()
+        .mockResolvedValue({ data: [], total: 0, page: 1, limit: 10 }),
+      findByDonor: jest
+        .fn()
+        .mockResolvedValue({ data: [], total: 0, page: 1, limit: 10 }),
     };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -361,6 +452,23 @@ describe('DonationsController (ValidationPipe)', () => {
       2,
       5,
     );
+  });
+
+  it('returns the paginated response body with coerced pagination', async () => {
+    const paginated = {
+      data: [{ id: 'don-1', poolId: 'pool-1' }],
+      total: 1,
+      page: 2,
+      limit: 5,
+    };
+    donationsService.findByPool.mockResolvedValueOnce(paginated);
+
+    const res = await request(app.getHttpServer())
+      .get('/pools/pool-1/donations')
+      .query({ page: '2', limit: '5' })
+      .expect(200);
+
+    expect(res.body).toEqual(paginated);
   });
 
   it('returns 400 when limit exceeds 100', async () => {

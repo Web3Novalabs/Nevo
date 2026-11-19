@@ -27,6 +27,7 @@ describe('AuthService', () => {
     id: 'uuid-1',
     publicKey: 'GBM3T7V2NNWJVSQ5Q7WPEMMO5G2E2UZY4D2Z24W73SHZJ2E4A5F2D3FZ',
     displayName: null,
+    tokenVersion: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -48,6 +49,10 @@ describe('AuthService', () => {
           provide: UsersService,
           useValue: {
             findOrCreate: jest.fn().mockResolvedValue(mockUser),
+            findById: jest.fn().mockResolvedValue(mockUser),
+            incrementTokenVersion: jest
+              .fn()
+              .mockResolvedValue({ ...mockUser, tokenVersion: 1 }),
           },
         },
         {
@@ -442,6 +447,7 @@ describe('AuthService', () => {
         id: 'user-uuid-1',
         publicKey: keypair.publicKey(),
         displayName: null,
+        tokenVersion: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -467,6 +473,7 @@ describe('AuthService', () => {
       expect(jwtService.sign).toHaveBeenCalledWith({
         sub: user.id,
         publicKey: user.publicKey,
+        tokenVersion: user.tokenVersion,
       });
     });
 
@@ -494,6 +501,7 @@ describe('AuthService', () => {
         id: 'user-uuid-new',
         publicKey: keypair.publicKey(),
         displayName: null,
+        tokenVersion: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -511,6 +519,43 @@ describe('AuthService', () => {
         keypair.publicKey(),
       );
       expect(result.user).toEqual(newUser);
+    });
+  });
+
+  describe('logout - JWT revocation', () => {
+    it('should increment the user token version and return a success message', async () => {
+      const incrementSpy = jest
+        .spyOn(usersService, 'incrementTokenVersion')
+        .mockResolvedValue({ ...mockUser, tokenVersion: 1 });
+
+      const result = await service.logout(mockUser.id);
+
+      expect(incrementSpy).toHaveBeenCalledWith(mockUser.id);
+      expect(result).toEqual({ message: 'Logged out successfully' });
+    });
+
+    it('should throw UnauthorizedException when the user does not exist', async () => {
+      jest
+        .spyOn(usersService, 'incrementTokenVersion')
+        .mockResolvedValue(null as any);
+
+      await expect(service.logout('missing-user')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should invalidate previously issued tokens by bumping the version', async () => {
+      const user: User = { ...mockUser, tokenVersion: 3 };
+      jest.spyOn(usersService, 'incrementTokenVersion').mockResolvedValue({
+        ...user,
+        tokenVersion: 4,
+      });
+
+      await service.logout(user.id);
+
+      // A token issued before logout carries tokenVersion 3, which is now stale.
+      expect(user.tokenVersion).toBe(3);
+      expect(usersService.incrementTokenVersion).toHaveBeenCalledWith(user.id);
     });
   });
 
