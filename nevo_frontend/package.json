@@ -11,7 +11,13 @@
     "typecheck": "tsc --noEmit",
     "prepare": "cd .. && husky .husky",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "generate:api-types": "openapi-typescript ../nevo_server/openapi.json -o lib/api-types.generated.ts",
+    "check:api-types": "npm run generate:api-types && git diff --exit-code lib/api-types.generated.ts"
+  },
+  "overrides": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -23,6 +29,7 @@
     ]
   },
   "dependencies": {
+    "@creit.tech/stellar-wallets-kit": "^1.9.5",
     "@sentry/nextjs": "^10.73.0",
     "@stellar/freighter-api": "^6.0.1",
     "@stellar/stellar-sdk": "^16.1.0",
@@ -31,7 +38,7 @@
     "lucide-react": "^1.17.0",
     "next": "^16.3.5",
     "react": "19.3.0",
-    "react-dom": "19.2.4",
+    "react-dom": "19.3.0",
     "react-i18next": "^12.3.1",
     "zustand": "^5.0.14"
   },
@@ -65,6 +72,7 @@
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "lint-staged": "^16.4.0",
+    "openapi-typescript": "^7.9.1",
     "prettier": "^3.9.6",
     "tailwindcss": "^4",
     "ts-jest": "^29.4.11",

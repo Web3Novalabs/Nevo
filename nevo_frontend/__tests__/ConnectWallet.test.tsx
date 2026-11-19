@@ -2,10 +2,15 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ConnectWallet from '@/components/ConnectWallet';
-import { isFreighterInstalled } from '@/app/stellar-wallets-kit';
+import { SUPPORTED_WALLETS } from '@/app/stellar-wallets-kit';
 
 jest.mock('@/app/stellar-wallets-kit', () => ({
-  isFreighterInstalled: jest.fn(),
+  SUPPORTED_WALLETS: [
+    { id: 'freighter', name: 'Freighter' },
+    { id: 'xbull', name: 'xBull' },
+    { id: 'albedo', name: 'Albedo' },
+    { id: 'lobstr', name: 'Lobstr' },
+  ],
 }));
 
 const mockWalletState = {
@@ -21,30 +26,31 @@ jest.mock('@/src/store/walletStore', () => ({
   useWalletStore: jest.fn(() => mockWalletState),
 }));
 
-const mockIsFreighterInstalled = jest.mocked(isFreighterInstalled);
-
 describe('ConnectWallet', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockWalletState.publicKey = null;
     mockWalletState.loading = false;
-    mockIsFreighterInstalled.mockReturnValue(true);
   });
 
-  it('renders the not installed message when Freighter is missing', async () => {
-    mockIsFreighterInstalled.mockReturnValue(false);
-
+  it('opens a wallet picker modal listing multiple wallets', async () => {
     render(<ConnectWallet />);
 
-    expect(
-      await screen.findByText(/Freighter wallet not found/i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: 'Install Freighter' })
-    ).toHaveAttribute('href', 'https://www.freighter.app/');
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Connect Wallet' })
+    );
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(SUPPORTED_WALLETS.length).toBeGreaterThan(1);
+    for (const wallet of SUPPORTED_WALLETS) {
+      expect(
+        screen.getByRole('button', { name: wallet.name })
+      ).toBeInTheDocument();
+    }
   });
 
-  it('connects the wallet and shows a verifying state while pending', async () => {
+  it('connects the selected wallet and shows a verifying state while pending', async () => {
     let resolveConnection: () => void = () => undefined;
     mockWalletState.connectWallet.mockImplementation(
       () =>
@@ -54,13 +60,14 @@ describe('ConnectWallet', () => {
     );
 
     render(<ConnectWallet />);
-    const connectButton = await screen.findByRole('button', {
-      name: 'Connect Wallet',
-    });
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Connect Wallet' })
+    );
 
-    await userEvent.click(connectButton);
+    await userEvent.click(await screen.findByRole('button', { name: 'xBull' }));
 
     expect(mockWalletState.connectWallet).toHaveBeenCalledTimes(1);
+    expect(mockWalletState.connectWallet).toHaveBeenCalledWith('xbull');
     expect(screen.getByRole('button', { name: /Verifying…/ })).toBeDisabled();
 
     resolveConnection();
@@ -79,6 +86,9 @@ describe('ConnectWallet', () => {
     render(<ConnectWallet />);
     await userEvent.click(
       await screen.findByRole('button', { name: 'Connect Wallet' })
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Freighter' })
     );
 
     expect(

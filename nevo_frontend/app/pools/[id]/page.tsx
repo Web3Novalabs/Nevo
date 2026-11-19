@@ -98,6 +98,7 @@ function PoolDetailPageContent() {
   } = usePoolsStore();
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(true);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -195,6 +196,8 @@ function PoolDetailPageContent() {
     const loadComments = async () => {
       setCommentsLoading(true);
       try {
+        const data = await getPoolComments(id);
+        if (!cancelled) setComments(data);
         const { comments: raw } = await getPoolComments(id);
         if (!cancelled) {
           setComments(mapApiComments(raw as ApiComment[]));
@@ -721,6 +724,26 @@ function CommentsSection({
 }: CommentsSectionProps) {
   async function handleAddComment(text: string) {
     if (!currentUserAddress) return;
+    const optimisticId = `optimistic-${crypto.randomUUID()}`;
+    const newComment: Comment = {
+      id: optimisticId,
+      poolId,
+      authorAddress: currentUserAddress,
+      text,
+      createdAt: new Date().toISOString(),
+      parentId: null,
+      replies: [],
+    };
+    setComments((prev) => [newComment, ...prev]);
+    try {
+      const saved = await createPoolComment(poolId, { text });
+      setComments((prev) =>
+        prev.map((c) => (c.id === optimisticId ? { ...saved, replies: [] } : c))
+      );
+    } catch (err) {
+      console.error(err);
+      setComments((prev) => prev.filter((c) => c.id !== optimisticId));
+      toast('Failed to post comment', 'error');
     try {
       const { comment } = await createPoolComment(poolId, { text });
       const mapped = mapApiComment(comment as ApiComment);
@@ -733,6 +756,32 @@ function CommentsSection({
 
   async function handleAddReply(parentId: string, text: string) {
     if (!currentUserAddress) return;
+    const optimisticId = `optimistic-${crypto.randomUUID()}`;
+    const newReply: Comment = {
+      id: optimisticId,
+      poolId,
+      authorAddress: currentUserAddress,
+      text,
+      createdAt: new Date().toISOString(),
+      parentId,
+      replies: [],
+    };
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === parentId ? { ...c, replies: [...c.replies, newReply] } : c
+      )
+    );
+    try {
+      const saved = await createPoolComment(poolId, { text, parentId });
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === parentId
+            ? {
+                ...c,
+                replies: c.replies.map((r) =>
+                  r.id === optimisticId ? { ...saved, replies: [] } : r
+                ),
+              }
     try {
       const { comment } = await createPoolComment(poolId, { text, parentId });
       const mapped = mapApiComment(comment as ApiComment);
@@ -755,6 +804,26 @@ function CommentsSection({
     isReply: boolean,
     parentId?: string
   ) {
+    if (!currentUserAddress) return;
+    const previous = comments;
+    const updatedAt = new Date().toISOString();
+    if (isReply && parentId) {
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === parentId
+            ? {
+                ...c,
+                replies: c.replies.map((r) =>
+                  r.id === id ? { ...r, text, updatedAt } : r
+                ),
+              }
+            : c
+        )
+      );
+    } else {
+      setComments((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, text, updatedAt } : c))
+      );
     try {
       const { comment } = await updatePoolComment(poolId, id, { text });
       const updatedAt = (comment as ApiComment).updatedAt ?? new Date().toISOString();
@@ -780,6 +849,13 @@ function CommentsSection({
       console.error(err);
       toast(parseApiError(err), 'error');
     }
+    try {
+      await updatePoolComment(poolId, id, { text });
+    } catch (err) {
+      console.error(err);
+      setComments(previous);
+      toast('Failed to update comment', 'error');
+    }
   }
 
   async function handleDeleteComment(
@@ -787,6 +863,18 @@ function CommentsSection({
     isReply: boolean,
     parentId?: string
   ) {
+    if (!currentUserAddress) return;
+    const previous = comments;
+    if (isReply && parentId) {
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === parentId
+            ? { ...c, replies: c.replies.filter((r) => r.id !== id) }
+            : c
+        )
+      );
+    } else {
+      setComments((prev) => prev.filter((c) => c.id !== id));
     try {
       await deletePoolComment(poolId, id);
       if (isReply && parentId) {
@@ -803,6 +891,13 @@ function CommentsSection({
     } catch (err) {
       console.error(err);
       toast(parseApiError(err), 'error');
+    }
+    try {
+      await deletePoolComment(poolId, id);
+    } catch (err) {
+      console.error(err);
+      setComments(previous);
+      toast('Failed to delete comment', 'error');
     }
   }
 
@@ -879,6 +974,7 @@ function CommentForm({
     e.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) return;
+    void onSubmit(trimmed);
     setText('');
     await onSubmit(trimmed);
   }
@@ -998,7 +1094,7 @@ function CommentItem({
             </button>
             <button
               type="button"
-              onClick={onDelete}
+              onClick={() => void onDelete()}
               className="text-xs text-[var(--color-text-muted)] hover:text-red-600 transition-colors"
               aria-label="Delete comment"
             >
@@ -1011,6 +1107,8 @@ function CommentItem({
       {isEditing ? (
         <div className="mt-2">
           <CommentForm
+            onSubmit={(text) => {
+              void onEdit(text);
             onSubmit={async (text) => {
               await onEdit(text);
               setIsEditing(false);
@@ -1041,6 +1139,8 @@ function CommentItem({
           {showReplyForm && (
             <div className="mt-3">
               <CommentForm
+                onSubmit={(text) => {
+                  void onReply(text);
                 onSubmit={async (text) => {
                   await onReply(text);
                   setShowReplyForm(false);
