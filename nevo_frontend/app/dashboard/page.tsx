@@ -104,7 +104,9 @@ function DashboardPageContent() {
         await signAndSubmit(unsignedXdr);
       }
 
-      toast(`Successfully archived ${poolIds.length} pool${poolIds.length > 1 ? 's' : ''}`);
+      toast(
+        `Successfully archived ${poolIds.length} pool${poolIds.length > 1 ? 's' : ''}`
+      );
       setSelectedIds(new Set());
       await loadPools();
     } catch (err: unknown) {

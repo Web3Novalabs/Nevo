@@ -29,7 +29,11 @@ function mockStore(overrides: Partial<{ pools: Pool[]; loading: boolean }>) {
   });
 }
 
-const makePool = (id: string, status: Pool['status'], raised: number): Pool => ({
+const makePool = (
+  id: string,
+  status: Pool['status'],
+  raised: number
+): Pool => ({
   id,
   title: `Pool ${id}`,
   description: `Description for pool ${id}`,

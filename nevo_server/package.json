@@ -93,7 +93,7 @@
       ".ts"
     ],
     "transformIgnorePatterns": [
-      "/node_modules/(?!(@stellar/stellar-sdk|@noble/.*|uint8array-extras)/)"
+      "/node_modules/(?!(@nestjs/schedule|@stellar/stellar-sdk|@noble/.*|uint8array-extras)/)"
     ],
     "moduleNameMapper": {
       "^(\\.\\.?/.*)\\.js$": "$1"

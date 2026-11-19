@@ -4,9 +4,13 @@ import TransactionsPage from '@/app/transactions/page';
 
 jest.mock('next/link', () => ({
   __esModule: true,
-  default: ({ href, children }: { href: string; children: React.ReactNode }) => (
-    <a href={href}>{children}</a>
-  ),
+  default: ({
+    href,
+    children,
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => <a href={href}>{children}</a>,
 }));
 
 jest.mock('@/components/ProtectedRoute', () => ({

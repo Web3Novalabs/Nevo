@@ -92,7 +92,7 @@ describe('buildBreadcrumbJsonLd', () => {
     expect(Array.isArray(jsonLd.itemListElement)).toBe(true);
     expect(jsonLd.itemListElement).toHaveLength(items.length);
 
-    jsonLd.itemListElement.forEach((element: any, index: number) => {
+    jsonLd.itemListElement.forEach((element, index) => {
       expect(element['@type']).toBe('ListItem');
       expect(element.position).toBe(index + 1);
       expect(element.name).toBe(items[index].name);

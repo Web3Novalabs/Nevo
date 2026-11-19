@@ -371,8 +371,12 @@ describe('Pool creation form flow', () => {
     });
 
     // Component did not crash: the form is still interactive
-    expect(screen.getByRole('button', { name: /Create Pool/i })).toBeInTheDocument();
-    expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining('/pools/'));
+    expect(
+      screen.getByRole('button', { name: /Create Pool/i })
+    ).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalledWith(
+      expect.stringContaining('/pools/')
+    );
   });
 
   it('surfaces an inline error and does not crash when submitSignedXdr rejects', async () => {
@@ -405,8 +409,12 @@ describe('Pool creation form flow', () => {
     });
 
     // Component did not crash and no success redirect happened
-    expect(screen.getByRole('button', { name: /Create Pool/i })).toBeInTheDocument();
-    expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining('/pools/'));
+    expect(
+      screen.getByRole('button', { name: /Create Pool/i })
+    ).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalledWith(
+      expect.stringContaining('/pools/')
+    );
   });
 
   it('blocks submission and attempts no transaction when required fields are empty', async () => {
@@ -426,7 +434,9 @@ describe('Pool creation form flow', () => {
     expect(mockSignTransaction).not.toHaveBeenCalled();
     expect(mockSubmitSignedXdr).not.toHaveBeenCalled();
     expect(mockCreatePool).not.toHaveBeenCalled();
-    expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining('/pools/'));
+    expect(mockPush).not.toHaveBeenCalledWith(
+      expect.stringContaining('/pools/')
+    );
   });
 
   it('falls back to a local prefix ID when getPoolCount returns -1', async () => {

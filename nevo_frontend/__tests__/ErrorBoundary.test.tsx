@@ -36,9 +36,7 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
-    expect(
-      screen.getByText(/could not load this page/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/could not load this page/i)).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /refresh/i })
     ).toBeInTheDocument();

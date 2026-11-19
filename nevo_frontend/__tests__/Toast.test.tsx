@@ -149,4 +149,3 @@ describe('Toast', () => {
     expect(screen.queryByText('Focus test')).not.toBeInTheDocument();
   });
 });
-

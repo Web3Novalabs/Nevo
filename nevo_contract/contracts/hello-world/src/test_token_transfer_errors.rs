@@ -98,7 +98,7 @@ fn test_invalid_token_contract_fails_without_state_change() {
 
 /// A configured token mismatch returns the contract's explicit transfer error.
 #[test]
-#[should_panic(expected = "TokenTransferFailed")]
+#[should_panic(expected = "Error(Contract, #28)")]
 fn test_configured_token_mismatch_returns_clear_error() {
     let env = Env::default();
     env.mock_all_auths();
@@ -123,7 +123,7 @@ fn test_configured_token_mismatch_returns_clear_error() {
 
 /// A zero or negative donation is rejected before any transfer is attempted.
 #[test]
-#[should_panic(expected = "InvalidAmount")]
+#[should_panic(expected = "Error(Contract, #27)")]
 fn test_negative_donation_amount_rejected() {
     let env = Env::default();
     env.mock_all_auths();
@@ -186,23 +186,27 @@ fn test_withdraw_unallocated_funds_with_no_surplus_fails() {
 
 /// A student cannot claim more than the pool has collected.
 #[test]
-#[should_panic(expected = "Error(Contract, #23)")]
+#[should_panic(expected = "Error(Contract, #26)")]
 fn test_claim_beyond_collected_funds_fails() {
     let env = Env::default();
     env.mock_all_auths();
     let contract_id = env.register(Contract, ());
     let client = ContractClient::new(&env, &contract_id);
 
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
     let creator = Address::generate(&env);
+    client.register_school(&creator, &BytesN::from_array(&env, &[0u8; 32]));
     let donor = Address::generate(&env);
     let student = Address::generate(&env);
     let token = create_token(&env, 1_000i128, &donor);
 
-    let pool_id = client.create_pool(
+    let pool_id = client.create_pool_for_school(
         &creator,
         &String::from_str(&env, "Pool"),
         &String::from_str(&env, "Test"),
         &1_000_000_000u128,
+        &creator,
         &100_000u64,
     );
     client.donate_with_token(&pool_id, &donor, &token, &1_000i128);

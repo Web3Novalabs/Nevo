@@ -2,6 +2,10 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import {
+  ADVISORY_LOCK_KEYS,
+  AdvisoryLockService,
+} from '../common/advisory-lock.service.js';
 import { PoolsService } from '../pools/pools.service.js';
 import { DonationsService } from '../donations/donations.service.js';
 import { SyncState } from './sync-state.entity.js';
@@ -31,10 +35,13 @@ export class SyncService implements OnModuleInit {
     private readonly donationsService: DonationsService,
     @InjectRepository(SyncState)
     private readonly syncStateRepo: Repository<SyncState>,
+    private readonly advisoryLock: AdvisoryLockService,
   ) {}
 
   async onModuleInit() {
-    const state = await this.syncStateRepo.findOne({ where: { key: 'horizon_cursor' } });
+    const state = await this.syncStateRepo.findOne({
+      where: { key: 'horizon_cursor' },
+    });
     if (state) {
       this.currentCursor = state.value;
     }
@@ -67,8 +74,15 @@ export class SyncService implements OnModuleInit {
    */
   @Cron(CronExpression.EVERY_MINUTE)
   async pollHorizonEvents(): Promise<void> {
-    this.seenInRun.clear();
-    // stub — will call HorizonService.fetchContractEvents() when implemented
+    await this.advisoryLock.runExclusive(
+      ADVISORY_LOCK_KEYS.syncHorizonEvents,
+      'SyncService.pollHorizonEvents',
+      () => {
+        this.seenInRun.clear();
+        // stub — will call HorizonService.fetchContractEvents() when implemented
+        return Promise.resolve();
+      },
+    );
   }
 
   /**
@@ -185,13 +199,26 @@ export class SyncService implements OnModuleInit {
     const amount = event.value[1];
     const asset = event.value[2] || 'XLM';
 
-    await this.donationsService.recordDonation({
-      poolId: contractPoolId,
-      donorWallet,
-      amount,
-      asset,
-      txHash: event.txHash,
-    });
+    try {
+      await this.donationsService.recordDonation({
+        poolId: contractPoolId,
+        donorWallet,
+        amount,
+        asset,
+        txHash: event.txHash,
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error as NodeJS.ErrnoException).code === '23505'
+      ) {
+        this.logger.warn(
+          `Donation already recorded for tx ${event.txHash} — skipping`,
+        );
+        return;
+      }
+      throw error;
+    }
 
     await this.poolsService.incrementRaised(contractPoolId, amount);
   }

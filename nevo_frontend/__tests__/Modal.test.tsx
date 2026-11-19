@@ -52,7 +52,9 @@ describe('Modal', () => {
 
   it('closes on backdrop click unless disabled', () => {
     const onClose = jest.fn();
-    const { rerender } = render(<Modal open onClose={onClose} title="Dialog" />);
+    const { rerender } = render(
+      <Modal open onClose={onClose} title="Dialog" />
+    );
     const backdrop = document.querySelector('[aria-hidden="true"]')!;
 
     fireEvent.click(backdrop);
@@ -60,12 +62,7 @@ describe('Modal', () => {
 
     onClose.mockClear();
     rerender(
-      <Modal
-        open
-        onClose={onClose}
-        title="Dialog"
-        disableBackdropClose
-      />
+      <Modal open onClose={onClose} title="Dialog" disableBackdropClose />
     );
     fireEvent.click(document.querySelector('[aria-hidden="true"]')!);
 
@@ -74,7 +71,9 @@ describe('Modal', () => {
 
   it('locks body scrolling while open and restores the previous value', () => {
     document.body.style.overflow = 'clip';
-    const { rerender } = render(<Modal open onClose={jest.fn()} title="Dialog" />);
+    const { rerender } = render(
+      <Modal open onClose={jest.fn()} title="Dialog" />
+    );
 
     expect(document.body.style.overflow).toBe('hidden');
 

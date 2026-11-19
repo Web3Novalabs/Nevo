@@ -7,7 +7,10 @@ test('Select supports ArrowDown and Enter keyboard selection', async ({
   page,
   browserName,
 }) => {
-  test.skip(browserName !== 'chromium', 'Run native select keyboard check in Chromium');
+  test.skip(
+    browserName !== 'chromium',
+    'Run native select keyboard check in Chromium'
+  );
 
   const markup = renderToStaticMarkup(
     <Select

@@ -15,7 +15,10 @@ type PoolsResponse = {
   total: number;
 };
 
-const makeResponse = (total: number, pools: Array<{ id: string; name: string }> = []): PoolsResponse => ({
+const makeResponse = (
+  total: number,
+  pools: Array<{ id: string; name: string }> = []
+): PoolsResponse => ({
   pools,
   total,
 });
@@ -26,13 +29,20 @@ describe('usePaginatedPools', () => {
   });
 
   it('fetches on mount with the initial page and toggles loading', async () => {
-    mockedGet.mockResolvedValueOnce(makeResponse(5, [{ id: '1', name: 'Pool 1' }]));
+    mockedGet.mockResolvedValueOnce(
+      makeResponse(5, [{ id: '1', name: 'Pool 1' }])
+    );
 
-    const { result } = renderHook(() => usePaginatedPools({ page: 1, limit: 10 }));
+    const { result } = renderHook(() =>
+      usePaginatedPools({ page: 1, limit: 10 })
+    );
 
     expect(result.current.loading).toBe(true);
     expect(mockedGet).toHaveBeenCalledTimes(1);
-    expect(mockedGet).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ params: expect.objectContaining({ page: 1 }) }));
+    expect(mockedGet).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ params: expect.objectContaining({ page: 1 }) })
+    );
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -44,11 +54,13 @@ describe('usePaginatedPools', () => {
   });
 
   it('updates currentPage and triggers a new fetch when the page prop changes', async () => {
-    mockedGet.mockResolvedValueOnce(makeResponse(25, [{ id: '1', name: 'Pool 1' }]));
+    mockedGet.mockResolvedValueOnce(
+      makeResponse(25, [{ id: '1', name: 'Pool 1' }])
+    );
 
     const { result, rerender } = renderHook(
       ({ page }: { page: number }) => usePaginatedPools({ page, limit: 10 }),
-      { initialProps: { page: 1 } },
+      { initialProps: { page: 1 } }
     );
 
     await waitFor(() => {
@@ -58,7 +70,9 @@ describe('usePaginatedPools', () => {
     expect(result.current.currentPage).toBe(1);
     expect(mockedGet).toHaveBeenCalledTimes(1);
 
-    mockedGet.mockResolvedValueOnce(makeResponse(25, [{ id: '2', name: 'Pool 2' }]));
+    mockedGet.mockResolvedValueOnce(
+      makeResponse(25, [{ id: '2', name: 'Pool 2' }])
+    );
 
     rerender({ page: 2 });
 
@@ -69,7 +83,7 @@ describe('usePaginatedPools', () => {
     expect(mockedGet).toHaveBeenCalledTimes(2);
     expect(mockedGet).toHaveBeenLastCalledWith(
       expect.any(String),
-      expect.objectContaining({ params: expect.objectContaining({ page: 2 }) }),
+      expect.objectContaining({ params: expect.objectContaining({ page: 2 }) })
     );
 
     await waitFor(() => {
@@ -86,9 +100,13 @@ describe('usePaginatedPools', () => {
     });
     mockedGet.mockReturnValueOnce(pending);
 
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
 
-    const { unmount } = renderHook(() => usePaginatedPools({ page: 1, limit: 10 }));
+    const { unmount } = renderHook(() =>
+      usePaginatedPools({ page: 1, limit: 10 })
+    );
 
     expect(mockedGet).toHaveBeenCalledTimes(1);
 
@@ -113,12 +131,14 @@ describe('usePaginatedPools', () => {
 
     const { result, rerender } = renderHook(
       ({ page }: { page: number }) => usePaginatedPools({ page, limit: 10 }),
-      { initialProps: { page: 1 } },
+      { initialProps: { page: 1 } }
     );
 
     expect(mockedGet).toHaveBeenCalledTimes(1);
 
-    mockedGet.mockResolvedValueOnce(makeResponse(20, [{ id: '2', name: 'Pool 2' }]));
+    mockedGet.mockResolvedValueOnce(
+      makeResponse(20, [{ id: '2', name: 'Pool 2' }])
+    );
 
     rerender({ page: 2 });
 
@@ -144,7 +164,9 @@ describe('usePaginatedPools', () => {
   it('sets error to the Error message and resets pools/totalPages on rejection', async () => {
     mockedGet.mockRejectedValueOnce(new Error('Network down'));
 
-    const { result } = renderHook(() => usePaginatedPools({ page: 1, limit: 10 }));
+    const { result } = renderHook(() =>
+      usePaginatedPools({ page: 1, limit: 10 })
+    );
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -158,7 +180,9 @@ describe('usePaginatedPools', () => {
   it('sets fallback error for non-Error rejection and resets pools/totalPages', async () => {
     mockedGet.mockRejectedValueOnce('boom');
 
-    const { result } = renderHook(() => usePaginatedPools({ page: 1, limit: 10 }));
+    const { result } = renderHook(() =>
+      usePaginatedPools({ page: 1, limit: 10 })
+    );
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -176,16 +200,23 @@ describe('usePaginatedPools', () => {
     [11, 10, 2],
     [25, 10, 3],
     [100, 25, 4],
-  ])('computes totalPages as Math.max(1, Math.ceil(total/limit)) for total=%i limit=%i', async (total, limit, expected) => {
-    mockedGet.mockResolvedValueOnce(makeResponse(total));
+  ])(
+    'computes totalPages as Math.max(1, Math.ceil(total/limit)) for total=%i limit=%i',
+    async (total, limit, expected) => {
+      mockedGet.mockResolvedValueOnce(makeResponse(total));
 
-    const { result } = renderHook(() => usePaginatedPools({ page: 1, limit }));
+      const { result } = renderHook(() =>
+        usePaginatedPools({ page: 1, limit })
+      );
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
 
-    expect(result.current.totalPages).toBe(expected);
-    expect(result.current.totalPages).toBe(Math.max(1, Math.ceil(total / limit)));
-  });
+      expect(result.current.totalPages).toBe(expected);
+      expect(result.current.totalPages).toBe(
+        Math.max(1, Math.ceil(total / limit))
+      );
+    }
+  );
 });

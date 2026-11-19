@@ -7,7 +7,12 @@ import type { DropdownItem } from '@/components/Dropdown';
 const baseItems: DropdownItem[] = [
   { label: 'Item One', value: 'one', onClick: jest.fn() },
   { label: 'Item Two', value: 'two', onClick: jest.fn() },
-  { label: 'Disabled Item', value: 'disabled', disabled: true, onClick: jest.fn() },
+  {
+    label: 'Disabled Item',
+    value: 'disabled',
+    disabled: true,
+    onClick: jest.fn(),
+  },
 ];
 
 function renderDropdown(items = baseItems) {
@@ -35,7 +40,10 @@ describe('Dropdown', () => {
       const user = userEvent.setup();
       render(
         <div>
-          <Dropdown trigger={<button type="button">Open</button>} items={baseItems} />
+          <Dropdown
+            trigger={<button type="button">Open</button>}
+            items={baseItems}
+          />
           <div data-testid="outside">Outside</div>
         </div>
       );
@@ -43,7 +51,10 @@ describe('Dropdown', () => {
       await user.click(screen.getByRole('button', { name: 'Open' }));
       expect(screen.getByRole('menu')).toBeInTheDocument();
 
-      await user.pointer({ target: screen.getByTestId('outside'), keys: '[MouseLeft]' });
+      await user.pointer({
+        target: screen.getByTestId('outside'),
+        keys: '[MouseLeft]',
+      });
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
 

@@ -10,6 +10,7 @@
 //! (5) User-specific data isolated
 
 use super::*;
+use crate::test_issues::approve_application_for_test;
 use soroban_sdk::{
     testutils::{Address as _, MockAuth, MockAuthInvoke},
     token::StellarAssetClient,
@@ -82,7 +83,7 @@ fn test_mock_auth_cannot_bypass_admin_for_set_crowdfunding_token() {
 
 /// Mock auth authorizing an attacker cannot bypass the stored admin check in request_emergency_withdraw.
 #[test]
-#[should_panic(expected = "Error(Auth, InvalidAction)")]
+#[should_panic(expected = "Error(Contract, #3)")]
 fn test_mock_auth_cannot_bypass_admin_for_emergency_withdraw() {
     let env = Env::default();
     env.mock_all_auths();
@@ -543,7 +544,7 @@ fn test_user_data_isolation_applications_and_claims() {
     client.apply_to_pool(&pool_id, &student_b, &String::from_str(&env, "App B"));
 
     // Approve only Student A
-    client.approve_application(&pool_id, &school, &student_a, &true);
+    approve_application_for_test(&env, &contract_id, &client, pool_id, &school, &student_a, true);
 
     assert_eq!(
         client.get_application_status(&pool_id, &student_a),
@@ -610,20 +611,25 @@ fn test_user_data_isolation_milestones() {
     let contract_id = env.register(Contract, ());
     let client = ContractClient::new(&env, &contract_id);
 
-    let creator = Address::generate(&env);
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
     let student_1 = Address::generate(&env);
     let student_2 = Address::generate(&env);
 
-    let pool_id = client.create_pool(
-        &creator,
+    client.set_admin(&admin);
+    client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
+    let pool_id = client.create_pool_for_school(
+        &school,
         &String::from_str(&env, "Milestone Isolation Pool"),
         &String::from_str(&env, "Description"),
         &500_000u128,
+        &school,
         &100_000u64,
     );
 
     client.apply_to_pool(&pool_id, &student_1, &String::from_str(&env, "App 1"));
     client.apply_to_pool(&pool_id, &student_2, &String::from_str(&env, "App 2"));
+    approve_application_for_test(&env, &contract_id, &client, pool_id, &school, &student_1, true);
 
     let milestones = Vec::from_array(&env, [Milestone { amount: 500_000u128 }]);
     client.setup_application_milestones(&pool_id, &student_1, &milestones);

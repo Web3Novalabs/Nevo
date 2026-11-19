@@ -1,13 +1,26 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ScheduleModule, SchedulerRegistry } from '@nestjs/schedule';
-import { FindOperator, FindOptionsWhere, LessThan, Repository } from 'typeorm';
+import { FindOperator, FindOptionsWhere, Repository } from 'typeorm';
+import {
+  ADVISORY_LOCK_KEYS,
+  AdvisoryLockService,
+} from '../common/advisory-lock.service';
 import { NonceService } from './nonce.service';
 import { Nonce } from './nonce.entity';
 
 describe('NonceService', () => {
   let service: NonceService;
   let repository: Repository<Nonce>;
+  const advisoryLock = {
+    runExclusive: jest.fn(
+      (
+        _key: number,
+        _job: string,
+        callback: () => Promise<unknown>,
+      ): Promise<unknown> => callback(),
+    ),
+  };
 
   const mockNonce: Nonce = {
     id: 'nonce-uuid-1',
@@ -32,11 +45,13 @@ describe('NonceService', () => {
             remove: jest.fn(),
           },
         },
+        { provide: AdvisoryLockService, useValue: advisoryLock },
       ],
     }).compile();
 
     service = module.get(NonceService);
     repository = module.get(getRepositoryToken(Nonce));
+    advisoryLock.runExclusive.mockClear();
   });
 
   afterEach(() => {
@@ -192,8 +207,8 @@ describe('NonceService', () => {
 
       expect(repository.delete).toHaveBeenCalled();
       const deleteCall = jest.spyOn(repository, 'delete').mock.calls[0][0];
-      expect((deleteCall as FindOptionsWhere<Nonce>).expiresAt).toEqual(
-        expect.any(Date),
+      expect((deleteCall as FindOptionsWhere<Nonce>).expiresAt).toBeInstanceOf(
+        FindOperator,
       );
     });
 
@@ -281,6 +296,28 @@ describe('NonceService', () => {
     });
   });
 
+  describe('cleanupExpiredNonces', () => {
+    it('runs the cleanup inside the advisory lock', async () => {
+      await service.cleanupExpiredNonces();
+
+      expect(advisoryLock.runExclusive).toHaveBeenCalledWith(
+        ADVISORY_LOCK_KEYS.nonceCleanup,
+        'NonceService.cleanupExpiredNonces',
+        expect.any(Function),
+      );
+    });
+
+    it('skips deletion when another instance holds the lock', async () => {
+      advisoryLock.runExclusive.mockImplementationOnce(() =>
+        Promise.resolve(undefined),
+      );
+
+      await service.cleanupExpiredNonces();
+
+      expect(repository.delete).not.toHaveBeenCalled();
+    });
+  });
+
   describe('cleanupExpiredNonces cron job', () => {
     it('should register an hourly cron job that calls deleteExpiredNonces', async () => {
       const module: TestingModule = await Test.createTestingModule({
@@ -297,6 +334,7 @@ describe('NonceService', () => {
               remove: jest.fn(),
             },
           },
+          { provide: AdvisoryLockService, useValue: advisoryLock },
         ],
       }).compile();
 
@@ -306,7 +344,9 @@ describe('NonceService', () => {
       const scheduledService = module.get(NonceService);
       const schedulerRegistry = module.get(SchedulerRegistry);
 
-      expect(schedulerRegistry.getCronJobs().has('cleanupExpiredNonces')).toBe(true);
+      expect(schedulerRegistry.getCronJobs().has('cleanupExpiredNonces')).toBe(
+        true,
+      );
 
       const deleteSpy = jest
         .spyOn(scheduledService, 'deleteExpiredNonces')

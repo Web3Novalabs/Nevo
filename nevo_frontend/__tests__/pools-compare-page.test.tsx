@@ -88,7 +88,9 @@ describe('Pools Compare Page (#1553)', () => {
     });
 
     // Compare button should reflect count
-    const compareButton = screen.getByRole('button', { name: /compare 1 pool/i });
+    const compareButton = screen.getByRole('button', {
+      name: /compare 1 pool/i,
+    });
     expect(compareButton).toBeInTheDocument();
 
     // Click compare
@@ -105,7 +107,9 @@ describe('Pools Compare Page (#1553)', () => {
 
     expect(screen.getByText(/0\/4 selected/i)).toBeInTheDocument();
     // Compare button disabled or shows 0
-    const compareButton = screen.queryByRole('button', { name: /compare 0 pools/i });
+    const compareButton = screen.queryByRole('button', {
+      name: /compare 0 pools/i,
+    });
     if (compareButton) {
       expect(compareButton).toBeDisabled();
     }
@@ -121,7 +125,9 @@ describe('Pools Compare Page (#1553)', () => {
       expect(screen.getByText(/1\/4 selected/i)).toBeInTheDocument();
     });
 
-    const compareButton = screen.getByRole('button', { name: /compare 1 pool/i });
+    const compareButton = screen.getByRole('button', {
+      name: /compare 1 pool/i,
+    });
     await user.click(compareButton);
 
     await waitFor(() => {
@@ -141,7 +147,9 @@ describe('Pools Compare Page (#1553)', () => {
       expect(screen.getByText(/2\/4 selected/i)).toBeInTheDocument();
     });
 
-    const compareButton = screen.getByRole('button', { name: /compare 2 pools/i });
+    const compareButton = screen.getByRole('button', {
+      name: /compare 2 pools/i,
+    });
     await user.click(compareButton);
 
     await waitFor(() => {

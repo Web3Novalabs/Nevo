@@ -60,10 +60,7 @@ fn test_is_closed_and_state_can_disagree_and_get_pool_shows_only_is_closed() {
     // close_pool requires a Cancelled or Disbursed pool and leaves state as-is.
     client.set_pool_state(&pool_id, &PoolState::Cancelled);
     client.close_pool(&pool_id);
-    assert_eq!(
-        stored_state(&env, &contract_id, pool_id),
-        PoolState::Cancelled
-    );
+    assert_eq!(stored_state(&env, &contract_id, pool_id), PoolState::Closed);
 
     client.set_pool_state(&pool_id, &PoolState::Active);
 

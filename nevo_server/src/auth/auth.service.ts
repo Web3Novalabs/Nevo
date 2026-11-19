@@ -1,13 +1,8 @@
-import {
-  Injectable,
-  BadRequestException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Keypair, StrKey } from '@stellar/stellar-sdk';
+import { Keypair } from '@stellar/stellar-sdk';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/user.entity';
-import { randomBytes } from 'crypto';
 import { NonceService } from './nonce.service';
 import { VerifyAuthDto } from './dto/verify-auth.dto';
 
@@ -16,75 +11,13 @@ export interface AuthResult {
   user: User;
 }
 
-export interface ChallengeResult {
-  nonce: string;
-  expiresAt: number;
-}
-
-interface ChallengeEntry {
-  nonce: string;
-  expiresAt: number;
-}
-
-const CHALLENGE_TTL_MS = 5 * 60 * 1000;
-
 @Injectable()
 export class AuthService {
-  /**
-   * @deprecated DEAD CODE / UNREACHABLE
-   * In-memory challenge store. Populated solely by `generateChallenge()`.
-   * Never queried or referenced during authentication verification.
-   */
-  private readonly challenges = new Map<string, ChallengeEntry>();
-
   constructor(
     private readonly jwtService: JwtService,
     private readonly usersService: UsersService,
     private readonly nonceService: NonceService,
-  ) {
-    setInterval(() => this.cleanupExpiredChallenges(), CHALLENGE_TTL_MS);
-  }
-
-  /**
-   * @deprecated DEAD CODE / UNREACHABLE
-   *
-   * AUDIT (Issue #1490): Intentional Dead Code vs Wiring Bug
-   *
-   * Conclusion: INTENTIONAL DEAD CODE (legacy prototype remnant), NOT a wiring bug.
-   *
-   * Analysis:
-   * 1. Unreachable entry point:
-   *    `AuthController.challenge()` delegates nonce generation directly to
-   *    `NonceService.generateNonce(publicKey)`, storing nonces in the database (`nonce.entity.ts`).
-   *    `AuthController` never calls `AuthService.generateChallenge()`.
-   *
-   * 2. Verification disconnect:
-   *    `AuthService.verify()` validates incoming nonces via `NonceService.findAndValidateNonce(dto.message)`.
-   *    The in-memory `challenges` Map populated by this method is NEVER read by `verify()`.
-   *    Any nonce generated through this method will inevitably fail `verify()`.
-   *
-   * 3. Intentional migration:
-   *    The platform migrated authentication from an in-memory prototype to persistent DB-backed nonces
-   *    via `NonceService` to support horizontal scaling, restarts, replay prevention, and scheduled cleanup.
-   *    `generateChallenge()` and the `challenges` Map are obsolete artifacts left over from before
-   *    that migration and can be safely removed.
-   */
-  generateChallenge(publicKey: string): ChallengeResult {
-    if (!publicKey) {
-      throw new BadRequestException('publicKey is required');
-    }
-
-    if (!StrKey.isValidEd25519PublicKey(publicKey)) {
-      throw new BadRequestException('Invalid Stellar public key format');
-    }
-
-    const nonce = randomBytes(32).toString('hex');
-    const expiresAt = Date.now() + CHALLENGE_TTL_MS;
-
-    this.challenges.set(publicKey, { nonce, expiresAt });
-
-    return { nonce, expiresAt };
-  }
+  ) {}
 
   async verify(dto: VerifyAuthDto): Promise<AuthResult> {
     if (!this.verifySignature(dto.publicKey, dto.signature, dto.message)) {
@@ -133,15 +66,6 @@ export class AuthService {
       );
     } catch {
       return false;
-    }
-  }
-
-  private cleanupExpiredChallenges() {
-    const now = Date.now();
-    for (const [key, entry] of this.challenges.entries()) {
-      if (now >= entry.expiresAt) {
-        this.challenges.delete(key);
-      }
     }
   }
 }

@@ -19,7 +19,7 @@ fn test_create_pool_for_school_registered_school() {
     let school = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school);
+    client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
 
     // Registered school should be able to create a pool
     let pool_id = client.create_pool_for_school(
@@ -77,8 +77,8 @@ fn test_create_pool_for_school_correct_linkage() {
     let school2 = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school1);
-    client.register_school(&admin, &school2);
+    client.register_school(&school1, &BytesN::from_array(&env, &[0u8; 32]));
+    client.register_school(&school2, &BytesN::from_array(&env, &[0u8; 32]));
 
     // Create pools for each school
     let pool_id_1 = client.create_pool_for_school(
@@ -118,7 +118,7 @@ fn test_create_pool_for_school_sequencing() {
     let school = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school);
+    client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
 
     // Create regular pool
     let pool_id_1 = client.create_pool(
@@ -168,7 +168,7 @@ fn test_create_pool_for_school_duplicate_calls_create_distinct_pools() {
     let school = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school);
+    client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
 
     // Create first pool
     let pool_id_1 = client.create_pool_for_school(
@@ -224,17 +224,15 @@ fn test_create_pool_for_school_requires_authorization() {
     let creator = Address::generate(&env);
     let school = Address::generate(&env);
 
-    // Set up without mocking all auths
-    let client_with_mock = ContractClient::new(&env, &contract_id);
-    
-    // This should fail because creator authorization is not mocked
-    let admin_key = soroban_sdk::Symbol::new(&env, "admin");
-    env.storage().persistent().set(&admin_key, &admin);
-    
-    let school_key = (soroban_sdk::Symbol::new(&env, "school_reg"), school.clone());
-    env.storage().persistent().set(&school_key, &true);
+    env.as_contract(&contract_id, || {
+        let admin_key = soroban_sdk::Symbol::new(&env, "admin");
+        env.storage().persistent().set(&admin_key, &admin);
 
-    client_with_mock.create_pool_for_school(
+        let school_key = (soroban_sdk::Symbol::new(&env, "school_reg"), school.clone());
+        env.storage().persistent().set(&school_key, &true);
+    });
+
+    client.create_pool_for_school(
         &creator,
         &String::from_str(&env, "Unauthorized Pool"),
         &String::from_str(&env, "Should fail"),
@@ -262,7 +260,7 @@ fn test_create_pool_for_school_attributes_stored() {
     let deadline = 150_000u64;
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school);
+    client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
 
     let pool_id = client.create_pool_for_school(
         &creator,
@@ -305,8 +303,8 @@ fn test_create_pool_for_school_maintains_count() {
     let school2 = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school1);
-    client.register_school(&admin, &school2);
+    client.register_school(&school1, &BytesN::from_array(&env, &[0u8; 32]));
+    client.register_school(&school2, &BytesN::from_array(&env, &[0u8; 32]));
 
     // Initial count
     assert_eq!(client.get_pool_count(), 0);
@@ -368,7 +366,7 @@ fn test_create_pool_for_school_various_goals() {
     let school = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school);
+    client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
 
     let goals = vec![
         100_000_000u128,

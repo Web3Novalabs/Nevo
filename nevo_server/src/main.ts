@@ -42,11 +42,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(helmet());
 
-  const frontendOrigin = process.env.FRONTEND_ORIGIN;
+  const corsOrigins = process.env.CORS_ORIGIN ?? process.env.FRONTEND_ORIGIN;
   app.enableCors({
-    origin: frontendOrigin ? frontendOrigin.split(',') : [],
+    origin: corsOrigins ? corsOrigins.split(',') : [],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
-
   //global validation pipe to validate incoming requests
   app.useGlobalPipes(
     new ValidationPipe({

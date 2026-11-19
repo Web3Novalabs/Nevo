@@ -21,7 +21,10 @@ describe('BackToTopButton', () => {
   });
 
   it('is hidden (aria-hidden="true") below the scroll threshold', () => {
-    Object.defineProperty(window, 'scrollY', { value: 100, configurable: true });
+    Object.defineProperty(window, 'scrollY', {
+      value: 100,
+      configurable: true,
+    });
     render(<BackToTopButton threshold={400} />);
     const button = screen.getByRole('button', { hidden: true });
     expect(button).toHaveAttribute('aria-hidden', 'true');
@@ -29,13 +32,19 @@ describe('BackToTopButton', () => {
   });
 
   it('becomes visible (aria-hidden="false") above the scroll threshold', () => {
-    Object.defineProperty(window, 'scrollY', { value: 100, configurable: true });
+    Object.defineProperty(window, 'scrollY', {
+      value: 100,
+      configurable: true,
+    });
     render(<BackToTopButton threshold={400} />);
     const button = screen.getByRole('button', { hidden: true });
     expect(button).toHaveAttribute('aria-hidden', 'true');
 
     act(() => {
-      Object.defineProperty(window, 'scrollY', { value: 500, configurable: true });
+      Object.defineProperty(window, 'scrollY', {
+        value: 500,
+        configurable: true,
+      });
       fireEvent.scroll(window);
     });
 
@@ -44,7 +53,10 @@ describe('BackToTopButton', () => {
   });
 
   it('mocks window.scrollTo and verifies it is called on click', async () => {
-    Object.defineProperty(window, 'scrollY', { value: 500, configurable: true });
+    Object.defineProperty(window, 'scrollY', {
+      value: 500,
+      configurable: true,
+    });
     render(<BackToTopButton threshold={400} />);
     const button = screen.getByRole('button');
 

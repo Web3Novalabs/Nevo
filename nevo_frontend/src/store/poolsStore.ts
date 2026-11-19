@@ -83,7 +83,10 @@ export const usePoolsStore = create<PoolsState>()(
           const mergedFilters = { ...currentFilters, ...filters };
 
           // Build params object for API request
-          const params: Record<string, string | number | boolean | string[] | undefined> = {};
+          const params: Record<
+            string,
+            string | number | boolean | string[] | undefined
+          > = {};
           if (mergedFilters.search) params.search = mergedFilters.search;
           if (mergedFilters.categories.length > 0)
             params.categories = mergedFilters.categories;

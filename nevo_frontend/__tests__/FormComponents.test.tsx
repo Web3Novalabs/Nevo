@@ -163,7 +163,9 @@ describe('Form components', () => {
 
     it('is disabled when the disabled prop is set', () => {
       render(<Checkbox label="Subscribe" disabled />);
-      expect(screen.getByRole('checkbox', { name: 'Subscribe' })).toBeDisabled();
+      expect(
+        screen.getByRole('checkbox', { name: 'Subscribe' })
+      ).toBeDisabled();
     });
 
     it('is keyboard focusable', () => {
@@ -177,11 +179,7 @@ describe('Form components', () => {
   describe('FormField', () => {
     it('associates the label and helper with a custom control', () => {
       render(
-        <FormField
-          id="custom"
-          label="Custom"
-          helperText="Helpful hint"
-        >
+        <FormField id="custom" label="Custom" helperText="Helpful hint">
           <input id="custom" />
         </FormField>
       );

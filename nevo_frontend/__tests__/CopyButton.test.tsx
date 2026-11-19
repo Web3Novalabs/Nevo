@@ -57,6 +57,8 @@ describe('CopyButton', () => {
     render(<CopyButton text="https://example.com" iconOnly />);
 
     expect(screen.queryByText('Copy')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Copy to clipboard' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Copy to clipboard' })
+    ).toBeInTheDocument();
   });
 });

@@ -15,6 +15,30 @@ fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
     token.address()
 }
 
+pub(crate) fn approve_application_for_test(
+    env: &Env,
+    contract_id: &Address,
+    client: &ContractClient<'_>,
+    pool_id: u32,
+    school: &Address,
+    student: &Address,
+    approved: bool,
+) {
+    let invoke = MockAuthInvoke {
+        contract: contract_id,
+        fn_name: "approve_application",
+        args: (&pool_id, school, student, approved).into_val(env),
+        sub_invokes: &[],
+    };
+    client
+        .mock_auths(&[
+            MockAuth { address: school, invoke: &invoke },
+            MockAuth { address: school, invoke: &invoke },
+        ])
+        .approve_application(&pool_id, school, student, &approved);
+    client.mock_all_auths();
+}
+
 // ============= ISSUE #460: EMERGENCY WITHDRAWAL GRACE PERIOD VALIDATION TESTS =============
 
 /// Test 1: Execute withdrawal exactly at grace period boundary succeeds
@@ -49,7 +73,7 @@ fn test_emergency_withdrawal_at_grace_period_boundary() {
 
 /// Test 2: Execute withdrawal 1 second before grace period fails
 #[test]
-#[should_panic(expected = "Error(Contract, #21)")]
+#[should_panic(expected = "Error(Contract, #22)")]
 fn test_emergency_withdrawal_before_grace_period_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -384,7 +408,7 @@ fn test_duplicate_emergency_withdrawal_request_fails() {
 
 /// Test 4: Test execute_emergency_withdraw before grace period fails
 #[test]
-#[should_panic(expected = "Error(Contract, #21)")]
+#[should_panic(expected = "Error(Contract, #22)")]
 fn test_execute_emergency_withdraw_before_grace_period_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -414,7 +438,7 @@ fn test_execute_emergency_withdraw_before_grace_period_fails() {
 
 /// Test 1: Zero amount contribution fails with InvalidAmount
 #[test]
-#[should_panic(expected = "InvalidAmount")]
+#[should_panic(expected = "Error(Contract, #27)")]
 fn test_zero_amount_contribution_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -439,7 +463,7 @@ fn test_zero_amount_contribution_fails() {
 
 /// Test 2: Negative amount contribution fails
 #[test]
-#[should_panic(expected = "InvalidAmount")]
+#[should_panic(expected = "Error(Contract, #27)")]
 fn test_negative_amount_contribution_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -736,7 +760,29 @@ fn test_setup_application_milestones_empty_panics() {
     );
 
     client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
-    client.approve_application(&pool_id, &school, &student, &true);
+    client
+        .mock_auths(&[
+            MockAuth {
+                address: &school,
+                invoke: &MockAuthInvoke {
+                    contract: &contract_id,
+                    fn_name: "approve_application",
+                    args: (&pool_id, &school, &student, true).into_val(&env),
+                    sub_invokes: &[],
+                },
+            },
+            MockAuth {
+                address: &school,
+                invoke: &MockAuthInvoke {
+                    contract: &contract_id,
+                    fn_name: "approve_application",
+                    args: (&pool_id, &school, &student, true).into_val(&env),
+                    sub_invokes: &[],
+                },
+            },
+        ])
+        .approve_application(&pool_id, &school, &student, &true);
+    client.mock_all_auths();
     client.setup_application_milestones(&pool_id, &student, &Vec::new(&env));
 }
 
@@ -769,7 +815,7 @@ fn test_setup_application_milestones_total_mismatch_panics() {
         [Milestone { amount: 100_000_000u128 }, Milestone { amount: 200_000_000u128 }],
     );
     client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
-    client.approve_application(&pool_id, &school, &student, &true);
+    approve_application_for_test(&env, &contract_id, &client, pool_id, &school, &student, true);
     client.setup_application_milestones(&pool_id, &student, &milestones);
 }
 
@@ -802,7 +848,7 @@ fn test_setup_application_milestones_overflow_panics() {
         [Milestone { amount: u128::MAX }, Milestone { amount: 1u128 }],
     );
     client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
-    client.approve_application(&pool_id, &school, &student, &true);
+    approve_application_for_test(&env, &contract_id, &client, pool_id, &school, &student, true);
     client.setup_application_milestones(&pool_id, &student, &milestones);
 }
 
@@ -834,7 +880,7 @@ fn test_setup_and_get_milestones_round_trip() {
         [Milestone { amount: 400_000_000u128 }, Milestone { amount: 600_000_000u128 }],
     );
     client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
-    client.approve_application(&pool_id, &school, &student, &true);
+    approve_application_for_test(&env, &contract_id, &client, pool_id, &school, &student, true);
     client.setup_application_milestones(&pool_id, &student, &milestones);
 
     let stored = client.get_milestones(&pool_id, &student);
@@ -941,7 +987,7 @@ fn test_setup_application_milestones_reconfiguration_overwrites() {
         &100_000u64,
     );
     client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
-    client.approve_application(&pool_id, &school, &student, &true);
+    approve_application_for_test(&env, &contract_id, &client, pool_id, &school, &student, true);
 
     let first = Vec::from_array(
         &env,
@@ -1012,7 +1058,7 @@ fn test_setup_application_milestones_rejected_application_fails() {
     );
 
     client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
-    client.approve_application(&pool_id, &school, &student, &false);
+    approve_application_for_test(&env, &contract_id, &client, pool_id, &school, &student, false);
 
     let milestones = Vec::from_array(&env, [Milestone { amount: 1_000_000_000u128 }]);
     client.setup_application_milestones(&pool_id, &student, &milestones);
@@ -1668,7 +1714,7 @@ fn test_get_milestones_preserves_configured_order() {
         ],
     );
     client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
-    client.approve_application(&pool_id, &school, &student, &true);
+    approve_application_for_test(&env, &contract_id, &client, pool_id, &school, &student, true);
     client.setup_application_milestones(&pool_id, &student, &milestones);
 
     let stored = client.get_milestones(&pool_id, &student);
@@ -1725,17 +1771,17 @@ fn test_get_milestones_isolated_per_pool_and_student() {
 
     // (pool_a, student_x)
     client.apply_to_pool(&pool_a, &student_x, &String::from_str(&env, "App"));
-    client.approve_application(&pool_a, &school, &student_x, &true);
+    approve_application_for_test(&env, &contract_id, &client, pool_a, &school, &student_x, true);
     client.setup_application_milestones(&pool_a, &student_x, &milestones_ax);
 
     // (pool_a, student_y) -- same pool, different student
     client.apply_to_pool(&pool_a, &student_y, &String::from_str(&env, "App"));
-    client.approve_application(&pool_a, &school, &student_y, &true);
+    approve_application_for_test(&env, &contract_id, &client, pool_a, &school, &student_y, true);
     client.setup_application_milestones(&pool_a, &student_y, &milestones_ay);
 
     // (pool_b, student_x) -- same student, different pool
     client.apply_to_pool(&pool_b, &student_x, &String::from_str(&env, "App"));
-    client.approve_application(&pool_b, &school, &student_x, &true);
+    approve_application_for_test(&env, &contract_id, &client, pool_b, &school, &student_x, true);
     client.setup_application_milestones(&pool_b, &student_x, &milestones_bx);
 
     // (pool_b, student_y) is left untouched entirely.
@@ -1783,7 +1829,7 @@ fn test_get_milestones_large_list_not_truncated() {
     }
 
     client.apply_to_pool(&pool_id, &student, &String::from_str(&env, "Application"));
-    client.approve_application(&pool_id, &school, &student, &true);
+    approve_application_for_test(&env, &contract_id, &client, pool_id, &school, &student, true);
     client.setup_application_milestones(&pool_id, &student, &milestones);
 
     let stored = client.get_milestones(&pool_id, &student);

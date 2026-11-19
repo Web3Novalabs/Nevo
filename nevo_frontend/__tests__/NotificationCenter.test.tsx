@@ -92,7 +92,9 @@ describe('NotificationCenter', () => {
 
     await user.click(screen.getByRole('button', { name: 'Mark all read' }));
     expect(
-      useNotificationsStore.getState().notifications.every((item) => item.isRead)
+      useNotificationsStore
+        .getState()
+        .notifications.every((item) => item.isRead)
     ).toBe(true);
 
     act(() => {
@@ -139,6 +141,8 @@ describe('NotificationCenter', () => {
     render(<NotificationCenter />);
     await openDropdown(user);
 
-    expect(screen.getByRole('status')).toHaveTextContent('No notifications yet');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'No notifications yet'
+    );
   });
 });

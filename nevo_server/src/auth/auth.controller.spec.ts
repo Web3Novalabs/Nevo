@@ -75,6 +75,7 @@ describe('AuthController throttle limits', () => {
     authService = moduleRef.get<AuthService>(AuthService);
 
     app = moduleRef.createNestApplication();
+    app.getHttpAdapter().getInstance().set('trust proxy', 1);
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -431,4 +432,3 @@ describe('AuthController (challenge/verify)', () => {
     });
   });
 });
-

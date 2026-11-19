@@ -329,7 +329,7 @@ export default function ProfilePage() {
                       type="checkbox"
                       checked={
                         preferences.notifications[
-                        item.key as keyof typeof preferences.notifications
+                          item.key as keyof typeof preferences.notifications
                         ]
                       }
                       onChange={() =>

@@ -11,9 +11,13 @@ import {
 
 jest.mock('next/link', () => ({
   __esModule: true,
-  default: ({ href, children }: { href: string; children: React.ReactNode }) => (
-    <a href={href}>{children}</a>
-  ),
+  default: ({
+    href,
+    children,
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => <a href={href}>{children}</a>,
 }));
 
 jest.mock('next/navigation', () => ({
@@ -30,7 +34,9 @@ jest.mock('@/components/EmptyState', () => ({
 }));
 
 jest.mock('@/components/ErrorBoundary', () => ({
-  ErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  ErrorBoundary: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 jest.mock('@/components/WalletAddress', () => ({
