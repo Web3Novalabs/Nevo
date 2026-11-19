@@ -2,6 +2,7 @@ import { useWalletStore } from '@/src/store/walletStore';
 import { connect, disconnect, getPublicKey, signWithWallet } from '@/app/stellar-wallets-kit';
 import { fetchAuthChallenge, verifyAuthSignature } from '@/lib/api-client';
 import { getAccountBalances } from '@/lib/stellar';
+import { clearToken, getToken, setToken } from '@/lib/jwt-storage';
 
 jest.mock('@/app/stellar-wallets-kit', () => ({
   getPublicKey: jest.fn(),
@@ -23,12 +24,11 @@ describe('walletStore disconnectWallet', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     window.localStorage.clear();
+    setToken('jwt-token');
     useWalletStore.setState({
       publicKey: 'GABC123',
-      accessToken: 'jwt-token',
       balances: null,
       loading: false,
-      isAuthenticated: true,
     });
     (disconnect as jest.Mock).mockResolvedValue(undefined);
   });
@@ -36,14 +36,43 @@ describe('walletStore disconnectWallet', () => {
   it('clears the stored JWT and marks the user as unauthenticated', async () => {
     window.localStorage.setItem(
       'nevo-wallet',
-      JSON.stringify({ state: { accessToken: 'jwt-token' } })
+      JSON.stringify({ state: { publicKey: 'GABC123' } })
     );
 
     await useWalletStore.getState().disconnectWallet();
 
     expect(useWalletStore.getState().isAuthenticated).toBe(false);
-    expect(useWalletStore.getState().accessToken).toBeNull();
+    expect(getToken()).toBeNull();
     expect(window.localStorage.getItem('nevo-wallet')).toBeNull();
+  });
+
+  it('clearAuth removes the token and all auth data', () => {
+    useWalletStore.getState().clearAuth();
+
+    expect(getToken()).toBeNull();
+    expect(useWalletStore.getState().publicKey).toBeNull();
+    expect(useWalletStore.getState().isAuthenticated).toBe(false);
+    expect(window.localStorage.getItem('nevo-wallet')).toBeNull();
+  });
+
+  it('derives isAuthenticated from the token module', () => {
+    expect(useWalletStore.getState().isAuthenticated).toBe(true);
+
+    clearToken();
+
+    expect(useWalletStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it('does not persist isAuthenticated in the nevo-wallet store', async () => {
+    await useWalletStore.getState().disconnectWallet();
+    useWalletStore.setState({ publicKey: 'GABC123' });
+
+    const persisted = window.localStorage.getItem('nevo-wallet');
+    if (persisted) {
+      const parsed = JSON.parse(persisted);
+      expect(parsed.state).not.toHaveProperty('isAuthenticated');
+      expect(parsed.state).not.toHaveProperty('accessToken');
+    }
   });
 });
 
@@ -58,10 +87,8 @@ describe('walletStore connectWallet SEP-10 auth', () => {
     window.localStorage.clear();
     useWalletStore.setState({
       publicKey: null,
-      accessToken: null,
       balances: null,
       loading: false,
-      isAuthenticated: false,
     });
 
     (connect as jest.Mock).mockImplementation(async (onConnect) => {
@@ -87,8 +114,25 @@ describe('walletStore connectWallet SEP-10 auth', () => {
     expect(verifyAuthSignature).toHaveBeenCalledWith(PUBLIC_KEY, NONCE, SIGNATURE);
 
     expect(useWalletStore.getState().publicKey).toBe(PUBLIC_KEY);
-    expect(useWalletStore.getState().accessToken).toBe(ACCESS_TOKEN);
+    expect(getToken()).toBe(ACCESS_TOKEN);
     expect(useWalletStore.getState().isAuthenticated).toBe(true);
+  });
+
+  it('is the single login path: challenge, sign, verify, then token stored via jwt-storage', async () => {
+    const setTokenSpy = jest.spyOn(
+      jest.requireActual('@/lib/jwt-storage'),
+      'setToken'
+    );
+
+    await useWalletStore.getState().connectWallet();
+
+    expect(fetchAuthChallenge).toHaveBeenCalledTimes(1);
+    expect(signWithWallet).toHaveBeenCalledTimes(1);
+    expect(verifyAuthSignature).toHaveBeenCalledTimes(1);
+    expect(setTokenSpy).toHaveBeenCalledWith(ACCESS_TOKEN);
+    expect(getToken()).toBe(ACCESS_TOKEN);
+
+    setTokenSpy.mockRestore();
   });
 
   it('calls the onSuccess callback after successful auth', async () => {
@@ -103,6 +147,6 @@ describe('walletStore connectWallet SEP-10 auth', () => {
     await expect(useWalletStore.getState().connectWallet()).rejects.toThrow('Verify failed');
 
     expect(useWalletStore.getState().isAuthenticated).toBe(false);
-    expect(useWalletStore.getState().accessToken).toBeNull();
+    expect(getToken()).toBeNull();
   });
 });

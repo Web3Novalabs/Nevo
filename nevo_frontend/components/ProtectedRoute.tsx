@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useWalletStore } from '@/src/store/walletStore';
 import { Spinner } from './Spinner';
 
@@ -12,6 +12,7 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { isAuthenticated, loading, initialize } = useWalletStore();
 
   useEffect(() => {
@@ -20,9 +21,11 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      router.push(`/login?from=${encodeURIComponent(pathname)}`);
+      const query = searchParams?.toString();
+      const currentPath = query ? `${pathname}?${query}` : pathname;
+      router.push(`/login?next=${encodeURIComponent(currentPath)}`);
     }
-  }, [loading, isAuthenticated, pathname, router]);
+  }, [loading, isAuthenticated, pathname, searchParams, router]);
 
   if (loading || !isAuthenticated) {
     return (

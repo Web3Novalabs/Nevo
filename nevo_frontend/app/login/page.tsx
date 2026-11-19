@@ -4,25 +4,22 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useWalletStore } from '@/src/store/walletStore';
-import { apiClient } from '@/lib/api-client';
-import { parseApiError } from '@/lib/errors';
-import {
-  connect,
-  signWithWallet,
-  getPublicKey,
-} from '@/app/stellar-wallets-kit';
 import { Spinner } from '@/components/Spinner';
 
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isAuthenticated, loading, initialize, setAccessToken } =
-    useWalletStore();
+  const {
+    isAuthenticated,
+    loading,
+    error,
+    initialize,
+    connectWallet,
+  } = useWalletStore();
   const [accepted, setAccepted] = useState(false);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const from = searchParams.get('from') || '/dashboard';
+  const next =
+    searchParams.get('next') || searchParams.get('from') || '/dashboard';
 
   useEffect(() => {
     initialize();
@@ -30,48 +27,15 @@ function LoginPageContent() {
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.push(from);
+      router.push(next);
     }
-  }, [loading, isAuthenticated, from, router]);
+  }, [loading, isAuthenticated, next, router]);
 
   async function handleAuth() {
-    setAuthLoading(true);
-    setError(null);
     try {
-      await connect(async () => {
-        const publicKey = await getPublicKey();
-        if (!publicKey) {
-          throw new Error('Failed to get wallet address');
-        }
-
-        // Get challenge nonce
-        const challenge = await apiClient.get<{ nonce: string }>(
-          '/auth/challenge',
-          {
-            params: { publicKey },
-          }
-        );
-
-        // Sign the nonce
-        const signature = await signWithWallet(challenge.nonce);
-
-        // Verify and get access token
-        const authResult = await apiClient.post<{ accessToken: string }>(
-          '/auth/verify',
-          {
-            publicKey,
-            signature,
-            message: challenge.nonce,
-          }
-        );
-
-        // Set the access token in the store
-        setAccessToken(authResult.accessToken);
-      });
-    } catch (err) {
-      setError(parseApiError(err));
-    } finally {
-      setAuthLoading(false);
+      await connectWallet();
+    } catch {
+      // Error state is surfaced from the store.
     }
   }
 
@@ -119,12 +83,10 @@ function LoginPageContent() {
               <div className="flex flex-col items-center gap-3">
                 <button
                   onClick={handleAuth}
-                  disabled={authLoading}
+                  disabled={loading}
                   className="w-full rounded-full bg-brand-600 px-6 py-3 text-sm font-medium text-white hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {authLoading
-                    ? 'Authenticating...'
-                    : 'Connect Wallet & Sign In'}
+                  {loading ? 'Authenticating...' : 'Connect Wallet & Sign In'}
                 </button>
                 {error && (
                   <p className="text-sm text-red-500" role="alert">

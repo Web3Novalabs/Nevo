@@ -6,7 +6,7 @@ import {
   disconnect,
   signWithWallet,
 } from '@/app/stellar-wallets-kit';
-import { clearToken, getToken, setToken } from '@/lib/auth-storage';
+import { clearAuth, getStoredAccessToken, setStoredAccessToken } from '@/lib/jwt-storage';
 import { getAccountBalances, AccountBalances } from '@/lib/stellar';
 import { fetchAuthChallenge, verifyAuthSignature } from '@/lib/api-client';
 
@@ -36,7 +36,7 @@ export const useWalletStore = create<WalletState>()(
         const key = await getPublicKey();
         if (key) {
           const balances = await getAccountBalances(key);
-          const accessToken = get().accessToken ?? getToken();
+          const accessToken = getStoredAccessToken();
           set({
             publicKey: key,
             balances,
@@ -61,12 +61,12 @@ export const useWalletStore = create<WalletState>()(
               nonce,
               signature
             );
-            setToken(accessToken);
+            setStoredAccessToken(accessToken);
             set({
               publicKey: key,
               balances,
               accessToken,
-              isAuthenticated: true,
+              isAuthenticated: !!getStoredAccessToken(),
             });
             onSuccess?.();
           }
@@ -75,13 +75,13 @@ export const useWalletStore = create<WalletState>()(
 
       disconnectWallet: async () => {
         await disconnect();
+        clearAuth();
         set({
           publicKey: null,
           accessToken: null,
           balances: null,
           isAuthenticated: false,
         });
-        clearToken();
       },
 
       refreshBalances: async () => {
@@ -92,10 +92,10 @@ export const useWalletStore = create<WalletState>()(
       },
 
       setAccessToken: (token: string) => {
-        setToken(token);
+        setStoredAccessToken(token);
         set({
           accessToken: token,
-          isAuthenticated: !!get().publicKey && !!token,
+          isAuthenticated: !!get().publicKey && !!getStoredAccessToken(),
         });
       },
     }),
@@ -103,8 +103,7 @@ export const useWalletStore = create<WalletState>()(
       name: 'nevo-wallet',
       partialize: (state) => ({
         publicKey: state.publicKey,
-        accessToken: state.accessToken,
-        isAuthenticated: state.isAuthenticated,
+        balances: state.balances,
       }),
     }
   )

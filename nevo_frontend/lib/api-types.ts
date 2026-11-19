@@ -35,9 +35,32 @@ export interface ApiUser {
   createdAt: string;
 }
 
+export interface ApiTransaction {
+  id: string;
+  txHash: string;
+  poolId: string;
+  poolTitle: string;
+  type: string;
+  status: string;
+  amount: string;
+  asset: string;
+  createdAt: string;
+}
+
+export interface TransactionListParams {
+  page?: number;
+  limit?: number;
+  type?: string;
+  status?: string;
+  poolId?: string;
+  search?: string;
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   total: number;
   page: number;
   limit: number;
 }
+
+export type PaginatedTransactionsResponse = PaginatedResponse<ApiTransaction>;
