@@ -26,6 +26,28 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Check react / react-dom versions match
+        run: |
+          node -e '
+            const lock = require("./package-lock.json");
+            const pkgs = lock.packages || {};
+            const find = (name) => {
+              const entry = pkgs[`node_modules/${name}`];
+              return entry && entry.version;
+            };
+            const react = find("react");
+            const reactDom = find("react-dom");
+            if (!react || !reactDom) {
+              console.error(`Could not resolve versions: react=${react} react-dom=${reactDom}`);
+              process.exit(1);
+            }
+            if (react !== reactDom) {
+              console.error(`ERROR: react (${react}) and react-dom (${reactDom}) must be the same version.`);
+              process.exit(1);
+            }
+            console.log(`react and react-dom both resolve to ${react}`);
+          '
+
       - name: Check for remaining mock data
         run: |
           if grep -r "MOCK_" app/ src/store/ \
@@ -75,6 +97,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Export OpenAPI spec
+        run: npm run export:openapi
+
+      - name: Check generated API types are up to date
+        run: npm run check:api-types
+
   contract:
     name: Contract — Build & Test
     runs-on: ubuntu-latest
@@ -105,7 +133,7 @@ jobs:
       - name: Run tests
         run: cargo test --lib
 
-            - name: Run Clippy
+      - name: Run Clippy
         run: cargo clippy --all-targets -- -D warnings
 
       - name: Build contract

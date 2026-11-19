@@ -6,6 +6,14 @@ import {
   ApiError,
   UnauthorizedError,
   isRateLimitError,
+  donate,
+  createPool,
+  getCurrentUser,
+  getTransactions,
+  getPoolComments,
+  createPoolComment,
+  updatePoolComment,
+  deletePoolComment,
 } from '@/lib/api-client';
 import * as rateLimit from '@/lib/rate-limit';
 import { RATE_LIMIT_EVENT, type RateLimitNotification } from '@/lib/rate-limit';
@@ -241,6 +249,20 @@ describe('verifyAuthSignature', () => {
     });
   });
 
+  it('throws ApiError when the response is not ok', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse(
+        { error: 'Bad Request' },
+        { status: 400, statusText: 'Bad Request' }
+      )
+    );
+
+    await expect(
+      verifyAuthSignature('publicKey', 'nonce', 'signature')
+    ).rejects.toBeInstanceOf(ApiError);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('throws UnauthorizedError when API returns 401', async () => {
     (global.fetch as jest.Mock).mockResolvedValue(
       jsonResponse(
@@ -300,6 +322,163 @@ describe('fetchAuthChallenge', () => {
       ApiError
     );
     expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ApiClient route contracts', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'Headers', {
+      value: TestHeaders,
+      configurable: true,
+    });
+    global.fetch = jest.fn();
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('donate() posts to /donations with the generated body shape', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ id: 'donation-1' })
+    );
+
+    await donate({
+      poolId: 'pool-1',
+      amount: '100',
+      asset: 'XLM',
+    });
+
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/donations');
+    expect(fetchInit.method).toBe('POST');
+    expect(JSON.parse(fetchInit.body)).toEqual({
+      poolId: 'pool-1',
+      amount: '100',
+      asset: 'XLM',
+    });
+  });
+
+  it('createPool() posts to /pools with the generated body shape', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ id: 'pool-1' })
+    );
+
+    await createPool({
+      title: 'New pool',
+      description: 'A pool',
+      targetAmount: '1000',
+      asset: 'XLM',
+    });
+
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/pools');
+    expect(fetchInit.method).toBe('POST');
+    expect(JSON.parse(fetchInit.body)).toEqual({
+      title: 'New pool',
+      description: 'A pool',
+      targetAmount: '1000',
+      asset: 'XLM',
+    });
+  });
+
+  it('getCurrentUser() calls GET /users/me', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ id: 'user-1' })
+    );
+
+    const result = await getCurrentUser();
+
+    expect(result).toEqual({ id: 'user-1' });
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/users/me');
+    expect(fetchInit.method).toBe('GET');
+  });
+
+  it('getTransactions() calls GET /transactions', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse([]));
+
+    const result = await getTransactions();
+
+    expect(result).toEqual([]);
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/transactions');
+    expect(fetchInit.method).toBe('GET');
+  });
+});
+
+describe('ApiClient pool comments', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'Headers', {
+      value: TestHeaders,
+      configurable: true,
+    });
+    global.fetch = jest.fn();
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('getPoolComments() calls GET /pools/:id/comments', async () => {
+    const comments = [{ id: 'c1', body: 'hello' }];
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse(comments));
+
+    const result = await getPoolComments('pool-1');
+
+    expect(result).toEqual(comments);
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/pools/pool-1/comments');
+    expect(fetchInit.method).toBe('GET');
+  });
+
+  it('createPoolComment() posts to /pools/:id/comments', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ id: 'c1', body: 'hello' })
+    );
+
+    const result = await createPoolComment('pool-1', { body: 'hello' });
+
+    expect(result).toEqual({ id: 'c1', body: 'hello' });
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/pools/pool-1/comments');
+    expect(fetchInit.method).toBe('POST');
+    expect(JSON.parse(fetchInit.body)).toEqual({ body: 'hello' });
+  });
+
+  it('updatePoolComment() patches /pools/:id/comments/:commentId', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ id: 'c1', body: 'edited' })
+    );
+
+    const result = await updatePoolComment('pool-1', 'c1', { body: 'edited' });
+
+    expect(result).toEqual({ id: 'c1', body: 'edited' });
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/pools/pool-1/comments/c1');
+    expect(fetchInit.method).toBe('PATCH');
+    expect(JSON.parse(fetchInit.body)).toEqual({ body: 'edited' });
+  });
+
+  it('deletePoolComment() deletes /pools/:id/comments/:commentId', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({}, { status: 204, statusText: 'No Content' })
+    );
+
+    await deletePoolComment('pool-1', 'c1');
+
+    const [url, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/pools/pool-1/comments/c1');
+    expect(fetchInit.method).toBe('DELETE');
+  });
+
+  it('createPoolComment() requires authentication', async () => {
+    await expect(
+      createPoolComment('pool-1', { body: 'hello' })
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 

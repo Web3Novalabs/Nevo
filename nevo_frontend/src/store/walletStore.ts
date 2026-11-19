@@ -14,6 +14,7 @@ interface WalletState {
   publicKey: string | null;
   accessToken: string | null;
   balances: AccountBalances | null;
+  selectedWalletId: string | null;
   loading: boolean;
   isAuthenticated: boolean;
   connectWallet: (onSuccess?: () => void) => Promise<void>;
@@ -29,11 +30,13 @@ export const useWalletStore = create<WalletState>()(
       publicKey: null,
       accessToken: null,
       balances: null,
+      selectedWalletId: null,
       loading: true,
       isAuthenticated: false,
 
       initialize: async () => {
-        const key = await getPublicKey();
+        const { selectedWalletId } = get();
+        const key = await getPublicKey(selectedWalletId ?? undefined);
         if (key) {
           const balances = await getAccountBalances(key);
           const accessToken = get().accessToken ?? getToken();
@@ -50,12 +53,12 @@ export const useWalletStore = create<WalletState>()(
       },
 
       connectWallet: async (onSuccess) => {
-        await connect(async () => {
-          const key = await getPublicKey();
+        await connect(async (walletId) => {
+          const key = await getPublicKey(walletId);
           if (key) {
             const balances = await getAccountBalances(key);
             const { nonce } = await fetchAuthChallenge(key);
-            const signature = await signWithWallet(nonce);
+            const signature = await signWithWallet(nonce, walletId);
             const { accessToken } = await verifyAuthSignature(
               key,
               nonce,
@@ -66,6 +69,7 @@ export const useWalletStore = create<WalletState>()(
               publicKey: key,
               balances,
               accessToken,
+              selectedWalletId: walletId ?? get().selectedWalletId,
               isAuthenticated: true,
             });
             onSuccess?.();
@@ -79,6 +83,7 @@ export const useWalletStore = create<WalletState>()(
           publicKey: null,
           accessToken: null,
           balances: null,
+          selectedWalletId: null,
           isAuthenticated: false,
         });
         clearToken();
@@ -104,6 +109,7 @@ export const useWalletStore = create<WalletState>()(
       partialize: (state) => ({
         publicKey: state.publicKey,
         accessToken: state.accessToken,
+        selectedWalletId: state.selectedWalletId,
         isAuthenticated: state.isAuthenticated,
       }),
     }

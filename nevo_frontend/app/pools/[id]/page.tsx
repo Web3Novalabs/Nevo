@@ -12,7 +12,15 @@ import { toast } from '@/components/Toast';
 import { usePoolsStore } from '@/src/store/poolsStore';
 import type { Pool } from '@/src/store/poolsStore';
 import { useWalletStore } from '@/src/store/walletStore';
-import { closePool, submitSignedXdr, withdrawPool } from '@/lib/api-client';
+import {
+  closePool,
+  submitSignedXdr,
+  withdrawPool,
+  getPoolComments,
+  createPoolComment,
+  updatePoolComment,
+  deletePoolComment,
+} from '@/lib/api-client';
 import { signTransaction } from '@stellar/freighter-api';
 
 // Testnet XLM native contract address (same as api-client)
@@ -58,6 +66,7 @@ function PoolDetailPageContent() {
   } = usePoolsStore();
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(true);
   const [donateOpen, setDonateOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [withdrawStep, setWithdrawStep] = useState<WithdrawStep>('idle');
@@ -146,12 +155,33 @@ function PoolDetailPageContent() {
         router.replace('/pools');
       } else {
         setContributors([]);
-        // TODO: replace with real API call: apiClient.get(`/pools/${id}/comments`)
-        setComments([]);
       }
     };
     loadPool();
   }, [id, fetchPool, router]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const loadComments = async () => {
+      setCommentsLoading(true);
+      try {
+        const data = await getPoolComments(id);
+        if (!cancelled) setComments(data);
+      } catch (err) {
+        if (!cancelled) {
+          console.error(err);
+          toast('Failed to load comments', 'error');
+        }
+      } finally {
+        if (!cancelled) setCommentsLoading(false);
+      }
+    };
+    loadComments();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   if (loading) {
     return <PoolDetailSkeleton />;
@@ -445,6 +475,7 @@ function PoolDetailPageContent() {
               comments={comments}
               setComments={setComments}
               currentUserAddress={publicKey}
+              loading={commentsLoading}
             />
           </section>
 
@@ -647,6 +678,7 @@ interface CommentsSectionProps {
   comments: Comment[];
   setComments: React.Dispatch<React.SetStateAction<Comment[]>>;
   currentUserAddress: string | null;
+  loading?: boolean;
 }
 
 function CommentsSection({
@@ -654,11 +686,13 @@ function CommentsSection({
   comments,
   setComments,
   currentUserAddress,
+  loading = false,
 }: CommentsSectionProps) {
-  function handleAddComment(text: string) {
+  async function handleAddComment(text: string) {
     if (!currentUserAddress) return;
+    const optimisticId = `optimistic-${crypto.randomUUID()}`;
     const newComment: Comment = {
-      id: `c-${crypto.randomUUID()}`,
+      id: optimisticId,
       poolId,
       authorAddress: currentUserAddress,
       text,
@@ -666,14 +700,24 @@ function CommentsSection({
       parentId: null,
       replies: [],
     };
-    // TODO: replace with real API call: apiClient.post(`/pools/${poolId}/comments`, { text })
     setComments((prev) => [newComment, ...prev]);
+    try {
+      const saved = await createPoolComment(poolId, { text });
+      setComments((prev) =>
+        prev.map((c) => (c.id === optimisticId ? { ...saved, replies: [] } : c))
+      );
+    } catch (err) {
+      console.error(err);
+      setComments((prev) => prev.filter((c) => c.id !== optimisticId));
+      toast('Failed to post comment', 'error');
+    }
   }
 
-  function handleAddReply(parentId: string, text: string) {
+  async function handleAddReply(parentId: string, text: string) {
     if (!currentUserAddress) return;
+    const optimisticId = `optimistic-${crypto.randomUUID()}`;
     const newReply: Comment = {
-      id: `c-${crypto.randomUUID()}`,
+      id: optimisticId,
       poolId,
       authorAddress: currentUserAddress,
       text,
@@ -681,21 +725,50 @@ function CommentsSection({
       parentId,
       replies: [],
     };
-    // TODO: replace with real API call: apiClient.post(`/pools/${poolId}/comments`, { text, parentId })
     setComments((prev) =>
       prev.map((c) =>
         c.id === parentId ? { ...c, replies: [...c.replies, newReply] } : c
       )
     );
+    try {
+      const saved = await createPoolComment(poolId, { text, parentId });
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === parentId
+            ? {
+                ...c,
+                replies: c.replies.map((r) =>
+                  r.id === optimisticId ? { ...saved, replies: [] } : r
+                ),
+              }
+            : c
+        )
+      );
+    } catch (err) {
+      console.error(err);
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === parentId
+            ? {
+                ...c,
+                replies: c.replies.filter((r) => r.id !== optimisticId),
+              }
+            : c
+        )
+      );
+      toast('Failed to post reply', 'error');
+    }
   }
 
-  function handleEditComment(
+  async function handleEditComment(
     id: string,
     text: string,
     isReply: boolean,
     parentId?: string
   ) {
-    // TODO: replace with real API call: apiClient.put(`/pools/${poolId}/comments/${id}`, { text })
+    if (!currentUserAddress) return;
+    const previous = comments;
+    const updatedAt = new Date().toISOString();
     if (isReply && parentId) {
       setComments((prev) =>
         prev.map((c) =>
@@ -703,9 +776,7 @@ function CommentsSection({
             ? {
                 ...c,
                 replies: c.replies.map((r) =>
-                  r.id === id
-                    ? { ...r, text, updatedAt: new Date().toISOString() }
-                    : r
+                  r.id === id ? { ...r, text, updatedAt } : r
                 ),
               }
             : c
@@ -713,19 +784,25 @@ function CommentsSection({
       );
     } else {
       setComments((prev) =>
-        prev.map((c) =>
-          c.id === id ? { ...c, text, updatedAt: new Date().toISOString() } : c
-        )
+        prev.map((c) => (c.id === id ? { ...c, text, updatedAt } : c))
       );
+    }
+    try {
+      await updatePoolComment(poolId, id, { text });
+    } catch (err) {
+      console.error(err);
+      setComments(previous);
+      toast('Failed to update comment', 'error');
     }
   }
 
-  function handleDeleteComment(
+  async function handleDeleteComment(
     id: string,
     isReply: boolean,
     parentId?: string
   ) {
-    // TODO: replace with real API call: apiClient.delete(`/pools/${poolId}/comments/${id}`)
+    if (!currentUserAddress) return;
+    const previous = comments;
     if (isReply && parentId) {
       setComments((prev) =>
         prev.map((c) =>
@@ -737,6 +814,13 @@ function CommentsSection({
     } else {
       setComments((prev) => prev.filter((c) => c.id !== id));
     }
+    try {
+      await deletePoolComment(poolId, id);
+    } catch (err) {
+      console.error(err);
+      setComments(previous);
+      toast('Failed to delete comment', 'error');
+    }
   }
 
   return (
@@ -747,7 +831,16 @@ function CommentsSection({
         placeholder="Share a thought or ask a question…"
       />
 
-      {comments.length === 0 ? (
+      {loading ? (
+        <div
+          className="flex flex-col gap-3"
+          aria-busy="true"
+          aria-label="Loading comments"
+        >
+          <div className="h-20 w-full animate-pulse rounded-xl bg-[var(--color-border)]" />
+          <div className="h-20 w-full animate-pulse rounded-xl bg-[var(--color-border)]" />
+        </div>
+      ) : comments.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 py-8 text-center">
           <p className="font-semibold">No comments yet</p>
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">
@@ -781,7 +874,7 @@ function CommentsSection({
 // ── CommentForm ──────────────────────────────────────────────────────────────
 
 interface CommentFormProps {
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string) => void | Promise<void>;
   currentUserAddress: string | null;
   placeholder?: string;
   initialValue?: string;
@@ -803,7 +896,7 @@ function CommentForm({
     e.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) return;
-    onSubmit(trimmed);
+    void onSubmit(trimmed);
     setText('');
   }
 
@@ -856,11 +949,11 @@ function CommentForm({
 interface CommentItemProps {
   comment: Comment;
   currentUserAddress: string | null;
-  onReply: (text: string) => void;
-  onEdit: (text: string) => void;
-  onDelete: () => void;
-  onEditReply: (replyId: string, text: string) => void;
-  onDeleteReply: (replyId: string) => void;
+  onReply: (text: string) => void | Promise<void>;
+  onEdit: (text: string) => void | Promise<void>;
+  onDelete: () => void | Promise<void>;
+  onEditReply: (replyId: string, text: string) => void | Promise<void>;
+  onDeleteReply: (replyId: string) => void | Promise<void>;
   isReply?: boolean;
 }
 
@@ -922,7 +1015,7 @@ function CommentItem({
             </button>
             <button
               type="button"
-              onClick={onDelete}
+              onClick={() => void onDelete()}
               className="text-xs text-[var(--color-text-muted)] hover:text-red-600 transition-colors"
               aria-label="Delete comment"
             >
@@ -936,7 +1029,7 @@ function CommentItem({
         <div className="mt-2">
           <CommentForm
             onSubmit={(text) => {
-              onEdit(text);
+              void onEdit(text);
               setIsEditing(false);
             }}
             currentUserAddress={currentUserAddress}
@@ -966,7 +1059,7 @@ function CommentItem({
             <div className="mt-3">
               <CommentForm
                 onSubmit={(text) => {
-                  onReply(text);
+                  void onReply(text);
                   setShowReplyForm(false);
                 }}
                 currentUserAddress={currentUserAddress}
