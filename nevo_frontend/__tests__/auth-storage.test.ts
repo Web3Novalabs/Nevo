@@ -1,5 +1,6 @@
-import { clearToken, getToken, setToken } from '../lib/auth-storage';
+import { clearAuth, clearToken, getToken, setToken } from '../lib/auth-storage';
 import { clearJwt, getStoredAccessToken } from '../lib/jwt-storage';
+import { useWalletStore } from '../lib/store';
 
 function mockWindowUndefined() {
   const originalWindow = global.window;
@@ -98,5 +99,37 @@ describe('jwt storage helpers', () => {
 
     clearJwt();
     expect(storageMock.removeItem).toHaveBeenCalledWith('nevo_jwt');
+  });
+});
+
+describe('clearAuth', () => {
+  const storageMock = {
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: storageMock,
+    });
+    useWalletStore.setState({
+      address: '0xabc',
+      accessToken: 'token-123',
+      isAuthenticated: true,
+    });
+  });
+
+  it('removes the token and resets the wallet store', () => {
+    clearAuth();
+
+    expect(storageMock.removeItem).toHaveBeenCalledWith('nevo_jwt');
+
+    const state = useWalletStore.getState();
+    expect(state.accessToken).toBeNull();
+    expect(state.isAuthenticated).toBe(false);
+    expect(state.address).toBeNull();
   });
 });

@@ -16,7 +16,7 @@ import type {
 } from './api-types';
 import type { paths } from './api-schema';
 import { env, validatePublicEnv } from './env';
-import { getToken } from './auth-storage';
+import { clearAuth, getToken } from './jwt-storage';
 import { toast } from '../components/Toast';
 
 validatePublicEnv();
@@ -158,6 +158,8 @@ export class ApiClient {
 
     if (accessToken) {
       headers.set('Authorization', `Bearer ${accessToken}`);
+    } else {
+      headers.delete('Authorization');
     }
 
     return {
@@ -604,57 +606,14 @@ export type {
 } from './api-types';
 
 // ─── JWT helpers ────────────────────────────────────────────────────────────
+// The token lives in exactly one place: lib/jwt-storage.ts. Re-exported here
+// for backwards compatibility with existing imports.
 
-const JWT_KEY = 'nevo_jwt';
-
-export function getJwt(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(JWT_KEY);
-}
-
-export function setJwt(token: string): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(JWT_KEY, token);
-  }
-}
-
-export function clearJwt(): void {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(JWT_KEY);
-  }
-}
-
-// ─── Auth request interceptor ────────────────────────────────────────────────
-// Attaches wallet credentials (legacy) and the JWT Bearer token when present.
-
-apiClient.addRequestInterceptor((config) => {
-  if (config.requireAuth !== false) {
-    const signature =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('wallet_signature')
-        : null;
-    const pubKey =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('wallet_pubkey')
-        : null;
-    const jwt = getJwt();
-
-    const headers = new Headers(config.headers);
-    if (signature && pubKey) {
-      headers.set('X-Wallet-Signature', signature);
-      headers.set('X-Wallet-Pubkey', pubKey);
-    }
-    if (jwt) {
-      headers.set('Authorization', `Bearer ${jwt}`);
-    }
-    config.headers = headers;
-  }
-  return config;
-});
+export { getToken as getJwt, setToken as setJwt, clearAuth as clearJwt };
 
 // ─── 401 response interceptor ────────────────────────────────────────────────
-// On any 401 outside the auth endpoints themselves, clear the JWT, disconnect
-// the wallet, and redirect to /login.
+// On any 401 outside the auth endpoints themselves, clear all auth state
+// (token + wallet store) via the single clearAuth() helper and redirect.
 
 const AUTH_ENDPOINTS = ['/auth/challenge', '/auth/verify'];
 
@@ -664,21 +623,10 @@ apiClient.addResponseInterceptor((response) => {
     const isAuthEndpoint = AUTH_ENDPOINTS.some((ep) => url.includes(ep));
 
     if (!isAuthEndpoint) {
-      clearJwt();
+      clearAuth();
 
       if (typeof window !== 'undefined') {
-        // Lazy-import the wallet store to avoid a circular dependency at module
-        // load time. The store is always available by the time a 401 fires.
-        import('@/src/store/walletStore')
-          .then(({ useWalletStore }) => {
-            return useWalletStore.getState().disconnectWallet();
-          })
-          .catch(() => {
-            // Best-effort — still redirect even if disconnect fails.
-          })
-          .finally(() => {
-            window.location.href = '/login';
-          });
+        window.location.href = '/login';
       }
     }
   }
@@ -723,6 +671,30 @@ export function fetchPoolDonations(
   );
 }
 
+export function fetchCreatorPools(publicKey: string): Promise<ApiPool[]> {
+  return apiClient.get<ApiPool[]>('/pools', {
+    params: { creator: publicKey },
+  });
+}
+
+export interface TransactionQueryParams {
+  page?: number;
+  limit?: number;
+  type?: string;
+  status?: string;
+  poolId?: string | number;
+  asset?: string;
+  from?: string;
+  to?: string;
+}
+
+export function fetchTransactions(
+  params: TransactionQueryParams = {}
+): Promise<PaginatedResponse<ApiDonation>> {
+  return apiClient.get<PaginatedResponse<ApiDonation>>('/transactions', {
+    params: params as Record<string, string | number | boolean | undefined>,
+    requireAuth: true,
+  });
 export function fetchCreatorPools(
   publicKey: string
 ): Promise<ApiResponseBody<'/pools', 'get'>> {

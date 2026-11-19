@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { BackToTopButton } from '@/components';
 import { EmptyState } from '@/components/EmptyState';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { apiClient } from '@/lib/api-client';
+import { fetchTransactions } from '@/lib/transactions-api';
 import type { Transaction, TxType, TxStatus } from '@/src/lib/mockTransactions';
 
 const PAGE_SIZE = 8;
@@ -135,43 +135,68 @@ const TYPE_ICON_BG: Record<TxType, string> = {
 function TransactionsPageContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTx, setLoadingTx] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<TxType | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<TxStatus | 'all'>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    apiClient
-      .get<Transaction[]>('/transactions')
-      .then((data) => setTransactions(data ?? []))
-      .catch(() => setTransactions([]))
-      .finally(() => setLoadingTx(false));
+    let cancelled = false;
+
+    setLoadingTx(true);
+    setError(null);
+
+    fetchTransactions({
+      page,
+      pageSize: PAGE_SIZE,
+      type: typeFilter === 'all' ? undefined : typeFilter,
+      status: statusFilter === 'all' ? undefined : statusFilter,
+      search: search || undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        setTransactions(result.items ?? []);
+        setTotal(result.total ?? 0);
+        setTotalPages(Math.max(1, result.totalPages ?? 1));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTransactions([]);
+        setTotal(0);
+        setTotalPages(1);
+        setError('We could not load your transactions. Please try again.');
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingTx(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    page,
+    typeFilter,
+    statusFilter,
+    search,
+    dateFrom,
+    dateTo,
+    reloadKey,
+  ]);
+
+  const retry = useCallback(() => {
+    setReloadKey((k) => k + 1);
   }, []);
 
-  const filtered = useMemo(() => {
-    return transactions.filter((tx) => {
-      if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
-      if (statusFilter !== 'all' && tx.status !== statusFilter) return false;
-      if (
-        search &&
-        !tx.recipient.toLowerCase().includes(search.toLowerCase()) &&
-        !tx.txHash.toLowerCase().includes(search.toLowerCase())
-      )
-        return false;
-      if (dateFrom && tx.date < dateFrom) return false;
-      if (dateTo && tx.date > dateTo + 'T23:59:59Z') return false;
-      return true;
-    });
-  }, [transactions, search, typeFilter, statusFilter, dateFrom, dateTo]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const paginated = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  );
 
   function resetFilters() {
     setSearch('');
@@ -290,14 +315,29 @@ function TransactionsPageContent() {
       </section>
 
       {/* Results count */}
-      <p className="mb-3 text-xs text-[var(--color-text-muted)]">
-        {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
-      </p>
+      {!loadingTx && !error && (
+        <p className="mb-3 text-xs text-[var(--color-text-muted)]">
+          {total} transaction{total !== 1 ? 's' : ''}
+        </p>
+      )}
 
       {/* Transaction list */}
       {loadingTx ? (
         <TransactionsSkeleton />
-      ) : paginated.length === 0 ? (
+      ) : error ? (
+        <div
+          role="alert"
+          className="flex flex-col items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-10 text-center"
+        >
+          <p className="text-sm text-[var(--color-text-muted)]">{error}</p>
+          <button
+            onClick={retry}
+            className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      ) : transactions.length === 0 ? (
         <EmptyState
           icon="transaction"
           iconTone="muted"
@@ -340,7 +380,7 @@ function TransactionsPageContent() {
             role="list"
             aria-label="Transactions"
           >
-            {paginated.map((tx) => (
+            {transactions.map((tx) => (
               <TransactionRow key={tx.id} tx={tx} />
             ))}
           </ul>

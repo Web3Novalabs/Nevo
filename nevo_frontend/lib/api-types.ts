@@ -33,6 +33,35 @@ export type ApiPaths = paths;
 /** The path item for a given route. */
 export type PathItem<P extends keyof paths> = paths[P];
 
+export interface ApiTransaction {
+  id: string;
+  txHash: string;
+  poolId: string;
+  poolTitle: string;
+  type: string;
+  status: string;
+  amount: string;
+  asset: string;
+  createdAt: string;
+}
+
+export interface TransactionListParams {
+  page?: number;
+  limit?: number;
+  type?: string;
+  status?: string;
+  poolId?: string;
+  search?: string;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export type PaginatedTransactionsResponse = PaginatedResponse<ApiTransaction>;
 /** The HTTP methods available on a given route. */
 export type Method<P extends keyof paths> = keyof paths[P] & string;
 

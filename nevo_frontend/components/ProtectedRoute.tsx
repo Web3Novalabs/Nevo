@@ -1,5 +1,7 @@
 'use client';
 
+import React, { useEffect } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useWalletStore } from '@/src/store/walletStore';
@@ -12,6 +14,8 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { isAuthenticated, loading, initialize } = useWalletStore();
   const { isAuthenticated, loading, initialize, token, reauthenticate } =
     useWalletStore();
   const [showReauthModal, setShowReauthModal] = useState(false);
@@ -23,6 +27,12 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }, [initialize]);
 
   useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      const query = searchParams?.toString();
+      const currentPath = query ? `${pathname}?${query}` : pathname;
+      router.push(`/login?next=${encodeURIComponent(currentPath)}`);
+    }
+  }, [loading, isAuthenticated, pathname, searchParams, router]);
     if (loading) return;
 
     if (!isAuthenticated) {

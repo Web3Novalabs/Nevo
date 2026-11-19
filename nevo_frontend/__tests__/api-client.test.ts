@@ -17,6 +17,8 @@ import {
 } from '@/lib/api-client';
 import * as rateLimit from '@/lib/rate-limit';
 import { RATE_LIMIT_EVENT, type RateLimitNotification } from '@/lib/rate-limit';
+import { setToken, getToken, clearToken } from '@/lib/jwt-storage';
+import { useWalletStore } from '@/lib/store';
 
 function jsonResponse(data: unknown, init: ResponseInit = {}) {
   const status = init.status ?? 200;
@@ -76,6 +78,8 @@ describe('ApiClient rate limiting', () => {
     jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
     global.fetch = jest.fn();
     window.localStorage.clear();
+    clearToken();
+    useWalletStore.setState({ address: null, isAuthenticated: false });
   });
 
   afterEach(() => {
@@ -150,11 +154,8 @@ describe('ApiClient rate limiting', () => {
     expect(fetchInit.headers.get('Authorization')).toBeNull();
   });
 
-  it('attaches Authorization header when JWT is stored', async () => {
-    window.localStorage.setItem(
-      'nevo-wallet',
-      JSON.stringify({ state: { accessToken: 'jwt-token-123' } })
-    );
+  it('attaches Authorization header from the jwt-storage module', async () => {
+    setToken('jwt-token-123');
 
     const client = new ApiClient('https://api.test', 1000, {
       maxRequests: 10,
@@ -170,10 +171,7 @@ describe('ApiClient rate limiting', () => {
   });
 
   it('omits Authorization header when requireAuth is false even if JWT is stored', async () => {
-    window.localStorage.setItem(
-      'nevo-wallet',
-      JSON.stringify({ state: { accessToken: 'jwt-token-123' } })
-    );
+    setToken('jwt-token-123');
 
     const client = new ApiClient('https://api.test', 1000, {
       maxRequests: 10,
@@ -186,6 +184,53 @@ describe('ApiClient rate limiting', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const [, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
     expect(fetchInit.headers.get('Authorization')).toBeNull();
+  });
+
+  it('does not send legacy wallet-signature headers', async () => {
+    window.localStorage.setItem('wallet_signature', 'legacy-signature');
+    window.localStorage.setItem('wallet_pubkey', 'legacy-pubkey');
+    setToken('jwt-token-123');
+
+    const client = new ApiClient('https://api.test', 1000, {
+      maxRequests: 10,
+      windowMs: 60_000,
+    });
+    (global.fetch as jest.Mock).mockResolvedValue(jsonResponse({ ok: true }));
+
+    await client.post('/protected', { foo: 'bar' }, { cacheResponse: false });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [, fetchInit] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(fetchInit.headers.get('X-Wallet-Signature')).toBeNull();
+    expect(fetchInit.headers.get('X-Wallet-Pubkey')).toBeNull();
+  });
+
+  it('clears all auth data on a 401 response', async () => {
+    setToken('jwt-token-123');
+    useWalletStore.setState({
+      address: 'GABC123',
+      isAuthenticated: true,
+    });
+
+    const client = new ApiClient('https://api.test', 1000, {
+      maxRequests: 10,
+      windowMs: 60_000,
+    });
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse(
+        { error: 'Unauthorized' },
+        { status: 401, statusText: 'Unauthorized' }
+      )
+    );
+
+    await expect(
+      client.get('/protected', { cacheResponse: false })
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+
+    expect(getToken()).toBeNull();
+    expect(window.localStorage.getItem('nevo_jwt')).toBeNull();
+    expect(useWalletStore.getState().isAuthenticated).toBe(false);
+    expect(useWalletStore.getState().address).toBeNull();
   });
 
   it('converts server 429 responses into retry-aware rate limit errors', async () => {

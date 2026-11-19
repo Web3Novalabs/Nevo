@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
 const searchParamsMock = {
-  get: vi.fn((key: string) => (key === 'from' ? '/dashboard' : null)),
+  get: vi.fn((key: string) => (key === 'next' ? '/dashboard' : null)),
 };
 
 vi.mock('next/navigation', () => ({
@@ -24,50 +24,16 @@ vi.mock('next/navigation', () => ({
 
 // Mock wallet store
 const initializeMock = vi.fn();
-const setAccessTokenMock = vi.fn();
+const connectWalletMock = vi.fn();
 let walletStoreState: {
   isAuthenticated: boolean;
   loading: boolean;
   initialize: typeof initializeMock;
-  setAccessToken: typeof setAccessTokenMock;
+  connectWallet: typeof connectWalletMock;
 };
 
 vi.mock('@/store/wallet-store', () => ({
   useWalletStore: () => walletStoreState,
-}));
-
-// Mock stellar-wallets-kit
-const connectMock = vi.fn();
-const signWithWalletMock = vi.fn();
-const getPublicKeyMock = vi.fn();
-
-vi.mock('@/app/stellar-wallets-kit', () => ({
-  connect: (...args: unknown[]) => connectMock(...args),
-  signWithWallet: (...args: unknown[]) => signWithWalletMock(...args),
-  getPublicKey: (...args: unknown[]) => getPublicKeyMock(...args),
-}));
-
-// Mock api-client
-const getMock = vi.fn();
-const postMock = vi.fn();
-
-vi.mock('@/lib/api-client', () => ({
-  apiClient: {
-    get: (...args: unknown[]) => getMock(...args),
-    post: (...args: unknown[]) => postMock(...args),
-  },
-}));
-
-// Mock errors helper to keep parseApiError behavior predictable
-vi.mock('@/lib/errors', () => ({
-  parseApiError: (err: unknown) => {
-    if (err instanceof Error) return err.message;
-    if (typeof err === 'string') return err;
-    if (err && typeof err === 'object' && 'message' in err) {
-      return String((err as { message: unknown }).message);
-    }
-    return 'Something went wrong';
-  },
 }));
 
 import LoginPage from '@/app/login/page';
@@ -79,7 +45,7 @@ const renderLoginPage = () =>
     </React.Suspense>
   );
 
-describe('LoginPage auth flow (#1549)', () => {
+describe('LoginPage auth flow (#1549, #1727)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -87,24 +53,17 @@ describe('LoginPage auth flow (#1549)', () => {
       isAuthenticated: false,
       loading: false,
       initialize: initializeMock,
-      setAccessToken: setAccessTokenMock,
+      connectWallet: connectWalletMock,
     };
 
     searchParamsMock.get.mockImplementation((key: string) =>
-      key === 'from' ? '/dashboard' : null
+      key === 'next' ? '/dashboard' : null
     );
 
-    getPublicKeyMock.mockResolvedValue('GABCDEF1234567890');
-    signWithWalletMock.mockResolvedValue('signed-transaction-xdr');
-    getMock.mockResolvedValue({ data: { challenge: 'challenge-xdr' } });
-    postMock.mockResolvedValue({ data: { token: 'access-token-123' } });
-
-    connectMock.mockImplementation(async (callback: () => Promise<void>) => {
-      await callback();
-    });
+    connectWalletMock.mockResolvedValue(undefined);
   });
 
-  it('completes wallet connect, verifies auth, and redirects to the from target', async () => {
+  it('calls the store connectWallet action and redirects to the next target', async () => {
     renderLoginPage();
 
     // Accept terms
@@ -118,17 +77,7 @@ describe('LoginPage auth flow (#1549)', () => {
     fireEvent.click(connectButton);
 
     await waitFor(() => {
-      expect(connectMock).toHaveBeenCalled();
-    });
-
-    await waitFor(() => {
-      expect(postMock).toHaveBeenCalledWith(
-        '/auth/verify',
-        expect.objectContaining({
-          publicKey: 'GABCDEF1234567890',
-          signedChallenge: 'signed-transaction-xdr',
-        })
-      );
+      expect(connectWalletMock).toHaveBeenCalledTimes(1);
     });
 
     await waitFor(() => {
@@ -136,8 +85,30 @@ describe('LoginPage auth flow (#1549)', () => {
     });
   });
 
-  it('shows an error alert when the user rejects the signature', async () => {
-    signWithWalletMock.mockRejectedValueOnce(
+  it('falls back to /dashboard when no next param is provided', async () => {
+    searchParamsMock.get.mockImplementation(() => null);
+
+    renderLoginPage();
+
+    const termsCheckbox = screen.getByRole('checkbox');
+    fireEvent.click(termsCheckbox);
+
+    const connectButton = screen.getByRole('button', {
+      name: /connect wallet & sign in/i,
+    });
+    fireEvent.click(connectButton);
+
+    await waitFor(() => {
+      expect(connectWalletMock).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith('/dashboard');
+    });
+  });
+
+  it('shows an error alert when connectWallet rejects', async () => {
+    connectWalletMock.mockRejectedValueOnce(
       new Error('User rejected the signature request')
     );
 
@@ -158,32 +129,12 @@ describe('LoginPage auth flow (#1549)', () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  it('shows an error alert when the wallet connection is rejected', async () => {
-    connectMock.mockRejectedValueOnce(new Error('Connection rejected by user'));
-
-    renderLoginPage();
-
-    const termsCheckbox = screen.getByRole('checkbox');
-    fireEvent.click(termsCheckbox);
-
-    const connectButton = screen.getByRole('button', {
-      name: /connect wallet & sign in/i,
-    });
-    fireEvent.click(connectButton);
-
-    const alert = await screen.findByRole('alert');
-    expect(alert).toBeInTheDocument();
-    expect(alert.textContent).toMatch(/connection rejected by user/i);
-
-    expect(pushMock).not.toHaveBeenCalled();
-  });
-
   it('redirects already-authenticated users away from /login', async () => {
     walletStoreState = {
       isAuthenticated: true,
       loading: false,
       initialize: initializeMock,
-      setAccessToken: setAccessTokenMock,
+      connectWallet: connectWalletMock,
     };
 
     renderLoginPage();
