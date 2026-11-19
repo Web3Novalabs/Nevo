@@ -21,7 +21,7 @@ fn test_get_school_metadata_at_registration() {
     let school = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school);
+    client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
 
     // Verify school is registered and linked to pool
     let title = String::from_str(&env, "School Foundation Pool");
@@ -82,7 +82,7 @@ fn test_get_school_metadata_updated_on_reregistration() {
     let school = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school);
+    client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
 
     // Create first pool with original metadata
     let original_desc = String::from_str(&env, "Original metadata hash");
@@ -98,8 +98,10 @@ fn test_get_school_metadata_updated_on_reregistration() {
     let (_, desc1) = client.get_pool_metadata(&pool_id1);
     assert_eq!(desc1, original_desc);
 
-    // Re-register school (if allowed, simulating metadata update)
-    client.register_school(&admin, &school);
+    // Re-register school with a new hash (simulating metadata update)
+    let updated_hash = BytesN::from_array(&env, &[1u8; 32]);
+    client.register_school(&school, &updated_hash);
+    assert_eq!(client.get_school_metadata(&school), updated_hash);
 
     // Create second pool with updated metadata
     let updated_desc = String::from_str(&env, "Updated metadata hash 456def");
@@ -135,8 +137,8 @@ fn test_get_school_metadata_isolation_between_schools() {
     let school2 = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school1);
-    client.register_school(&admin, &school2);
+    client.register_school(&school1, &BytesN::from_array(&env, &[0u8; 32]));
+    client.register_school(&school2, &BytesN::from_array(&env, &[0u8; 32]));
 
     // Create pools for each school
     let school1_desc = String::from_str(&env, "School 1 metadata hash abc123");
@@ -186,7 +188,7 @@ fn test_get_school_metadata_roundtrip() {
     let school = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school);
+    client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
 
     // Create pool with specific metadata
     let original_title = String::from_str(&env, "Exact Title Match");
@@ -239,11 +241,11 @@ fn test_get_school_metadata_multiple_pools_per_school() {
     let school = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school);
+    client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
 
     // Create multiple pools for the same school
-    let mut pool_ids = Vec::new();
-    let mut descriptions = Vec::new();
+    let mut pool_ids = std::vec::Vec::new();
+    let mut descriptions = std::vec::Vec::new();
 
     for i in 0..3 {
         let desc = String::from_str(&env, &format!("Pool {} metadata", i));
@@ -283,7 +285,7 @@ fn test_get_school_metadata_consistency_with_pool_creation() {
     let school = Address::generate(&env);
 
     client.set_admin(&admin);
-    client.register_school(&admin, &school);
+    client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
 
     // Create a pool immediately after school registration
     let metadata_hash = String::from_str(&env, "hash_xyz789");

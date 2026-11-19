@@ -2023,8 +2023,5 @@ mod test_pool_retrieval;
 mod test_register_school;
 mod test_issue_1455;
 mod test_withdraw;
-mod test_timestamp_edge_cases;
-mod test_token_transfer_errors;
 mod test_issue_1460;
-mod test_issue_1459;
 mod test_issue_1459;

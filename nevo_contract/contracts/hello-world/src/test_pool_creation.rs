@@ -154,7 +154,7 @@ fn test_create_pool_metadata_stored() {
 
 /// Test 7: Pool with zero goal is rejected
 #[test]
-#[should_panic(expected = "Error(Contract, #17)")]
+#[should_panic(expected = "Error(Contract, #18)")]
 fn test_create_pool_zero_goal() {
     let env = Env::default();
     let contract_id = env.register(Contract, ());
@@ -238,7 +238,7 @@ fn test_create_pool_pool_count_tracks_total() {
 
 /// Test 11: Invalid config with empty title fails validation
 #[test]
-#[should_panic(expected = "Error(Contract, #16)")]
+#[should_panic(expected = "Error(Contract, #17)")]
 fn test_create_pool_invalid_empty_title() {
     let env = Env::default();
     let contract_id = env.register(Contract, ());
@@ -272,7 +272,7 @@ fn test_create_pool_invalid_empty_description() {
 
 /// Test 13: Invalid config with zero duration fails validation
 #[test]
-#[should_panic(expected = "Error(Contract, #18)")]
+#[should_panic(expected = "Error(Contract, #19)")]
 fn test_create_pool_invalid_zero_duration() {
     let env = Env::default();
     let contract_id = env.register(Contract, ());
