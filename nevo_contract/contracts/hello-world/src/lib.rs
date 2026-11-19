@@ -157,9 +157,9 @@ pub enum ContractError {
     /// Donation amount must be positive (greater than zero).
     InvalidAmount = 27,
     /// Token address does not match the pool's configured token.
-    TokenTransferFailed = 21,
+    TokenTransferFailed = 28,
     /// Token address is invalid (e.g., contract's own address).
-    InvalidTokenAddress = 24,
+    InvalidTokenAddress = 29,
 }
 
 // Helper functions for timestamp/deadline edge-case tests
@@ -803,20 +803,6 @@ impl Contract {
             .persistent()
             .get::<_, u32>(&pool_count_key)
             .unwrap_or(0)
-    }
-
-    /// Get all campaign (pool) IDs.
-    pub fn get_all_campaigns(env: Env) -> Vec<u32> {
-        let count = Self::get_pool_count(env.clone());
-        let mut list = Vec::new(&env);
-        let mut id = 1u32;
-        while id <= count {
-            if env.storage().persistent().has(&id) {
-                list.push_back(id);
-            }
-            id += 1;
-        }
-        list
     }
 
     /// Get the number of unique donors for a pool.
