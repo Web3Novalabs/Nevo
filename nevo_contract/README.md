@@ -66,6 +66,20 @@ pub struct Pool {
 - `Disbursed`: Funds have been distributed to students
 - `Closed`: Pool is permanently closed
 
+`close_pool` requires sponsor authorization and accepts `Disbursed` or
+`Cancelled` pools. Creation enters `Active`, and an accounting donation that
+meets the goal enters `Completed`. Claims update disbursement accounting while
+keeping the current state. Only the mock `set_pool_state` currently assigns
+`Disbursed` or `Cancelled`. A production workflow still needs authorized
+transitions with settlement and cancellation rules before the sponsor can
+close a pool through that workflow.
+
+Student disbursements count toward a pool-wide claim total. A successful
+claim makes the pool ineligible for donor refunds. For an existing pool with
+no aggregate, the contract can recover earlier claims from indexed
+applications. Historical claims for students without an indexed application
+require reconciliation from on-chain claim events before an upgrade.
+
 #### Application
 
 Tracks a student's approved funding and disbursement progress.
