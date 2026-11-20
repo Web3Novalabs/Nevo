@@ -1,5 +1,6 @@
 import {
   Address,
+  Asset,
   Contract,
   Keypair,
   TransactionBuilder,
@@ -7,10 +8,28 @@ import {
   nativeToScVal,
 } from '@stellar/stellar-sdk';
 import { Server } from '@stellar/stellar-sdk/rpc';
-import { networkPassphrase, sorobanRpcUrl } from './env';
+import { env } from './env';
 
-const RPC_URL = sorobanRpcUrl;
-const NETWORK_PASSPHRASE = networkPassphrase;
+export type DonationAsset = 'XLM' | 'USDC';
+
+const USDC_ISSUER = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+
+/** SAC contract ID for the asset used by a token-backed donation. */
+export function getDonationTokenAddress(asset: DonationAsset = 'XLM'): string {
+  const envVar =
+    asset === 'XLM'
+      ? 'NEXT_PUBLIC_NATIVE_XLM_SAC_ADDRESS'
+      : 'NEXT_PUBLIC_USDC_SAC_ADDRESS';
+  const configured = process.env[envVar]?.trim();
+  if (configured) return configured;
+
+  const stellarAsset =
+    asset === 'XLM' ? Asset.native() : new Asset('USDC', USDC_ISSUER);
+  return stellarAsset.contractId(env.networkPassphrase);
+}
+
+const RPC_URL = env.sorobanRpcUrl;
+const NETWORK_PASSPHRASE = env.networkPassphrase;
 const BASE_FEE = '100';
 const TX_TIMEOUT = 30;
 
@@ -86,14 +105,16 @@ class ContractService {
   }
 
   /**
-   * Builds an XDR-encoded transaction to donate to a pool.
+   * Builds an XDR-encoded transaction that transfers tokens into a pool.
    *
    * @param amount - Donation amount in stroops (1 XLM = 10,000,000 stroops).
+   * @param tokenAddress - SAC contract ID of the token being donated.
    */
   async buildDonateTransaction(
     poolId: number,
     donor: string,
-    amount: bigint
+    amount: bigint,
+    tokenAddress: string = getDonationTokenAddress('XLM')
   ): Promise<string> {
     const contract = new Contract(getContractId());
     const account = await this.server.getAccount(donor);
@@ -103,10 +124,11 @@ class ContractService {
     })
       .addOperation(
         contract.call(
-          'donate',
+          'donate_with_token',
           nativeToScVal(poolId, { type: 'u32' }),
           addressScVal(donor),
-          nativeToScVal(amount, { type: 'u128' })
+          new Address(tokenAddress).toScVal(),
+          nativeToScVal(amount, { type: 'i128' })
         )
       )
       .setTimeout(TX_TIMEOUT)
