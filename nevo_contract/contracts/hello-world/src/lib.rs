@@ -44,6 +44,7 @@ const GRACE_PERIOD_SECS: u64 = 86400; // 24 hours
 // Application and claim tracking constants
 const APPLICATION_STATUS_PREFIX: &str = "app_status";
 const CLAIMED_AMOUNT_PREFIX: &str = "claimed_amount";
+const POOL_CLAIMED_PREFIX: &str = "pool_claimed";
 const APPLICATION_STATUS_APPROVED: &str = "Approved";
 const APPLICATION_STATUS_REJECTED: &str = "Rejected";
 
@@ -240,14 +241,14 @@ pub struct Application {
 ///
 /// Current state transition functions:
 /// - `create_pool()` / `create_pool_for_school()`: Initializes pool to `Active`
-/// - `donate()`: Validates pool is `Active` (rejects if `Closed`)
+/// - `donate()`: Moves an active pool to `Completed` when it reaches its goal
 /// - `close_pool()`: Requires pool to be `Disbursed` or `Cancelled` before closing
 ///
 /// # Validation Rules
 ///
 /// - `donate()` only accepts donations if state is `Active`
 /// - `close_pool()` only allows closing from `Disbursed` or `Cancelled` states
-/// - Other state transitions are not yet implemented (see TODO comments)
+/// - The mock state setter is the only path into `Disbursed` or `Cancelled`
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PoolState {
@@ -311,6 +312,31 @@ pub struct EmergencyWithdrawalRequest {
     pub request_timestamp: u64,
     /// Address that requested the withdrawal and will receive the tokens.
     pub requested_by: Address,
+}
+
+fn pool_claimed(env: &Env, pool_id: u32) -> u128 {
+    let storage = env.storage().persistent();
+    let total_key = (Symbol::new(env, POOL_CLAIMED_PREFIX), pool_id);
+    if let Some(total) = storage.get(&total_key) {
+        return total;
+    }
+
+    // Recover claims recorded before the pool-wide total was introduced.
+    let count_key = (Symbol::new(env, APPLICATION_COUNT_PREFIX), pool_id);
+    let count: u32 = storage.get(&count_key).unwrap_or(0);
+    let application_prefix = Symbol::new(env, APPLICATION_PREFIX);
+    let claimed_prefix = Symbol::new(env, CLAIMED_AMOUNT_PREFIX);
+    let mut total = 0u128;
+    for index in 1..=count {
+        let key = (&application_prefix, pool_id, index);
+        if let Some((_, student, _)) = storage.get::<_, (u32, Address, String)>(&key) {
+            let key = (&claimed_prefix, pool_id, student);
+            if let Some(application) = storage.get::<_, Application>(&key) {
+                total = total.saturating_add(application.amount_claimed as u128);
+            }
+        }
+    }
+    total
 }
 
 #[contract]
@@ -1282,7 +1308,10 @@ impl Contract {
     /// - `ContractError::InvalidClaimAmount` if `claim_amount <= 0`
     /// - `ContractError::ApplicationStatusNotFound` if no status has been set
     /// - `ContractError::ApplicationNotApproved` if status != "Approved"
-    /// - `ContractError::OverdrawAttempt` if `amount_claimed + claim_amount > collected`
+    /// - `ContractError::PoolIsClosed` if the pool is closed
+    /// - `ContractError::InvalidPoolState` if the pool is cancelled or disbursed
+    /// - `ContractError::OverdrawAttempt` if the claim exceeds the pool's unclaimed funds
+    /// - `ContractError::TokenTransferFailed` if a configured pool token does not match
     pub fn claim_funds(
         env: Env,
         student: Address,
@@ -1319,11 +1348,25 @@ impl Contract {
             .get::<_, Pool>(&pool_id)
             .unwrap_or_else(|| env.panic_with_error(ContractError::PoolNotFound));
 
-        if pool.state == PoolState::Cancelled {
+        if pool.is_closed || pool.state == PoolState::Closed {
+            env.panic_with_error(ContractError::PoolIsClosed);
+        }
+
+        if matches!(pool.state, PoolState::Cancelled | PoolState::Disbursed) {
             env.panic_with_error(ContractError::InvalidPoolState);
         }
 
-        let collected = pool.collected as i128;
+        let token_key = (Symbol::new(&env, POOL_TOKEN_PREFIX), pool_id);
+        if env
+            .storage()
+            .persistent()
+            .get::<_, Address>(&token_key)
+            .is_some_and(|expected| expected != token_address)
+        {
+            env.panic_with_error(ContractError::TokenTransferFailed);
+        }
+
+        let collected = i128::try_from(pool.collected).unwrap_or(i128::MAX);
 
         // Load or initialise the Application record for this student
         let app_key = (
@@ -1348,33 +1391,29 @@ impl Contract {
             application.approved_amount = collected;
         }
 
-        // Enforce the partial-payment invariant
-        if application.amount_claimed + claim_amount > collected {
-            env.panic_with_error(ContractError::OverdrawAttempt);
-        }
+        let student_total = application
+            .amount_claimed
+            .checked_add(claim_amount)
+            .filter(|total| *total <= collected)
+            .unwrap_or_else(|| env.panic_with_error(ContractError::OverdrawAttempt));
+        let pool_total = pool_claimed(&env, pool_id)
+            .checked_add(claim_amount as u128)
+            .filter(|total| *total <= pool.collected)
+            .unwrap_or_else(|| env.panic_with_error(ContractError::OverdrawAttempt));
 
-        // Accumulate protocol fees (1% of claim amount)
-        // Fee tracking is isolated from student allocations
         let fee = claim_amount / 100;
         let net_transfer = claim_amount - fee;
+        let storage = env.storage().persistent();
+        let unclaimed_fees_key = Symbol::new(&env, UNCLAIMED_FEES);
+        let current_fees: i128 = storage.get(&unclaimed_fees_key).unwrap_or(0);
 
-        // Disburse tokens to the student
+        application.amount_claimed = student_total;
+        storage.set(&app_key, &application);
+        storage.set(&(Symbol::new(&env, POOL_CLAIMED_PREFIX), pool_id), &pool_total);
+        storage.set(&unclaimed_fees_key, &(current_fees + fee));
+
         let token_client = token::Client::new(&env, &token_address);
         token_client.transfer(&env.current_contract_address(), &student, &net_transfer);
-        let unclaimed_fees_key = Symbol::new(&env, UNCLAIMED_FEES);
-        let mut current_fees: i128 = env
-            .storage()
-            .persistent()
-            .get::<_, i128>(&unclaimed_fees_key)
-            .unwrap_or(0);
-        current_fees += fee;
-        env.storage()
-            .persistent()
-            .set(&unclaimed_fees_key, &current_fees);
-
-        // Persist the updated running total
-        application.amount_claimed += claim_amount;
-        env.storage().persistent().set(&app_key, &application);
 
         // Issue #954: emit funds-claimed event
         env.events().publish(
@@ -1532,9 +1571,12 @@ impl Contract {
     ///      (`current_ledger > deadline`).
     ///   3. The grace period has elapsed
     ///      (`current_ledger >= deadline + REFUND_GRACE_PERIOD_LEDGERS`).
+    ///   4. The pool is open and no student funds have been disbursed.
     ///
     /// # Panics
     /// - `ContractError::PoolNotFound` if pool_id is invalid
+    /// - `ContractError::PoolIsClosed` if the pool is closed
+    /// - `ContractError::InvalidPoolState` if the pool is disbursed or a student has claimed funds
     /// - `ContractError::PoolNotExpired` if the deadline has not passed (or grace not elapsed)
     /// - `ContractError::NoContributionToRefund` if the donor has no recorded contribution
     pub fn refund_donation(env: Env, pool_id: u32, donor: Address, token_address: Address) {
@@ -1558,9 +1600,17 @@ impl Contract {
         // Deadline must have passed AND grace period must have elapsed
         if deadline == 0
             || current_ledger <= deadline
-            || current_ledger < deadline + REFUND_GRACE_PERIOD_LEDGERS
+            || current_ledger.saturating_sub(deadline) < REFUND_GRACE_PERIOD_LEDGERS
         {
             env.panic_with_error(ContractError::PoolNotExpired);
+        }
+
+        if pool.is_closed || pool.state == PoolState::Closed {
+            env.panic_with_error(ContractError::PoolIsClosed);
+        }
+
+        if pool.state == PoolState::Disbursed || pool_claimed(&env, pool_id) != 0 {
+            env.panic_with_error(ContractError::InvalidPoolState);
         }
 
         let token_key = (Symbol::new(&env, POOL_TOKEN_PREFIX), pool_id);
@@ -1791,6 +1841,8 @@ impl Contract {
             env.panic_with_error(ContractError::GracePeriodNotElapsed);
         }
 
+        env.storage().persistent().remove(&withdrawal_key);
+
         let token_client = token::Client::new(&env, &request.token_address);
         token_client.transfer(
             &env.current_contract_address(),
@@ -1802,11 +1854,8 @@ impl Contract {
             (EMERGENCY_WITHDRAWAL_EXECUTED, pool_id),
             (request.token_address.clone(), request.amount, request.requested_by.clone()),
         );
-
-        env.storage().persistent().remove(&withdrawal_key);
     }
 
-    // TODO: Replace with real implementation from issue #XYZ
     // Mock function to set pool state for testing
     pub fn set_pool_state(env: Env, pool_id: u32, state: PoolState) {
         let mut pool: Pool = env
@@ -2025,3 +2074,6 @@ mod test_issue_1455;
 mod test_withdraw;
 mod test_issue_1460;
 mod test_issue_1459;
+
+#[cfg(test)]
+mod test_pool_disbursement_safety;
