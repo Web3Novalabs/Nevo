@@ -115,6 +115,24 @@ back exactly one migration; run it repeatedly to go further back. Once a
 migration is merged and deployed, do not edit it — add a new migration that
 corrects it, since anyone who already ran the old one will never re-run it.
 
+## Platform stats
+
+`GET /stats` (public) returns aggregate impact metrics computed from the database in a single `REPEATABLE READ` snapshot:
+
+```json
+{
+  "totalRaised": [{ "asset": "XLM", "amount": "1500000000" }],
+  "activePools": 12,
+  "completedPools": 4,
+  "uniqueDonors": 87
+}
+```
+
+- `totalRaised`: `SUM(donations.amount)` per asset (exact `numeric` arithmetic in PostgreSQL), returned as integer **strings** in base units, ordered by asset code. Empty array when there are no donations.
+- `activePools` / `completedPools`: pools with `PoolStatus.Active` / `PoolStatus.Completed`.
+- `uniqueDonors`: `COUNT(DISTINCT donations.donor_wallet)`.
+- Responses are cached in memory for `STATS_CACHE_TTL_MS` (default `30000`, `0` disables), so totals are never more than one TTL stale; concurrent cache misses share one query and failures are not cached.
+
 ## Run tests
 
 ```bash
