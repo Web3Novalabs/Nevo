@@ -58,7 +58,7 @@ describe('request-context', () => {
         const testRequestId = 'promise-test-id-1';
 
         requestContext.run({ requestId: testRequestId }, () => {
-          Promise.resolve()
+          void Promise.resolve()
             .then(() => {
               expect(getRequestId()).toBe(testRequestId);
             })
@@ -72,7 +72,7 @@ describe('request-context', () => {
         const testRequestId = 'nested-promise-id';
 
         requestContext.run({ requestId: testRequestId }, () => {
-          Promise.resolve()
+          void Promise.resolve()
             .then(() => {
               expect(getRequestId()).toBe(testRequestId);
               return Promise.resolve();
@@ -99,7 +99,7 @@ describe('request-context', () => {
         };
 
         requestContext.run({ requestId: testRequestId }, () => {
-          asyncFn();
+          void asyncFn();
         });
       });
 
@@ -143,12 +143,12 @@ describe('request-context', () => {
 
               if (results.length === 2) {
                 // Verify each request only saw its own ID
-                expect(
-                  results.find((r) => r.id === requestId1)?.context,
-                ).toBe(requestId1);
-                expect(
-                  results.find((r) => r.id === requestId2)?.context,
-                ).toBe(requestId2);
+                expect(results.find((r) => r.id === requestId1)?.context).toBe(
+                  requestId1,
+                );
+                expect(results.find((r) => r.id === requestId2)?.context).toBe(
+                  requestId2,
+                );
                 done();
               }
             }, delay);
@@ -166,7 +166,7 @@ describe('request-context', () => {
 
         const captureWithPromises = (id: string) => {
           requestContext.run({ requestId: id }, () => {
-            Promise.resolve()
+            void Promise.resolve()
               .then(() => Promise.resolve())
               .then(() => {
                 results.push({
@@ -204,7 +204,7 @@ describe('request-context', () => {
             contexts.push(getRequestId());
 
             // Promise
-            Promise.resolve().then(() => {
+            void Promise.resolve().then(() => {
               contexts.push(getRequestId());
             });
 
@@ -217,8 +217,16 @@ describe('request-context', () => {
                 const res1 = results.find((r) => r.id === requestId1);
                 const res2 = results.find((r) => r.id === requestId2);
 
-                expect(res1?.contexts).toEqual([requestId1, requestId1, requestId1]);
-                expect(res2?.contexts).toEqual([requestId2, requestId2, requestId2]);
+                expect(res1?.contexts).toEqual([
+                  requestId1,
+                  requestId1,
+                  requestId1,
+                ]);
+                expect(res2?.contexts).toEqual([
+                  requestId2,
+                  requestId2,
+                  requestId2,
+                ]);
                 done();
               }
             }, 10);
@@ -233,7 +241,7 @@ describe('request-context', () => {
         const requestIds = ['req-1', 'req-2', 'req-3'];
         const results: Record<string, string | undefined> = {};
 
-        requestIds.forEach((id, index) => {
+        requestIds.forEach((id) => {
           requestContext.run({ requestId: id }, () => {
             setTimeout(() => {
               results[id] = getRequestId();

@@ -21,7 +21,7 @@ describe('GlobalExceptionFilter', () => {
     host = {
       switchToHttp: () => ({
         getResponse: () => ({ status }),
-        getRequest: () => ({ url: '/test' }),
+        getRequest: () => ({ url: '/test', headers: {} }),
       }),
     } as unknown as ArgumentsHost;
   });
@@ -62,16 +62,23 @@ describe('GlobalExceptionFilter', () => {
     expect(typeof body().timestamp).toBe('string');
   });
 
-  it('handles a plain Error as a 500', () => {
+  it('handles a plain Error as a masked 500 and logs the details', () => {
+    const errorSpy = jest.spyOn(Logger.prototype, 'error');
+
     filter.catch(new TypeError('boom'), host);
 
     expect(status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
     expect(body()).toMatchObject({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: 'boom',
-      error: 'TypeError',
+      message: 'An internal error occurred',
+      error: 'Internal Server Error',
       path: '/test',
     });
+    expect(JSON.stringify(body())).not.toContain('boom');
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('boom'),
+      expect.any(String),
+    );
     expect(typeof body().timestamp).toBe('string');
   });
 
@@ -81,7 +88,7 @@ describe('GlobalExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
     expect(body()).toMatchObject({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: 'Internal server error',
+      message: 'An internal error occurred',
       error: 'Internal Server Error',
       path: '/test',
     });

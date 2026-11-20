@@ -3,7 +3,6 @@ import { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { requestContext } from './request-context';
 
-
 @Injectable()
 export class LoggingMiddleware implements NestMiddleware {
   private readonly logger = new Logger('HTTP');
@@ -24,6 +23,5 @@ export class LoggingMiddleware implements NestMiddleware {
     requestContext.run({ requestId }, () => {
       next();
     });
-
   }
 }

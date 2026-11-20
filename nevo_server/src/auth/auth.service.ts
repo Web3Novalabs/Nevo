@@ -49,7 +49,7 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    await this.usersService.incrementTokenVersion(user.id);
+    await this.usersService.incrementTokenVersion(user.publicKey);
   }
 
   private verifySignature(

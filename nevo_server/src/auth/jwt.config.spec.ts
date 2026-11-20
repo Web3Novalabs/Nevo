@@ -1,5 +1,3 @@
-import { Logger } from '@nestjs/common';
-
 describe('getJwtSecret()', () => {
   const ORIGINAL_ENV = { ...process.env };
 
@@ -7,15 +5,20 @@ describe('getJwtSecret()', () => {
 
   beforeEach(() => {
     jest.resetModules();
-    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
-    warnSpy.mockRestore();
+    warnSpy?.mockRestore();
     process.env = { ...ORIGINAL_ENV };
   });
 
+  // resetModules gives each load its own @nestjs/common, so the Logger spy
+  // has to be installed on that fresh copy before jwt.config is imported.
   const loadModule = async () => {
+    const { Logger: FreshLogger } = await import('@nestjs/common');
+    warnSpy = jest
+      .spyOn(FreshLogger.prototype, 'warn')
+      .mockImplementation(() => undefined);
     return await import('./jwt.config');
   };
 

@@ -16,13 +16,16 @@ describe('StellarError', () => {
         HttpStatus.REQUEST_TIMEOUT,
         'Transaction timed out — the network did not confirm it in time',
       ],
-    ])('maps %s to its documented status and message', (code, status, message) => {
-      const err = new StellarError(code);
+    ])(
+      'maps %s to its documented status and message',
+      (code, status, message) => {
+        const err = new StellarError(code);
 
-      expect(err).toBeInstanceOf(HttpException);
-      expect(err.getStatus()).toBe(status);
-      expect(err.getResponse()).toBe(message);
-    });
+        expect(err).toBeInstanceOf(HttpException);
+        expect(err.getStatus()).toBe(status);
+        expect(err.getResponse()).toBe(message);
+      },
+    );
   });
 
   describe('unmapped codes', () => {

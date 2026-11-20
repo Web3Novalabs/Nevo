@@ -4,10 +4,14 @@ export class UpdateDonationsAssetLength1800000000000 implements MigrationInterfa
   name = 'UpdateDonationsAssetLength1800000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "donations" ALTER COLUMN "asset" TYPE character varying(12)`);
+    await queryRunner.query(
+      `ALTER TABLE "donations" ALTER COLUMN "asset" TYPE character varying(12)`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "donations" ALTER COLUMN "asset" TYPE character varying(10)`);
+    await queryRunner.query(
+      `ALTER TABLE "donations" ALTER COLUMN "asset" TYPE character varying(10)`,
+    );
   }
 }

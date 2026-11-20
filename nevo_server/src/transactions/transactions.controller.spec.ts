@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
 import request from 'supertest';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { TransactionsController } from './transactions.controller';
@@ -14,7 +13,10 @@ import { StellarError } from '../contract/stellar.error';
 
 describe('TransactionsController', () => {
   let controller: TransactionsController;
-  let contractService: { submitSignedXdr: jest.Mock; describeSubmission: jest.Mock };
+  let contractService: {
+    submitSignedXdr: jest.Mock;
+    describeSubmission: jest.Mock;
+  };
 
   beforeEach(async () => {
     contractService = {
@@ -25,7 +27,10 @@ describe('TransactionsController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TransactionsController],
       providers: [
-        { provide: HistoryService, useValue: { list: jest.fn(), record: jest.fn() } },
+        {
+          provide: HistoryService,
+          useValue: { list: jest.fn(), record: jest.fn() },
+        },
         {
           provide: ContractService,
           useValue: contractService,
@@ -45,7 +50,10 @@ describe('TransactionsController', () => {
     it('submits signed XDR via ContractService and returns txHash', async () => {
       contractService.submitSignedXdr.mockResolvedValue('tx-hash-12345');
 
-      const result = await controller.submit({ xdr: 'AAAA...signedXdr' }, { user: { publicKey: 'GPUBKEY' } });
+      const result = await controller.submit(
+        { xdr: 'AAAA...signedXdr' },
+        { user: { publicKey: 'GPUBKEY' } },
+      );
 
       expect(contractService.submitSignedXdr).toHaveBeenCalledWith(
         'AAAA...signedXdr',
@@ -57,7 +65,10 @@ describe('TransactionsController', () => {
       const signedXdr = 'BBBB...differentXdr';
       contractService.submitSignedXdr.mockResolvedValue('different-hash');
 
-      const result = await controller.submit({ xdr: signedXdr }, { user: { publicKey: 'GPUBKEY' } });
+      const result = await controller.submit(
+        { xdr: signedXdr },
+        { user: { publicKey: 'GPUBKEY' } },
+      );
 
       expect(contractService.submitSignedXdr).toHaveBeenCalledTimes(1);
       expect(contractService.submitSignedXdr).toHaveBeenCalledWith(signedXdr);
@@ -68,33 +79,45 @@ describe('TransactionsController', () => {
       const error = new StellarError('tx_bad_auth');
       contractService.submitSignedXdr.mockRejectedValue(error);
 
-      await expect(controller.submit({ xdr: 'bad-xdr' }, { user: { publicKey: 'GPUBKEY' } })).rejects.toThrow(
-        StellarError,
-      );
+      await expect(
+        controller.submit(
+          { xdr: 'bad-xdr' },
+          { user: { publicKey: 'GPUBKEY' } },
+        ),
+      ).rejects.toThrow(StellarError);
     });
 
     it('propagates StellarError thrown by ContractService (op_underfunded)', async () => {
       const error = new StellarError('op_underfunded');
       contractService.submitSignedXdr.mockRejectedValue(error);
 
-      await expect(controller.submit({ xdr: 'another-xdr' }, { user: { publicKey: 'GPUBKEY' } })).rejects.toThrow(
-        StellarError,
-      );
+      await expect(
+        controller.submit(
+          { xdr: 'another-xdr' },
+          { user: { publicKey: 'GPUBKEY' } },
+        ),
+      ).rejects.toThrow(StellarError);
     });
 
     it('propagates generic errors thrown by ContractService without suppression', async () => {
       const error = new Error('RPC connection refused');
       contractService.submitSignedXdr.mockRejectedValue(error);
 
-      await expect(controller.submit({ xdr: 'any-xdr' }, { user: { publicKey: 'GPUBKEY' } })).rejects.toThrow(
-        'RPC connection refused',
-      );
+      await expect(
+        controller.submit(
+          { xdr: 'any-xdr' },
+          { user: { publicKey: 'GPUBKEY' } },
+        ),
+      ).rejects.toThrow('RPC connection refused');
     });
 
     it('does not call submitSignedXdr more than once per request', async () => {
       contractService.submitSignedXdr.mockResolvedValue('single-call-hash');
 
-      await controller.submit({ xdr: 'once-only' }, { user: { publicKey: 'GPUBKEY' } });
+      await controller.submit(
+        { xdr: 'once-only' },
+        { user: { publicKey: 'GPUBKEY' } },
+      );
 
       expect(contractService.submitSignedXdr).toHaveBeenCalledTimes(1);
     });
@@ -122,7 +145,10 @@ describe('TransactionsController', () => {
 // ---------------------------------------------------------------------------
 describe('TransactionsController (guard / HTTP)', () => {
   let app: INestApplication;
-  let contractService: { submitSignedXdr: jest.Mock; describeSubmission: jest.Mock };
+  let contractService: {
+    submitSignedXdr: jest.Mock;
+    describeSubmission: jest.Mock;
+  };
 
   const jwtSecret = process.env.JWT_SECRET ?? JWT_SECRET_FALLBACK;
   const signToken = (
@@ -140,10 +166,18 @@ describe('TransactionsController (guard / HTTP)', () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [TransactionsController],
       providers: [
-        { provide: HistoryService, useValue: { list: jest.fn(), record: jest.fn() } },
+        {
+          provide: HistoryService,
+          useValue: { list: jest.fn(), record: jest.fn() },
+        },
         { provide: ContractService, useValue: contractService },
         JwtStrategy,
-        { provide: UsersService, useValue: { findByPublicKey: jest.fn().mockResolvedValue({ tokenVersion: 0 }) } },
+        {
+          provide: UsersService,
+          useValue: {
+            findByPublicKey: jest.fn().mockResolvedValue({ tokenVersion: 0 }),
+          },
+        },
       ],
     }).compile();
 
@@ -163,9 +197,12 @@ describe('TransactionsController (guard / HTTP)', () => {
   it('lists history for the wallet from the JWT', async () => {
     const token = signToken({ sub: 'GPUBKEY', tokenVersion: 0 });
     const history = app.get(HistoryService);
-    jest.mocked(history.list).mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 });
+    jest
+      .mocked(history.list)
+      .mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 });
 
-    await request(app.getHttpServer()).get('/transactions')
+    await request(app.getHttpServer())
+      .get('/transactions')
       .set('Authorization', `Bearer ${token}`)
       .expect(200, { data: [], total: 0, page: 1, limit: 20 });
 

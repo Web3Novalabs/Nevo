@@ -94,10 +94,7 @@ export class ContractService {
     );
   }
 
-  buildClosePoolTransaction(
-    sourcePublicKey: string,
-    poolId: number,
-  ): string {
+  buildClosePoolTransaction(sourcePublicKey: string, poolId: number): string {
     return this.buildTransaction(
       sourcePublicKey,
       this.contract.call(
@@ -127,33 +124,54 @@ export class ContractService {
     }
   }
 
-  describeSubmission(signedXdr: string, wallet: string): Omit<HistoryEntry, 'txHash' | 'status'> | undefined {
+  describeSubmission(
+    signedXdr: string,
+    wallet: string,
+  ): Omit<HistoryEntry, 'txHash' | 'status'> | undefined {
     let parsed: Transaction | FeeBumpTransaction;
     try {
       parsed = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
     } catch {
       throw new StellarError('invalid_xdr');
     }
-    const tx = parsed instanceof FeeBumpTransaction ? parsed.innerTransaction : parsed;
+    const tx =
+      parsed instanceof FeeBumpTransaction ? parsed.innerTransaction : parsed;
     const [op] = tx.operations;
-    if (tx.operations.length !== 1 || op?.type !== 'invokeHostFunction' || (op.source ?? tx.source) !== wallet) return;
+    if (
+      tx.operations.length !== 1 ||
+      op?.type !== 'invokeHostFunction' ||
+      (op.source ?? tx.source) !== wallet
+    )
+      return;
     if (op.func.switch().name !== 'hostFunctionTypeInvokeContract') return;
     const invocation = op.func.invokeContract();
-    if (scValToNative(xdr.ScVal.scvAddress(invocation.contractAddress())) !== this.contract.contractId()) return;
+    if (
+      scValToNative(xdr.ScVal.scvAddress(invocation.contractAddress())) !==
+      this.contract.contractId()
+    )
+      return;
 
     const functionName = invocation.functionName().toString();
-    const [first, second, third] = invocation.args().map((arg) => String(scValToNative(arg)));
+    const [first, second, third] = invocation
+      .args()
+      .map((arg) => String(scValToNative(arg)));
     switch (functionName) {
       case 'create_pool':
-        if (first === wallet) return { type: 'pool_creation', amount: '0', recipient: wallet };
+        if (first === wallet)
+          return { type: 'pool_creation', amount: '0', recipient: wallet };
         return;
       case 'donate':
         if (third !== undefined && second !== wallet) return;
-        return { type: 'donation', amount: third ?? second ?? '0', recipient: first ?? '' };
+        return {
+          type: 'donation',
+          amount: third ?? second ?? '0',
+          recipient: first ?? '',
+        };
       case 'withdraw':
         return { type: 'withdrawal', amount: '0', recipient: first ?? '' };
       case 'close_pool':
-        if (second === undefined || second === wallet) return { type: 'pool_close', amount: '0', recipient: first ?? '' };
+        if (second === undefined || second === wallet)
+          return { type: 'pool_close', amount: '0', recipient: first ?? '' };
         return;
     }
   }
@@ -173,10 +191,14 @@ export class ContractService {
     }
   }
 
-  async getSubmissionStatus(txHash: string): Promise<'completed' | 'failed' | undefined> {
+  async getSubmissionStatus(
+    txHash: string,
+  ): Promise<'completed' | 'failed' | undefined> {
     const result = await this.rpcServer.getTransaction(txHash);
-    if (result.status === StellarRpc.Api.GetTransactionStatus.SUCCESS) return 'completed';
-    if (result.status === StellarRpc.Api.GetTransactionStatus.FAILED) return 'failed';
+    if (result.status === StellarRpc.Api.GetTransactionStatus.SUCCESS)
+      return 'completed';
+    if (result.status === StellarRpc.Api.GetTransactionStatus.FAILED)
+      return 'failed';
   }
 
   async getContributionOnChain(poolId: number, donor: string): Promise<bigint> {
@@ -255,14 +277,15 @@ export class ContractService {
       const retVal = result.result?.retval;
       if (!retVal) return null;
 
-      const native = scValToNative(retVal);
+      const native: unknown = scValToNative(retVal);
       if (Array.isArray(native) && native.length >= 5) {
+        const fields = native as Array<bigint | number | string | boolean>;
         return {
           id: poolId,
-          creator: String(native[1]),
-          goal: BigInt(native[2]),
-          collected: BigInt(native[3]),
-          closed: Boolean(native[4]),
+          creator: String(fields[1]),
+          goal: BigInt(fields[2]),
+          collected: BigInt(fields[3]),
+          closed: Boolean(fields[4]),
         };
       }
       return null;
@@ -316,6 +339,8 @@ export class ContractService {
   async getTotalRaisedOnChain(poolId: number): Promise<bigint> {
     try {
       return await this.fetchTotalRaisedOnChain(poolId);
+      const native: unknown = scValToNative(retVal);
+      return typeof native === 'bigint' ? native : BigInt(String(native));
     } catch (err: unknown) {
       this.logger.error(
         `Failed to fetch total raised on-chain for poolId ${poolId}`,

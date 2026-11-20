@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -25,7 +33,10 @@ export class TransactionsController {
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'List the signed-in wallet’s transactions' })
   @ApiOkResponse({ type: HistoryPageDto })
-  list(@Req() req: { user: { publicKey: string } }, @Query() query: HistoryQueryDto) {
+  list(
+    @Req() req: { user: { publicKey: string } },
+    @Query() query: HistoryQueryDto,
+  ) {
     return this.history.list(req.user.publicKey, query);
   }
 
@@ -48,9 +59,17 @@ export class TransactionsController {
     @Body() dto: SubmitXdrDto,
     @Req() req: { user: { publicKey: string } },
   ): Promise<{ txHash: string }> {
-    const entry = this.contractService.describeSubmission(dto.xdr, req.user.publicKey);
+    const entry = this.contractService.describeSubmission(
+      dto.xdr,
+      req.user.publicKey,
+    );
     const txHash = await this.contractService.submitSignedXdr(dto.xdr);
-    if (entry) await this.history.record(req.user.publicKey, { ...entry, txHash, status: 'pending' });
+    if (entry)
+      await this.history.record(req.user.publicKey, {
+        ...entry,
+        txHash,
+        status: 'pending',
+      });
     return { txHash };
   }
 }

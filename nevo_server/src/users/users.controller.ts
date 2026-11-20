@@ -51,7 +51,9 @@ export class UsersController {
   @ApiOperation({ summary: 'Get the signed-in user profile' })
   @ApiOkResponse({ type: MyProfileDto })
   @ApiNotFoundResponse({ description: 'User not found' })
-  async getMe(@Req() req: Request & { user: { publicKey: string } }): Promise<MyProfileDto> {
+  async getMe(
+    @Req() req: Request & { user: { publicKey: string } },
+  ): Promise<MyProfileDto> {
     const user = await this.usersService.findByPublicKey(req.user.publicKey);
     if (!user) throw new NotFoundException('User not found');
     const { publicKey, displayName, createdAt } = user;

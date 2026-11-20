@@ -15,7 +15,8 @@ describe('VerifyAuthDto (POST /auth/verify body contract)', () => {
   let verify: jest.Mock;
 
   /** A minimal valid payload that should always pass validation. */
-  const VALID_PUBLIC_KEY = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCW7M';
+  const VALID_PUBLIC_KEY =
+    'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCW7M';
   const VALID_SIGNATURE = 'deadbeef01234567';
   const VALID_MESSAGE = 'some-nonce-value';
 
@@ -99,7 +100,8 @@ describe('VerifyAuthDto (POST /auth/verify body contract)', () => {
   });
 
   it('rejects a missing publicKey with 400', async () => {
-    const { publicKey: _omitted, ...bodyWithoutKey } = validBody;
+    const bodyWithoutKey: Record<string, unknown> = { ...validBody };
+    delete bodyWithoutKey.publicKey;
     await request(app.getHttpServer())
       .post('/auth/verify')
       .send(bodyWithoutKey)
@@ -109,7 +111,8 @@ describe('VerifyAuthDto (POST /auth/verify body contract)', () => {
   });
 
   it('rejects a missing signature with 400', async () => {
-    const { signature: _omitted, ...bodyWithoutSig } = validBody;
+    const bodyWithoutSig: Record<string, unknown> = { ...validBody };
+    delete bodyWithoutSig.signature;
     await request(app.getHttpServer())
       .post('/auth/verify')
       .send(bodyWithoutSig)

@@ -6,6 +6,7 @@ import { DonationsController } from './donations.controller';
 import { DonationSortBy, DonationsService } from './donations.service';
 import { JwtStrategy } from '../auth/jwt.strategy';
 import { JWT_SECRET_FALLBACK } from '../auth/jwt.config';
+import { UsersService } from '../users/users.service';
 
 // ---------------------------------------------------------------------------
 // Unit-level tests – exercise the controller methods directly without HTTP
@@ -15,26 +16,22 @@ describe('DonationsController (unit)', () => {
   let service: DonationsService;
 
   const mockDonationsService = {
-    findByPool: jest
-      .fn()
-      .mockImplementation((poolId: string, sort: string) =>
-        Promise.resolve({
-          data: [{ id: 'don-1', poolId, sort }],
-          total: 1,
-          page: 1,
-          limit: 10,
-        }),
-      ),
-    findByDonor: jest
-      .fn()
-      .mockImplementation((donor: string, sort: string) =>
-        Promise.resolve({
-          data: [{ id: 'don-1', donor, sort }],
-          total: 1,
-          page: 1,
-          limit: 10,
-        }),
-      ),
+    findByPool: jest.fn().mockImplementation((poolId: string, sort: string) =>
+      Promise.resolve({
+        data: [{ id: 'don-1', poolId, sort }],
+        total: 1,
+        page: 1,
+        limit: 10,
+      }),
+    ),
+    findByDonor: jest.fn().mockImplementation((donor: string, sort: string) =>
+      Promise.resolve({
+        data: [{ id: 'don-1', donor, sort }],
+        total: 1,
+        page: 1,
+        limit: 10,
+      }),
+    ),
   };
 
   beforeEach(async () => {
@@ -212,7 +209,10 @@ describe('DonationsController (guard / HTTP)', () => {
 
   const jwtSecret = process.env.JWT_SECRET ?? JWT_SECRET_FALLBACK;
   const signToken = (publicKey: string) =>
-    new JwtService({ secret: jwtSecret }).sign({ sub: publicKey });
+    new JwtService({ secret: jwtSecret }).sign({
+      sub: publicKey,
+      tokenVersion: 0,
+    });
 
   beforeEach(async () => {
     donationsService = {
@@ -228,11 +228,28 @@ describe('DonationsController (guard / HTTP)', () => {
       controllers: [DonationsController],
       providers: [
         { provide: DonationsService, useValue: donationsService },
+        {
+          provide: UsersService,
+          useValue: {
+            findByPublicKey: jest
+              .fn()
+              .mockImplementation((publicKey: string) =>
+                Promise.resolve({ publicKey, tokenVersion: 0 }),
+              ),
+          },
+        },
         JwtStrategy,
       ],
     }).compile();
 
     app = moduleRef.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     await app.init();
   });
 
@@ -308,9 +325,7 @@ describe('DonationsController (guard / HTTP)', () => {
   // -------------------------------------------------------------------------
   describe('GET /users/me/donations (JwtAuthGuard)', () => {
     it('returns 401 when no Authorization header is provided', async () => {
-      await request(app.getHttpServer())
-        .get('/users/me/donations')
-        .expect(401);
+      await request(app.getHttpServer()).get('/users/me/donations').expect(401);
 
       // Service must never be reached
       expect(donationsService.findByDonor).not.toHaveBeenCalled();
@@ -420,6 +435,16 @@ describe('DonationsController (ValidationPipe)', () => {
       controllers: [DonationsController],
       providers: [
         { provide: DonationsService, useValue: donationsService },
+        {
+          provide: UsersService,
+          useValue: {
+            findByPublicKey: jest
+              .fn()
+              .mockImplementation((publicKey: string) =>
+                Promise.resolve({ publicKey, tokenVersion: 0 }),
+              ),
+          },
+        },
         JwtStrategy,
       ],
     }).compile();
@@ -492,7 +517,7 @@ describe('DonationsController (ValidationPipe)', () => {
   it('returns 400 for an unknown sortBy value on the authenticated donations route', async () => {
     const token = new JwtService({
       secret: process.env.JWT_SECRET ?? JWT_SECRET_FALLBACK,
-    }).sign({ sub: 'GABC123' });
+    }).sign({ sub: 'GABC123', tokenVersion: 0 });
 
     await request(app.getHttpServer())
       .get('/users/me/donations')

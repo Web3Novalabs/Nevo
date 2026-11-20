@@ -1,5 +1,6 @@
 import {
-  Body, ValidationPipe,
+  Body,
+  ValidationPipe,
   Controller,
   ForbiddenException,
   Get,
@@ -11,7 +12,6 @@ import {
   Query,
   Req,
   UseGuards,
-
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -91,7 +91,10 @@ export class PoolsController {
   })
   @ApiCreatedResponse({ description: 'The created pool.' })
   @Post()
-  create(@Body(new ValidationPipe({ transform: true, whitelist: true })) dto: CreatePoolDto) {
+  create(
+    @Body(new ValidationPipe({ transform: true, whitelist: true }))
+    dto: CreatePoolDto,
+  ) {
     return this.poolsService.create(dto);
   }
 

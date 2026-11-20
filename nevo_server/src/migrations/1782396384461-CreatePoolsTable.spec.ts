@@ -31,9 +31,13 @@ describe('CreatePoolsTable migration', () => {
     }
   });
 
-  afterEach(async () => {
-    await queryRunner.query('DELETE FROM "pools"');
-  });
+  const dropPools = async () => {
+    await queryRunner.query('DROP TABLE IF EXISTS "public"."pools"');
+    await queryRunner.query('DROP TYPE IF EXISTS "public"."pools_status_enum"');
+  };
+
+  beforeEach(dropPools);
+  afterEach(dropPools);
 
   it('up() creates the pools table with the unique index on contract_pool_id', async () => {
     const migration = new CreatePoolsTable1782396384461();
@@ -101,4 +105,3 @@ describe('CreatePoolsTable migration', () => {
     expect(typeResult[0].exists).toBe(false);
   });
 });
-</｜｜DSML｜｜ parameter>

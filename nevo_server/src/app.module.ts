@@ -15,6 +15,7 @@ import { buildDataSourceOptions } from './db.config.js';
 import { DonationsModule } from './donations/donations.module.js';
 import { PoolsModule } from './pools/pools.module.js';
 import { ReconciliationModule } from './reconciliation/reconciliation.module.js';
+import { StatsModule } from './stats/stats.module.js';
 import { SyncModule } from './sync/sync.module.js';
 
 import { TransactionsModule } from './transactions/transactions.module.js';
@@ -36,7 +37,7 @@ import { UsersModule } from './users/users.module.js';
     ContractModule,
     DonationsModule,
     SyncModule,
-    ReconciliationModule,
+    StatsModule,
     TransactionsModule,
     PoolsModule,
     UsersModule,
