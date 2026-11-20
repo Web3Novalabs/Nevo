@@ -275,33 +275,47 @@ export class ContractService {
     }
   }
 
+  /**
+   * Reads `get_total_raised` and throws on any RPC/simulation failure, so
+   * callers that persist the result never mistake an outage for a zero total.
+   */
+  async fetchTotalRaisedOnChain(poolId: number): Promise<bigint> {
+    const keypair = SOURCE_SECRET
+      ? Keypair.fromSecret(SOURCE_SECRET)
+      : Keypair.random();
+    const account = await this.rpcServer.getAccount(keypair.publicKey());
+    const tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(
+        this.contract.call(
+          'get_total_raised',
+          nativeToScVal(poolId, { type: 'u32' }),
+        ),
+      )
+      .setTimeout(30)
+      .build();
+
+    const result = await this.rpcServer.simulateTransaction(tx);
+    if ('error' in result) {
+      throw new Error(
+        `get_total_raised simulation failed: ${String(result.error)}`,
+      );
+    }
+
+    const retVal = result.result?.retval;
+    if (!retVal) {
+      throw new Error('get_total_raised simulation returned no value');
+    }
+
+    const native: unknown = scValToNative(retVal);
+    return typeof native === 'bigint' ? native : BigInt(String(native));
+  }
+
   async getTotalRaisedOnChain(poolId: number): Promise<bigint> {
     try {
-      const keypair = SOURCE_SECRET
-        ? Keypair.fromSecret(SOURCE_SECRET)
-        : Keypair.random();
-      const account = await this.rpcServer.getAccount(keypair.publicKey());
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: NETWORK_PASSPHRASE,
-      })
-        .addOperation(
-          this.contract.call(
-            'get_total_raised',
-            nativeToScVal(poolId, { type: 'u32' }),
-          ),
-        )
-        .setTimeout(30)
-        .build();
-
-      const result = await this.rpcServer.simulateTransaction(tx);
-      if ('error' in result) return 0n;
-
-      const retVal = result.result?.retval;
-      if (!retVal) return 0n;
-
-      const native = scValToNative(retVal);
-      return typeof native === 'bigint' ? native : BigInt(String(native));
+      return await this.fetchTotalRaisedOnChain(poolId);
     } catch (err: unknown) {
       this.logger.error(
         `Failed to fetch total raised on-chain for poolId ${poolId}`,

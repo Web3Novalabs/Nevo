@@ -115,6 +115,29 @@ back exactly one migration; run it repeatedly to go further back. Once a
 migration is merged and deployed, do not edit it — add a new migration that
 corrects it, since anyone who already ran the old one will never re-run it.
 
+## Pool reconciliation
+
+The indexer maintains `pools.raised`, but missed events, duplicates or refunds can make it drift from the chain. `ReconciliationService` periodically compares `pools.raised` with the contract's `get_total_raised` for every **Active** pool and overwrites the database value when they differ (the chain is authoritative).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `RECONCILIATION_INTERVAL_MS` | `300000` | Time between scheduled runs. Invalid values fall back to the default. |
+| `RECONCILIATION_BATCH_SIZE` | `20` | Pools read from the chain concurrently per batch (bounds RPC load). |
+| `RECONCILIATION_ENABLED` | `true` | `false` disables the schedule; the manual trigger still works. |
+| `ADMIN_PUBLIC_KEYS` | _(empty)_ | Comma-separated Stellar public keys allowed to call `/admin/*`. Empty means nobody. |
+
+Behaviour:
+- Amounts are compared and written as exact integers (`BigInt`/strings), never floats.
+- An RPC failure leaves that pool untouched (it is never treated as a zero total); other pools in the batch continue. A failed DB update affects only that pool.
+- The update is conditional on the `raised` value that was read, so a concurrent indexer write is not clobbered; such conflicts are retried on the next run.
+- Runs never overlap: an in-process flag plus a Postgres advisory lock (safe across instances). A skipped run reports `status: "skipped"`.
+- Each discrepancy is logged at `warn` with pool id, contract pool id, database value, chain value and signed delta, followed by a per-run summary.
+- Running it again on unchanged data changes nothing (idempotent).
+
+Endpoints (JWT + admin required; non-admins get `403`):
+- `POST /admin/reconciliation` runs a reconciliation now and returns the run summary.
+- `GET /admin/reconciliation` returns cumulative counters (`driftDetected`, `driftCorrected`, `rpcErrors`, `dbErrors`, ...) and the last run, for scraping or alerting on `driftDetected`/`rpcErrors` growth.
+
 ## Run tests
 
 ```bash
