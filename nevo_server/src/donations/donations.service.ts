@@ -119,7 +119,7 @@ export class DonationsService {
       if (
         error instanceof QueryFailedError &&
         'code' in error.driverError &&
-        error.driverError.code === '23505'
+        (error.driverError as { code?: string }).code === '23505'
       ) {
         const existing = await this.donationRepo.findOneBy({
           txHash: data.txHash,

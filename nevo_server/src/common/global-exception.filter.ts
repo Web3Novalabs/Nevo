@@ -35,7 +35,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         message = responseBody;
         error = exception.name;
       } else if (typeof responseBody === 'object' && responseBody !== null) {
-        const resObj = responseBody as Record<string, any>;
+        const resObj = responseBody as {
+          message?: string | string[];
+          error?: string;
+        };
         message = resObj.message ?? exception.message;
         error = resObj.error ?? exception.name;
       }
@@ -49,7 +52,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message = 'An internal error occurred';
       error = 'Internal Server Error';
     } else {
-      this.logger.error(`[${requestId}] Unhandled exception: ${String(exception)}`);
+      this.logger.error(
+        `[${requestId}] Unhandled exception: ${String(exception)}`,
+      );
       message = 'An internal error occurred';
       error = 'Internal Server Error';
     }
