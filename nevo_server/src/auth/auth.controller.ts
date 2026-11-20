@@ -25,8 +25,11 @@ import { AuthService } from './auth.service';
 import { NonceService } from './nonce.service';
 import type { AuthResult } from './auth.service';
 import { VerifyAuthDto } from './dto/verify-auth.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import type { AuthenticatedRequest } from './interfaces/authenticated-request.interface';
+import { JwtAuthGuard } from './jwt-auth.guard';
+
+interface AuthenticatedRequest {
+  user: { publicKey: string };
+}
 
 @ApiTags('auth')
 @Controller('auth')

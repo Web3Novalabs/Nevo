@@ -5,11 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { Comment } from './comment.entity';
 import { Pool } from '../pools/pool.entity';
-import { CreateCommentDto } from './dto/create-comment.dto';
-import { UpdateCommentDto } from './dto/update-comment.dto';
+import { CreateCommentDto, UpdateCommentDto } from './dto/create-comment.dto';
 
 export interface PaginatedComments {
   data: Comment[];
@@ -38,8 +37,8 @@ export class CommentsService {
     const [topLevel, total] = await this.commentRepository.findAndCount({
       where: {
         poolId,
-        parentId: null,
-        deletedAt: null,
+        parentId: IsNull(),
+        deletedAt: IsNull(),
       },
       order: { createdAt: 'ASC' },
       skip: (safePage - 1) * safeLimit,
@@ -52,7 +51,7 @@ export class CommentsService {
         where: {
           poolId,
           parentId: comment.id,
-          deletedAt: null,
+          deletedAt: IsNull(),
         },
         order: { createdAt: 'ASC' },
       });

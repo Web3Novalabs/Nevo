@@ -7,6 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import { DonationsService } from '../donations/donations.service';
 import { ContractService } from '../contract/contract.service';
 import { JwtStrategy } from '../auth/jwt.strategy';
+import { UsersService } from '../users/users.service';
 import { FilterPoolsDto } from './dto/filter-pools.dto';
 import { CreatePoolDto } from './dto/create-pool.dto';
 import { UpdatePoolDto } from './dto/update-pool.dto';
@@ -112,7 +113,10 @@ describe('PoolsController', () => {
   describe('updateMeta', () => {
     it('should update pool metadata', async () => {
       const dto: UpdatePoolDto = { description: 'Updated description' };
-      const mockPool = { contractPoolId: '1', description: 'Updated description' };
+      const mockPool = {
+        contractPoolId: '1',
+        description: 'Updated description',
+      };
       jest.spyOn(service, 'updateMeta').mockResolvedValue(mockPool);
 
       const result = await controller.updateMeta('1', dto);
@@ -125,7 +129,9 @@ describe('PoolsController', () => {
       const dto: UpdatePoolDto = { description: 'Updated description' };
       jest.spyOn(service, 'updateMeta').mockResolvedValue(null);
 
-      await expect(controller.updateMeta('999', dto)).rejects.toThrow('Pool not found');
+      await expect(controller.updateMeta('999', dto)).rejects.toThrow(
+        'Pool not found',
+      );
     });
   });
 });
@@ -138,7 +144,7 @@ describe('PoolsController (withdraw auth)', () => {
   };
   const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret';
   const signToken = (sub: string) =>
-    new JwtService({ secret: jwtSecret }).sign({ sub });
+    new JwtService({ secret: jwtSecret }).sign({ sub, tokenVersion: 0 });
 
   beforeEach(async () => {
     poolsService = {
@@ -153,6 +159,16 @@ describe('PoolsController (withdraw auth)', () => {
         { provide: DonationsService, useValue: {} },
         { provide: ContractService, useValue: {} },
         { provide: JwtService, useValue: {} },
+        {
+          provide: UsersService,
+          useValue: {
+            findByPublicKey: jest
+              .fn()
+              .mockImplementation((publicKey: string) =>
+                Promise.resolve({ publicKey, tokenVersion: 0 }),
+              ),
+          },
+        },
         JwtStrategy,
       ],
     }).compile();
@@ -166,9 +182,7 @@ describe('PoolsController (withdraw auth)', () => {
   });
 
   it('rejects an unauthenticated withdraw request', async () => {
-    await request(app.getHttpServer())
-      .post('/pools/1/withdraw')
-      .expect(401);
+    await request(app.getHttpServer()).post('/pools/1/withdraw').expect(401);
 
     expect(poolsService.findByContractId).not.toHaveBeenCalled();
   });
@@ -229,7 +243,7 @@ describe('PoolsController (close auth)', () => {
   };
   const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret';
   const signToken = (sub: string) =>
-    new JwtService({ secret: jwtSecret }).sign({ sub });
+    new JwtService({ secret: jwtSecret }).sign({ sub, tokenVersion: 0 });
 
   beforeEach(async () => {
     poolsService = {
@@ -244,6 +258,16 @@ describe('PoolsController (close auth)', () => {
         { provide: DonationsService, useValue: {} },
         { provide: ContractService, useValue: {} },
         { provide: JwtService, useValue: {} },
+        {
+          provide: UsersService,
+          useValue: {
+            findByPublicKey: jest
+              .fn()
+              .mockImplementation((publicKey: string) =>
+                Promise.resolve({ publicKey, tokenVersion: 0 }),
+              ),
+          },
+        },
         JwtStrategy,
       ],
     }).compile();
@@ -257,9 +281,7 @@ describe('PoolsController (close auth)', () => {
   });
 
   it('rejects an unauthenticated close request', async () => {
-    await request(app.getHttpServer())
-      .post('/pools/1/close')
-      .expect(401);
+    await request(app.getHttpServer()).post('/pools/1/close').expect(401);
 
     expect(poolsService.findByContractId).not.toHaveBeenCalled();
   });
@@ -320,7 +342,7 @@ describe('PoolsController (donate auth)', () => {
   };
   const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret';
   const signToken = (sub: string) =>
-    new JwtService({ secret: jwtSecret }).sign({ sub });
+    new JwtService({ secret: jwtSecret }).sign({ sub, tokenVersion: 0 });
 
   beforeEach(async () => {
     poolsService = {
@@ -337,6 +359,16 @@ describe('PoolsController (donate auth)', () => {
         { provide: DonationsService, useValue: {} },
         { provide: ContractService, useValue: contractService },
         { provide: JwtService, useValue: {} },
+        {
+          provide: UsersService,
+          useValue: {
+            findByPublicKey: jest
+              .fn()
+              .mockImplementation((publicKey: string) =>
+                Promise.resolve({ publicKey, tokenVersion: 0 }),
+              ),
+          },
+        },
         JwtStrategy,
       ],
     }).compile();
@@ -350,9 +382,7 @@ describe('PoolsController (donate auth)', () => {
   });
 
   it('rejects an unauthenticated donate request', async () => {
-    await request(app.getHttpServer())
-      .post('/pools/1/donate')
-      .expect(401);
+    await request(app.getHttpServer()).post('/pools/1/donate').expect(401);
 
     expect(poolsService.findByContractId).not.toHaveBeenCalled();
   });

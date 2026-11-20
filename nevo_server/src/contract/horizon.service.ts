@@ -36,7 +36,9 @@ export class HorizonService {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        _embedded?: { records?: unknown[] };
+      } | null;
       return data?._embedded?.records ?? [];
     } catch (error: any) {
       if (error instanceof HttpException) {

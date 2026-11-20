@@ -72,7 +72,9 @@ export class PoolsService {
     const queryBuilder = this.poolRepo.createQueryBuilder('pool');
 
     if (query.category) {
-      queryBuilder.andWhere('LOWER(pool.category) = LOWER(:category)', { category: query.category });
+      queryBuilder.andWhere('LOWER(pool.category) = LOWER(:category)', {
+        category: query.category,
+      });
     }
 
     if (query.status) {
@@ -80,7 +82,9 @@ export class PoolsService {
     }
 
     if (query.creator) {
-      queryBuilder.andWhere('pool.creatorWallet = :creator', { creator: query.creator });
+      queryBuilder.andWhere('pool.creatorWallet = :creator', {
+        creator: query.creator,
+      });
     }
 
     if (query.search) {
@@ -182,14 +186,17 @@ export class PoolsService {
     return this.poolRepo.save(pool);
   }
 
-  async incrementRaised(contractPoolId: string, amount: string): Promise<Pool | null> {
+  async incrementRaised(
+    contractPoolId: string,
+    amount: string,
+  ): Promise<Pool | null> {
     const pool = await this.poolRepo.findOne({ where: { contractPoolId } });
     if (!pool) return null;
-    
+
     const currentRaised = BigInt(pool.raised || '0');
     const additionalAmount = BigInt(amount);
     pool.raised = (currentRaised + additionalAmount).toString();
-    
+
     return this.poolRepo.save(pool);
   }
 

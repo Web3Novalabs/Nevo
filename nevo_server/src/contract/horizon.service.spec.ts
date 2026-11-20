@@ -111,7 +111,7 @@ describe('HorizonService', () => {
         } catch (error: any) {
           expect(error).toBeInstanceOf(HttpException);
           expect(error.getStatus()).toBe(400);
-          expect(error.getMessage()).toContain('Bad Request');
+          expect(error.message).toContain('Bad Request');
         }
       });
 
@@ -130,7 +130,7 @@ describe('HorizonService', () => {
         } catch (error: any) {
           expect(error).toBeInstanceOf(HttpException);
           expect(error.getStatus()).toBe(401);
-          expect(error.getMessage()).toContain('Unauthorized');
+          expect(error.message).toContain('Unauthorized');
         }
       });
 
@@ -149,7 +149,7 @@ describe('HorizonService', () => {
         } catch (error: any) {
           expect(error).toBeInstanceOf(HttpException);
           expect(error.getStatus()).toBe(403);
-          expect(error.getMessage()).toContain('Forbidden');
+          expect(error.message).toContain('Forbidden');
         }
       });
 
@@ -168,7 +168,7 @@ describe('HorizonService', () => {
         } catch (error: any) {
           expect(error).toBeInstanceOf(HttpException);
           expect(error.getStatus()).toBe(404);
-          expect(error.getMessage()).toContain('Not Found');
+          expect(error.message).toContain('Not Found');
         }
       });
 
@@ -187,7 +187,7 @@ describe('HorizonService', () => {
         } catch (error: any) {
           expect(error).toBeInstanceOf(HttpException);
           expect(error.getStatus()).toBe(500);
-          expect(error.getMessage()).toContain('Internal Server Error');
+          expect(error.message).toContain('Internal Server Error');
         }
       });
 
@@ -206,7 +206,7 @@ describe('HorizonService', () => {
         } catch (error: any) {
           expect(error).toBeInstanceOf(HttpException);
           expect(error.getStatus()).toBe(503);
-          expect(error.getMessage()).toContain('Service Unavailable');
+          expect(error.message).toContain('Service Unavailable');
         }
       });
     });
@@ -223,7 +223,7 @@ describe('HorizonService', () => {
         } catch (error: any) {
           expect(error).toBeInstanceOf(HttpException);
           expect(error.getStatus()).toBe(500);
-          expect(error.getMessage()).toContain('unexpected error');
+          expect(error.message).toContain('unexpected error');
         }
       });
 
@@ -254,7 +254,9 @@ describe('HorizonService', () => {
 
     describe('HORIZON_URL normalization', () => {
       it('removes trailing slash from HORIZON_URL before building request URL', async () => {
-        mockConfigService.get.mockReturnValue('https://horizon-testnet.stellar.org/');
+        mockConfigService.get.mockReturnValue(
+          'https://horizon-testnet.stellar.org/',
+        );
 
         const module: TestingModule = await Test.createTestingModule({
           providers: [
@@ -278,12 +280,13 @@ describe('HorizonService', () => {
         expect(fetchUrl).toBe(
           'https://horizon-testnet.stellar.org/accounts/contract_123/transactions?order=asc',
         );
-        expect(fetchUrl).not.toContain('://');
-        expect(fetchUrl).not.toMatch(/\/\//g);
+        expect(fetchUrl.replace('https://', '')).not.toContain('//');
       });
 
       it('does not double-slash when HORIZON_URL has no trailing slash', async () => {
-        mockConfigService.get.mockReturnValue('https://horizon-testnet.stellar.org');
+        mockConfigService.get.mockReturnValue(
+          'https://horizon-testnet.stellar.org',
+        );
 
         const module: TestingModule = await Test.createTestingModule({
           providers: [
@@ -342,17 +345,13 @@ describe('HorizonService', () => {
       it('always sends order=asc without a cursor', async () => {
         await service.getTransactions('contract_123');
 
-        expect(getRequestedUrl().searchParams.getAll('order')).toEqual([
-          'asc',
-        ]);
+        expect(getRequestedUrl().searchParams.getAll('order')).toEqual(['asc']);
       });
 
       it('always sends order=asc with a cursor', async () => {
         await service.getTransactions('contract_123', 'cursor_xyz');
 
-        expect(getRequestedUrl().searchParams.getAll('order')).toEqual([
-          'asc',
-        ]);
+        expect(getRequestedUrl().searchParams.getAll('order')).toEqual(['asc']);
       });
     });
 

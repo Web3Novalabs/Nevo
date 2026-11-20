@@ -13,7 +13,9 @@ export class CreateTransactions1800000000003 implements MigrationInterface {
       created_at timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY (wallet, tx_hash, type)
     )`);
-    await queryRunner.query('CREATE INDEX transactions_wallet_date ON transactions (wallet, created_at DESC)');
+    await queryRunner.query(
+      'CREATE INDEX transactions_wallet_date ON transactions (wallet, created_at DESC)',
+    );
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {

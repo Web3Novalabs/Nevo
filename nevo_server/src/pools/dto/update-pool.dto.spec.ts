@@ -16,9 +16,11 @@ describe('UpdatePoolDto (PATCH /pools/:id body contract)', () => {
   let updateMeta: jest.Mock;
 
   beforeEach(async () => {
-    updateMeta = jest.fn().mockImplementation((id: string, dto: object) =>
-      Promise.resolve({ contractPoolId: id, ...dto }),
-    );
+    updateMeta = jest
+      .fn()
+      .mockImplementation((id: string, dto: object) =>
+        Promise.resolve({ contractPoolId: id, ...dto }),
+      );
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [PoolsController],

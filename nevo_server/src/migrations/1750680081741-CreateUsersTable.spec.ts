@@ -17,14 +17,14 @@ describe('CreateUsersTable1750680081741', () => {
   });
 
   const getExecutedSql = (): string[] =>
-    queryRunner.query.mock.calls.map((call) => call[0] as string);
+    queryRunner.query.mock.calls.map((call) => call[0]);
 
   describe('up', () => {
     it('creates the users table with the expected columns and types', async () => {
       await migration.up(queryRunner);
 
       const sql = getExecutedSql();
-      expect(sql).toHaveLength(1);
+      expect(sql).toHaveLength(2);
 
       const createTableSql = sql[0];
 
@@ -36,7 +36,9 @@ describe('CreateUsersTable1750680081741', () => {
       expect(createTableSql).toMatch(/uuid_generate_v4\(\)/i);
 
       // public_key column: character varying(56), NOT NULL
-      expect(createTableSql).toMatch(/"public_key"\s+character varying\(56\)\s+NOT NULL/i);
+      expect(createTableSql).toMatch(
+        /"public_key"\s+character varying\(56\)\s+NOT NULL/i,
+      );
 
       // username column: character varying(255)
       expect(createTableSql).toMatch(/"username"\s+character varying\(255\)/i);
@@ -49,26 +51,26 @@ describe('CreateUsersTable1750680081741', () => {
       expect(createTableSql).toMatch(/"updated_at"\s+TIMESTAMP/i);
 
       // Primary key constraint
-      expect(createTableSql).toMatch(/CONSTRAINT\s+"PK_users_id"\s+PRIMARY KEY\s+\("id"\)/i);
+      expect(createTableSql).toMatch(
+        /CONSTRAINT\s+"PK_users_id"\s+PRIMARY KEY\s+\("id"\)/i,
+      );
     });
 
     it('creates the unique index UQ_users_public_key on public_key', async () => {
       await migration.up(queryRunner);
 
       const sql = getExecutedSql();
-      expect(sql).toHaveLength(1);
+      expect(sql).toHaveLength(2);
 
-      const createTableSql = sql[0];
-
-      expect(createTableSql).toMatch(
-        /CONSTRAINT\s+"UQ_users_public_key"\s+UNIQUE\s+\("public_key"\)/i,
+      expect(sql[1]).toMatch(
+        /CREATE UNIQUE INDEX\s+"UQ_users_public_key"\s+ON\s+"users"\s+\("public_key"\)/i,
       );
     });
 
-    it('executes the create table query exactly once', async () => {
+    it('executes the create table and create index queries once each', async () => {
       await migration.up(queryRunner);
 
-      expect(queryRunner.query).toHaveBeenCalledTimes(1);
+      expect(queryRunner.query).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -91,8 +93,8 @@ describe('CreateUsersTable1750680081741', () => {
 
       expect(queryRunner.query).toHaveBeenCalledTimes(2);
 
-      const firstCall = queryRunner.query.mock.calls[0][0] as string;
-      const secondCall = queryRunner.query.mock.calls[1][0] as string;
+      const firstCall = queryRunner.query.mock.calls[0][0];
+      const secondCall = queryRunner.query.mock.calls[1][0];
 
       expect(firstCall).toMatch(/DROP INDEX/i);
       expect(secondCall).toMatch(/DROP TABLE/i);
@@ -105,8 +107,8 @@ describe('CreateUsersTable1750680081741', () => {
       await expect(migration.down(queryRunner)).resolves.not.toThrow();
       await expect(migration.up(queryRunner)).resolves.not.toThrow();
 
-      // up (1) + down (2) + up (1) = 4 total queries
-      expect(queryRunner.query).toHaveBeenCalledTimes(4);
+      // up (2) + down (2) + up (2) = 6 total queries
+      expect(queryRunner.query).toHaveBeenCalledTimes(6);
     });
 
     it('produces the same SQL for the first and second up calls', async () => {

@@ -1,5 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import {
+  ExecutionContext,
+  INestApplication,
+  UnauthorizedException,
+  ValidationPipe,
+} from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import request from 'supertest';
@@ -16,6 +21,23 @@ import { AuthService } from './auth.service';
 import { NonceService } from './nonce.service';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+
+// Stand-in for the passport JWT guard: any bearer token authenticates as the
+// test wallet, a missing header is rejected with 401.
+const fakeJwtGuard = (publicKey: string) => ({
+  canActivate: (context: ExecutionContext) => {
+    const req = context.switchToHttp().getRequest<{
+      headers: Record<string, string | undefined>;
+      user?: { publicKey: string };
+    }>();
+    if (!req.headers.authorization?.startsWith('Bearer ')) {
+      throw new UnauthorizedException();
+    }
+    req.user = { publicKey };
+    return true;
+  },
+});
 
 describe('AuthController throttle limits', () => {
   let app: INestApplication;
@@ -206,7 +228,10 @@ describe('AuthController (challenge/verify)', () => {
           },
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue(fakeJwtGuard(publicKey))
+      .compile();
 
     nonceService = moduleRef.get<NonceService>(NonceService);
     authService = moduleRef.get<AuthService>(AuthService);
@@ -397,9 +422,8 @@ describe('AuthController (challenge/verify)', () => {
     });
   });
 
-  describe('AuthController -> AuthService.generateChallenge dead code proof (Issue #1490)', () => {
-    it('GET /auth/challenge calls NonceService.generateNonce and NEVER calls AuthService.generateChallenge', async () => {
-      const authServiceSpy = jest.spyOn(authService, 'generateChallenge');
+  describe('GET /auth/challenge', () => {
+    it('delegates to NonceService.generateNonce', async () => {
       const nonceServiceSpy = jest
         .spyOn(nonceService, 'generateNonce')
         .mockResolvedValue('nonce-service-generated-nonce');
@@ -410,25 +434,13 @@ describe('AuthController (challenge/verify)', () => {
         .expect(200);
 
       expect(response.body).toEqual({ nonce: 'nonce-service-generated-nonce' });
-      // Proves: AuthController delegates to NonceService.generateNonce
-      expect(nonceServiceSpy).toHaveBeenCalledTimes(1);
       expect(nonceServiceSpy).toHaveBeenCalledWith(publicKey);
-      // Proves: AuthService.generateChallenge is never called (dead/unreachable code)
-      expect(authServiceSpy).not.toHaveBeenCalled();
     });
 
-    it('direct controller call verifies NonceService is invoked and AuthService.generateChallenge is untouched', async () => {
-      const authServiceSpy = jest.spyOn(authService, 'generateChallenge');
-      const nonceServiceSpy = jest
-        .spyOn(nonceService, 'generateNonce')
-        .mockResolvedValue('direct-call-nonce');
-
-      const controller = app.get<AuthController>(AuthController);
-      const result = await controller.challenge(publicKey);
-
-      expect(result).toEqual({ nonce: 'direct-call-nonce' });
-      expect(nonceServiceSpy).toHaveBeenCalledWith(publicKey);
-      expect(authServiceSpy).not.toHaveBeenCalled();
+    it('no longer exposes the removed AuthService.generateChallenge (Issue #1490)', () => {
+      expect(
+        (authService as unknown as Record<string, unknown>).generateChallenge,
+      ).toBeUndefined();
     });
   });
 });

@@ -9,7 +9,7 @@ export interface PublicUserProfile {
   displayName: string | null;
   joinedAt: Date;
   poolsCreated: number;
-  totalRaised: number;
+  totalRaised: string;
 }
 
 @Injectable()
@@ -72,8 +72,8 @@ export class UsersService {
     const aggregate = await this.poolRepo
       .createQueryBuilder('pool')
       .select('COUNT(pool.id)', 'poolsCreated')
-      .addSelect('COALESCE(SUM(pool.totalRaised), 0)', 'totalRaised')
-      .where('pool.creatorPublicKey = :publicKey', { publicKey })
+      .addSelect('COALESCE(SUM(pool.raised), 0)', 'totalRaised')
+      .where('pool.creatorWallet = :publicKey', { publicKey })
       .getRawOne<{ poolsCreated: string; totalRaised: string }>();
 
     return {
@@ -81,7 +81,7 @@ export class UsersService {
       displayName: user.displayName ?? null,
       joinedAt: user.createdAt,
       poolsCreated: Number(aggregate?.poolsCreated ?? 0),
-      totalRaised: Number(aggregate?.totalRaised ?? 0),
+      totalRaised: String(aggregate?.totalRaised ?? '0'),
     };
   }
 }

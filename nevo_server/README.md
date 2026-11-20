@@ -126,7 +126,33 @@ $ npm run test:e2e
 
 # test coverage
 $ npm run test:cov
+
+# lint (check only, never modifies files) / lint with auto-fix
+$ npm run lint
+$ npm run lint:fix
 ```
+
+### CI expectations
+
+Every push and pull request runs, in `nevo_server/`: `npm run lint`, the **entire**
+unit suite with `npm test -- --runInBand --coverage` (no spec directories or
+test names are filtered out), `npm run build`, and the OpenAPI export / API-type
+check. A coverage summary is written to the job summary and `coverage-summary.json`
+plus `lcov.info` are uploaded as the `server-coverage` artifact (also when tests fail).
+
+Some specs talk to a real PostgreSQL. They read `TEST_DATABASE_URL`
+(default `postgres://postgres:postgres@localhost:5432/nevo_test`) and each works
+in its own schema or cleans up after itself, so a plain `nevo_test` database is
+enough:
+
+```bash
+$ createdb nevo_test
+$ TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/nevo_test npm test -- --runInBand
+```
+
+Jest compiles specs to CommonJS through `tsconfig.jest.json` (the application
+itself builds with `nest build`); this is what lets specs use dynamic `import()`
+and `jest.mock` without `--experimental-vm-modules`.
 
 ## Deployment
 
