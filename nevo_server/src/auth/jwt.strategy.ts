@@ -21,6 +21,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }) {
     const publicKey = payload.publicKey ?? payload.sub;
 
+    if (!publicKey) throw new UnauthorizedException();
+
     const user = await this.usersService.findByPublicKey(publicKey);
 
     if (!user) {

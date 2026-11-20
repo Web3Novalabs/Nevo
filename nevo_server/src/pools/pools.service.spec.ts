@@ -5,7 +5,7 @@ import { DataSource, Repository } from 'typeorm';
 import { PoolsService, ChainPoolData } from './pools.service';
 import { Pool, PoolStatus } from './pool.entity';
 import { ContractService } from '../contract/contract.service';
-import { CreatePoolsTable } from '../migrations/__migrations__/CreatePoolsTable';
+import { CreatePoolsTable1782396384461 as CreatePoolsTable } from '../migrations/1782396384461-CreatePoolsTable';
 
 // ---------------------------------------------------------------------------
 // Helper types
@@ -200,15 +200,24 @@ describe('PoolsService', () => {
       });
     });
 
+    it('filters pools by the creator wallet', async () => {
+      const { service, qb } = await buildService(makePool());
+      const creator = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+
+      await service.findAll({ creator });
+
+      expect(qb.andWhere).toHaveBeenCalledWith('pool.creatorWallet = :creator', { creator });
+    });
+
     it('applies search filter when provided', async () => {
       const existing = makePool();
       const { service, qb } = await buildService(existing);
 
-      await service.findAll({ search: 'water' });
+      await service.findAll({ search: 'water%_!\\' });
 
       expect(qb.andWhere).toHaveBeenCalledWith(
-        '(LOWER(pool.title) LIKE LOWER(:search) OR LOWER(pool.description) LIKE LOWER(:search))',
-        { search: '%water%' },
+        "(pool.title ILIKE :search ESCAPE '!' OR pool.description ILIKE :search ESCAPE '!')",
+        { search: '%water!%!_!!!\\%' },
       );
     });
 

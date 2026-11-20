@@ -3,13 +3,13 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const mockFetchMyProfile = jest.fn();
-const mockFetchMyDonations = jest.fn();
+const mockFetchTransactions = jest.fn();
 const mockUpdateProfile = jest.fn();
 const mockToast = jest.fn();
 
 jest.mock('@/lib/api-client', () => ({
   fetchMyProfile: mockFetchMyProfile,
-  fetchMyDonations: mockFetchMyDonations,
+  fetchTransactions: mockFetchTransactions,
   updateProfile: mockUpdateProfile,
 }));
 
@@ -38,7 +38,7 @@ describe('profile display-name update flow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFetchMyProfile.mockResolvedValue(profile);
-    mockFetchMyDonations.mockResolvedValue([]);
+    mockFetchTransactions.mockResolvedValue({ data: [] });
     mockUpdateProfile.mockResolvedValue({
       ...profile,
       displayName: 'Grace Hopper',

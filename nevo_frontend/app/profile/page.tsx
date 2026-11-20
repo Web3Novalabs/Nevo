@@ -7,10 +7,10 @@ import { Button } from '@/components/Button';
 import { WalletAddress } from '@/components/WalletAddress';
 import {
   fetchMyProfile,
-  fetchMyDonations,
+  fetchTransactions,
   updateProfile,
   type ApiProfile,
-  type ApiDonation,
+  type ApiHistoryItem,
 } from '@/lib/api-client';
 import { parseApiError } from '@/lib/errors';
 import { toast } from '@/components/Toast';
@@ -42,7 +42,7 @@ export default function ProfilePage() {
     useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profile, setProfile] = useState<ApiProfile | null>(null);
-  const [recentDonations, setRecentDonations] = useState<ApiDonation[]>([]);
+  const [recentDonations, setRecentDonations] = useState<ApiHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [profileUpdateError, setProfileUpdateError] = useState<string | null>(
@@ -51,7 +51,12 @@ export default function ProfilePage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetchMyProfile(), fetchMyDonations(5).catch(() => [])])
+    Promise.all([
+      fetchMyProfile(),
+      fetchTransactions({ type: 'donation', limit: 5 })
+        .then((result) => result.data)
+        .catch(() => []),
+    ])
       .then(([data, donations]) => {
         if (!active) return;
         setProfile(data);

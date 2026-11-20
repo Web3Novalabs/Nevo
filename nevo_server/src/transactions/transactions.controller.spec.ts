@@ -6,22 +6,26 @@ import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { TransactionsController } from './transactions.controller';
 import { ContractService } from '../contract/contract.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { UsersService } from '../users/users.service';
 import { JwtStrategy } from '../auth/jwt.strategy';
 import { JWT_SECRET_FALLBACK } from '../auth/jwt.config';
+import { HistoryService } from './history.service';
 import { StellarError } from '../contract/stellar.error';
 
 describe('TransactionsController', () => {
   let controller: TransactionsController;
-  let contractService: { submitSignedXdr: jest.Mock };
+  let contractService: { submitSignedXdr: jest.Mock; describeSubmission: jest.Mock };
 
   beforeEach(async () => {
     contractService = {
+      describeSubmission: jest.fn(),
       submitSignedXdr: jest.fn().mockResolvedValue('tx-hash-12345'),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TransactionsController],
       providers: [
+        { provide: HistoryService, useValue: { list: jest.fn(), record: jest.fn() } },
         {
           provide: ContractService,
           useValue: contractService,
@@ -41,7 +45,7 @@ describe('TransactionsController', () => {
     it('submits signed XDR via ContractService and returns txHash', async () => {
       contractService.submitSignedXdr.mockResolvedValue('tx-hash-12345');
 
-      const result = await controller.submit({ xdr: 'AAAA...signedXdr' });
+      const result = await controller.submit({ xdr: 'AAAA...signedXdr' }, { user: { publicKey: 'GPUBKEY' } });
 
       expect(contractService.submitSignedXdr).toHaveBeenCalledWith(
         'AAAA...signedXdr',
@@ -53,7 +57,7 @@ describe('TransactionsController', () => {
       const signedXdr = 'BBBB...differentXdr';
       contractService.submitSignedXdr.mockResolvedValue('different-hash');
 
-      const result = await controller.submit({ xdr: signedXdr });
+      const result = await controller.submit({ xdr: signedXdr }, { user: { publicKey: 'GPUBKEY' } });
 
       expect(contractService.submitSignedXdr).toHaveBeenCalledTimes(1);
       expect(contractService.submitSignedXdr).toHaveBeenCalledWith(signedXdr);
@@ -64,7 +68,7 @@ describe('TransactionsController', () => {
       const error = new StellarError('tx_bad_auth');
       contractService.submitSignedXdr.mockRejectedValue(error);
 
-      await expect(controller.submit({ xdr: 'bad-xdr' })).rejects.toThrow(
+      await expect(controller.submit({ xdr: 'bad-xdr' }, { user: { publicKey: 'GPUBKEY' } })).rejects.toThrow(
         StellarError,
       );
     });
@@ -73,7 +77,7 @@ describe('TransactionsController', () => {
       const error = new StellarError('op_underfunded');
       contractService.submitSignedXdr.mockRejectedValue(error);
 
-      await expect(controller.submit({ xdr: 'another-xdr' })).rejects.toThrow(
+      await expect(controller.submit({ xdr: 'another-xdr' }, { user: { publicKey: 'GPUBKEY' } })).rejects.toThrow(
         StellarError,
       );
     });
@@ -82,7 +86,7 @@ describe('TransactionsController', () => {
       const error = new Error('RPC connection refused');
       contractService.submitSignedXdr.mockRejectedValue(error);
 
-      await expect(controller.submit({ xdr: 'any-xdr' })).rejects.toThrow(
+      await expect(controller.submit({ xdr: 'any-xdr' }, { user: { publicKey: 'GPUBKEY' } })).rejects.toThrow(
         'RPC connection refused',
       );
     });
@@ -90,7 +94,7 @@ describe('TransactionsController', () => {
     it('does not call submitSignedXdr more than once per request', async () => {
       contractService.submitSignedXdr.mockResolvedValue('single-call-hash');
 
-      await controller.submit({ xdr: 'once-only' });
+      await controller.submit({ xdr: 'once-only' }, { user: { publicKey: 'GPUBKEY' } });
 
       expect(contractService.submitSignedXdr).toHaveBeenCalledTimes(1);
     });
@@ -118,7 +122,7 @@ describe('TransactionsController', () => {
 // ---------------------------------------------------------------------------
 describe('TransactionsController (guard / HTTP)', () => {
   let app: INestApplication;
-  let contractService: { submitSignedXdr: jest.Mock };
+  let contractService: { submitSignedXdr: jest.Mock; describeSubmission: jest.Mock };
 
   const jwtSecret = process.env.JWT_SECRET ?? JWT_SECRET_FALLBACK;
   const signToken = (
@@ -129,14 +133,17 @@ describe('TransactionsController (guard / HTTP)', () => {
 
   beforeEach(async () => {
     contractService = {
+      describeSubmission: jest.fn(),
       submitSignedXdr: jest.fn().mockResolvedValue('tx-hash-xyz'),
     };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [TransactionsController],
       providers: [
+        { provide: HistoryService, useValue: { list: jest.fn(), record: jest.fn() } },
         { provide: ContractService, useValue: contractService },
         JwtStrategy,
+        { provide: UsersService, useValue: { findByPublicKey: jest.fn().mockResolvedValue({ tokenVersion: 0 }) } },
       ],
     }).compile();
 
@@ -147,6 +154,22 @@ describe('TransactionsController (guard / HTTP)', () => {
   afterEach(async () => {
     await app.close();
     jest.clearAllMocks();
+  });
+
+  it('rejects unauthenticated history requests', async () => {
+    await request(app.getHttpServer()).get('/transactions').expect(401);
+  });
+
+  it('lists history for the wallet from the JWT', async () => {
+    const token = signToken({ sub: 'GPUBKEY', tokenVersion: 0 });
+    const history = app.get(HistoryService);
+    jest.mocked(history.list).mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 });
+
+    await request(app.getHttpServer()).get('/transactions')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200, { data: [], total: 0, page: 1, limit: 20 });
+
+    expect(history.list).toHaveBeenCalledWith('GPUBKEY', {});
   });
 
   it('returns 401 when no Authorization header is provided', async () => {
@@ -221,7 +244,7 @@ describe('TransactionsController (guard / HTTP)', () => {
   });
 
   it('returns 201 and calls submitSignedXdr when a valid JWT is provided', async () => {
-    const token = signToken({ sub: 'GPUBKEY' });
+    const token = signToken({ sub: 'GPUBKEY', tokenVersion: 0 });
 
     await request(app.getHttpServer())
       .post('/transactions/submit')

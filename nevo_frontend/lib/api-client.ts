@@ -14,7 +14,7 @@ import type {
   ApiUser,
   PaginatedResponse,
 } from './api-types';
-import type { paths } from './api-schema';
+import type { paths } from './api-types';
 import { env, validatePublicEnv } from './env';
 import { clearAuth, getToken } from './jwt-storage';
 import { toast } from '../components/Toast';
@@ -649,16 +649,11 @@ export type CreatePoolPayload = ApiRequestBody<'/pools', 'post'>;
 
 export type CreatePoolResponse = ApiResponseBody<'/pools', 'post'>;
 
-export function fetchMyDonations(
-  limit?: number
-): Promise<ApiResponseBody<'/users/me/donations', 'get'>> {
-  return apiClient.typedGet(
-  params?: Record<string, string | number | boolean | undefined>
-): Promise<PaginatedResponse<ApiDonation>> {
-  return apiClient.get<PaginatedResponse<ApiDonation>>(
-    '/users/me/donations',
-    params ? { params } : undefined
-  );
+export function fetchMyDonations(limit?: number) {
+  return apiClient.typedGet('/users/me/donations', {
+    params: { limit },
+    requireAuth: true,
+  });
 }
 
 export function fetchPoolDonations(
@@ -678,6 +673,7 @@ export function fetchCreatorPools(publicKey: string): Promise<ApiPool[]> {
 }
 
 export interface TransactionQueryParams {
+  search?: string;
   page?: number;
   limit?: number;
   type?: string;
@@ -690,11 +686,13 @@ export interface TransactionQueryParams {
 
 export function fetchTransactions(
   params: TransactionQueryParams = {}
-): Promise<PaginatedResponse<ApiDonation>> {
-  return apiClient.get<PaginatedResponse<ApiDonation>>('/transactions', {
+): Promise<PaginatedResponse<ApiHistoryItem>> {
+  return apiClient.get<PaginatedResponse<ApiHistoryItem>>('/transactions', {
     params: params as Record<string, string | number | boolean | undefined>,
     requireAuth: true,
   });
+}
+
 export function fetchCreatorPools(
   publicKey: string
 ): Promise<ApiResponseBody<'/pools', 'get'>> {
@@ -754,7 +752,7 @@ export function donate(
 export function submitSignedXdr(
   xdr: string
 ): Promise<ApiResponseBody<'/transactions/submit', 'post'>> {
-  return apiClient.typedPost('/transactions/submit', { xdr });
+  return apiClient.typedPost('/transactions/submit', { xdr }, { requireAuth: true });
 }
 
 export function verifyAuthSignature(
@@ -899,9 +897,9 @@ export function deleteComment(
 
 // ─── Type exports for main branch compatibility ─────────────────────────────
 
-export interface ApiDonation {
+export interface ApiHistoryItem {
   id: string;
-  type: 'donation' | 'pool_creation' | 'withdrawal';
+  type: 'donation' | 'pool_creation' | 'withdrawal' | 'pool_close';
   amount: string;
   asset: string;
   recipient: string;
@@ -914,4 +912,8 @@ export interface ApiProfile {
   publicKey: string;
   displayName: string | null;
   createdAt: string;
+}
+
+export function fetchMyProfile(): Promise<ApiProfile> {
+  return apiClient.get<ApiProfile>('/users/me', { requireAuth: true });
 }

@@ -35,6 +35,10 @@ export class UsersService {
     return this.userRepo.save(user);
   }
 
+  findByPublicKey(publicKey: string): Promise<User | null> {
+    return this.userRepo.findOne({ where: { publicKey } });
+  }
+
   async findOrCreate(publicKey: string): Promise<User> {
     const existing = await this.userRepo.findOne({ where: { publicKey } });
     if (existing) return existing;

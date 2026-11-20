@@ -1,7 +1,5 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Redirect } from '@nestjs/common';
 import { AppService } from './app.service';
-import { JwtAuthGuard } from './auth/jwt-auth.guard';
-import { Request } from 'express';
 
 @Controller()
 export class AppController {
@@ -20,9 +18,7 @@ export class AppController {
     };
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('profile')
-  getProfile(@Req() req: Request & { user?: { publicKey?: string } }) {
-    return { publicKey: req.user?.publicKey };
-  }
+  @Redirect('/users/me', 307)
+  getProfile() {}
 }

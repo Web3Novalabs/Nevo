@@ -7,11 +7,14 @@ import { DonationsModule } from '../donations/donations.module.js';
 import { SyncService } from './sync.service.js';
 import { SyncState } from './sync-state.entity.js';
 
+import { TransactionsModule } from '../transactions/transactions.module.js';
+
 @Module({
   imports: [
     ScheduleModule.forRoot(),
     PoolsModule,
     DonationsModule,
+    TransactionsModule,
     TypeOrmModule.forFeature([SyncState]),
   ],
   providers: [AdvisoryLockService, SyncService],
