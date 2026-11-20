@@ -19,7 +19,7 @@ export class Donation {
   @Column({ name: 'donor_wallet', type: 'varchar', length: 56 })
   donorWallet: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'numeric', precision: 39, scale: 0 })
   amount: string;
 
   @Column({ type: 'varchar', length: 12 })

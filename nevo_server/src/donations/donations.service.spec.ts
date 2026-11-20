@@ -69,7 +69,7 @@ describe('DonationsService', () => {
       });
       expect(mockRepo.createQueryBuilder).toHaveBeenCalledWith('d');
       expect(mockQb.where).toHaveBeenCalledWith('d.poolId = :poolId', { poolId: '1' });
-      expect(mockQb.orderBy).toHaveBeenCalledWith('CAST(d.amount AS NUMERIC)', 'DESC');
+      expect(mockQb.orderBy).toHaveBeenCalledWith('d.amount', 'DESC');
     });
 
     it('applies page and limit to the query', async () => {
@@ -117,7 +117,7 @@ describe('DonationsService', () => {
       });
       expect(mockRepo.createQueryBuilder).toHaveBeenCalledWith('d');
       expect(mockQb.where).toHaveBeenCalledWith('d.donorWallet = :donorWallet', { donorWallet: 'ABC' });
-      expect(mockQb.orderBy).toHaveBeenCalledWith('CAST(d.amount AS NUMERIC)', 'DESC');
+      expect(mockQb.orderBy).toHaveBeenCalledWith('d.amount', 'DESC');
     });
 
     it('applies page and limit to the query', async () => {

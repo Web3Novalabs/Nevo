@@ -115,6 +115,12 @@ back exactly one migration; run it repeatedly to go further back. Once a
 migration is merged and deployed, do not edit it — add a new migration that
 corrects it, since anyone who already ran the old one will never re-run it.
 
+### Monetary amounts
+
+`pools.goal`, `pools.raised` and `donations.amount` are `NUMERIC(39,0)` so the full on-chain `i128` range (up to `170141183460469231731687303715884105727`) fits exactly. The `pg` driver returns `NUMERIC` as a string, and every monetary field stays a `string` in TypeScript, DTOs and JSON responses. Never pass these values through `Number`/`parseFloat`; use `BigInt` for arithmetic in code, or SQL `numeric` arithmetic in queries.
+
+Migration `MonetaryAmountsToNumeric1800000000004` is reversible. `down` restores `bigint`/`bigint`/`varchar(255)` and refuses to run (leaving data untouched) if any pool `goal`/`raised` exceeds the `bigint` maximum.
+
 ## Run tests
 
 ```bash
