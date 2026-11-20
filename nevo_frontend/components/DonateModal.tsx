@@ -4,7 +4,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWalletStore } from '@/src/store/walletStore';
 import { useDonationsStore } from '@/src/store/donationsStore';
 import { useNotificationsStore } from '@/src/store/notificationsStore';
-import { contractService } from '@/lib/contract-service';
+import {
+  contractService,
+  getDonationTokenAddress,
+} from '@/lib/contract-service';
 import { parseApiError } from '@/lib/errors';
 import { useXdrTransaction } from '@/lib/useXdrTransaction';
 import type { Pool } from '@/src/store/poolsStore';
@@ -17,6 +20,7 @@ type Step = 'form' | 'loading' | 'success' | 'error';
 const MIN_AMOUNT = 1;
 const MAX_AMOUNT = 100_000;
 const TX_FEE_XLM = '0.00001';
+const TOKEN_DECIMALS: Record<Asset, number> = { XLM: 7, USDC: 6 };
 const FOCUSABLE_SELECTOR =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
@@ -117,20 +121,42 @@ export function DonateModal({
         : `Maximum donation is ${MAX_AMOUNT.toLocaleString()} ${asset}`
       : '';
 
+  function showError(message: string) {
+    setErrorMsg(message);
+    setStep('error');
+    addNotification({
+      type: 'error',
+      title: 'Donation failed',
+      message,
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!amountValid || !publicKey) return;
+
+    const balance = Number.parseFloat(availableBalance);
+    if (!Number.isFinite(balance) || numAmount > balance) {
+      showError(
+        `Insufficient ${asset} balance. Available: ${availableBalance} ${asset}.`
+      );
+      return;
+    }
 
     setStep('loading');
     setErrorMsg('');
 
     try {
       // Build the unsigned XDR from the contract service
-      const amountInStroops = BigInt(Math.round(numAmount * 1e7));
+      const amountInBaseUnits = BigInt(
+        Math.round(numAmount * 10 ** TOKEN_DECIMALS[asset])
+      );
+      const tokenAddress = pool.tokenAddress ?? getDonationTokenAddress(asset);
       const unsignedXdr = await contractService.buildDonateTransaction(
         parseInt(pool.id),
         publicKey,
-        amountInStroops
+        amountInBaseUnits,
+        tokenAddress
       );
 
       // Sign and submit through the shared wallet abstraction
@@ -179,13 +205,7 @@ export function DonateModal({
         friendlyMsg =
           msg || 'Transaction rejected by the network. Please try again.';
       }
-      setErrorMsg(friendlyMsg);
-      setStep('error');
-      addNotification({
-        type: 'error',
-        title: 'Donation failed',
-        message: friendlyMsg,
-      });
+      showError(friendlyMsg);
     }
   }
 

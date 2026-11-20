@@ -2,22 +2,30 @@
 process.env.NEXT_PUBLIC_CONTRACT_ID =
   'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM';
 
-import { Account } from '@stellar/stellar-sdk';
-import { scValToNative } from '@stellar/stellar-sdk';
+import {
+  Account,
+  Address,
+  Asset,
+  Contract,
+  Keypair,
+  Networks,
+  nativeToScVal,
+  scValToNative,
+} from '@stellar/stellar-sdk';
 
 const TEST_PUBKEY = 'GAVQGTVZ25JJSLUC72LD5T73CKE4EHUEKOKY7CKUF4GSESY5V726ISXJ';
+const CUSTOM_TOKEN = 'CA2E53VHFZ6YSWQIEIPBXJQGT6VW3VKWWZO555XKRQXYJ63GEBJJGHY7';
 
-const mockPrepareTransaction = jest
-  .fn()
-  .mockImplementation((tx) => Promise.resolve(tx));
+const mockPrepareTransaction = jest.fn();
 const mockGetAccount = jest.fn();
 const mockSimulateTransaction = jest.fn();
 
 jest.mock('@stellar/stellar-sdk/rpc', () => ({
   Server: jest.fn().mockImplementation(() => ({
-    getAccount: mockGetAccount,
-    prepareTransaction: mockPrepareTransaction,
-    simulateTransaction: mockSimulateTransaction,
+    getAccount: (...args: unknown[]) => mockGetAccount(...args),
+    prepareTransaction: (...args: unknown[]) => mockPrepareTransaction(...args),
+    simulateTransaction: (...args: unknown[]) =>
+      mockSimulateTransaction(...args),
   })),
 }));
 
@@ -34,17 +42,24 @@ jest.mock('@stellar/stellar-sdk', () => {
 
 import { contractService } from '../lib/contract-service';
 
+let callSpy: jest.SpyInstance;
+
 beforeEach(() => {
-  mockGetAccount.mockResolvedValue(new Account(TEST_PUBKEY, '100'));
   jest.clearAllMocks();
+  mockGetAccount.mockReset().mockResolvedValue(new Account(TEST_PUBKEY, '100'));
+  mockPrepareTransaction
+    .mockReset()
+    .mockImplementation((tx) => Promise.resolve(tx));
+  mockSimulateTransaction.mockReset();
+  (scValToNative as jest.Mock).mockReturnValue(42);
+  callSpy = jest.spyOn(Contract.prototype, 'call');
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 describe('ContractService.getPoolCount', () => {
-  beforeEach(() => {
-    // Reset scValToNative mock to return default value
-    (scValToNative as jest.Mock).mockReturnValue(42);
-  });
-
   it('returns the pool count when the RPC simulation succeeds', async () => {
     mockSimulateTransaction.mockResolvedValue({
       result: {
@@ -105,19 +120,49 @@ describe('ContractService.getPoolCount', () => {
 });
 
 describe('ContractService.buildDonateTransaction', () => {
-  beforeEach(() => {
-    mockGetAccount.mockResolvedValue(new Account(TEST_PUBKEY, '100'));
-    mockPrepareTransaction.mockImplementation((tx) => Promise.resolve(tx));
-  });
+  it('builds a token-backed donation with the native XLM SAC token', async () => {
+    const amount = BigInt(5_000_000);
 
-  it('returns a non-empty XDR string', async () => {
     const xdr = await contractService.buildDonateTransaction(
-      1,
+      7,
       TEST_PUBKEY,
-      BigInt(5_000_000)
+      amount
     );
+
     expect(typeof xdr).toBe('string');
     expect(xdr.length).toBeGreaterThan(0);
+
+    const [method, pool, donor, token, donationAmount] = callSpy.mock.calls[0];
+    expect(method).toBe('donate_with_token');
+    expect(pool.u32()).toBe(7);
+    expect(donor.toXDR('base64')).toBe(
+      Address.account(Keypair.fromPublicKey(TEST_PUBKEY).rawPublicKey())
+        .toScVal()
+        .toXDR('base64')
+    );
+
+    const nativeSac = Asset.native().contractId(Networks.TESTNET);
+    expect(token.toXDR('base64')).toBe(
+      new Address(nativeSac).toScVal().toXDR('base64')
+    );
+    expect(donationAmount.switch().name).toBe('scvI128');
+    expect(donationAmount.toXDR('base64')).toBe(
+      nativeToScVal(amount, { type: 'i128' }).toXDR('base64')
+    );
+  });
+
+  it('uses the supplied pool token address when provided', async () => {
+    await contractService.buildDonateTransaction(
+      1,
+      TEST_PUBKEY,
+      BigInt(10_000_000),
+      CUSTOM_TOKEN
+    );
+
+    const token = callSpy.mock.calls[0][3];
+    expect(token.toXDR('base64')).toBe(
+      new Address(CUSTOM_TOKEN).toScVal().toXDR('base64')
+    );
   });
 
   it('produces a base64-decodable XDR envelope', async () => {

@@ -17,6 +17,7 @@ export interface Pool {
   imageColor: string;
   creator?: string;
   createdAt?: string;
+  tokenAddress?: string;
 }
 
 interface PoolFilters {
