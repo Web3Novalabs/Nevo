@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -8,6 +8,7 @@ import {
 } from '../common/advisory-lock.service.js';
 import { PoolsService } from '../pools/pools.service.js';
 import { DonationsService } from '../donations/donations.service.js';
+import { HistoryService } from '../transactions/history.service.js';
 import { SyncState } from './sync-state.entity.js';
 
 /** Minimal shape of a Stellar Horizon Soroban contract event. */
@@ -36,6 +37,7 @@ export class SyncService implements OnModuleInit {
     @InjectRepository(SyncState)
     private readonly syncStateRepo: Repository<SyncState>,
     private readonly advisoryLock: AdvisoryLockService,
+    @Optional() private readonly history?: HistoryService,
   ) {}
 
   async onModuleInit() {
@@ -60,8 +62,7 @@ export class SyncService implements OnModuleInit {
    * **Unimplemented stub — not a tested feature.**
    *
    * This method is a placeholder and does NOT perform any real Horizon polling.
-   * It currently only clears the within-run duplicate-detection set (`seenInRun`)
-   * and never calls `HorizonService`. No events are fetched, processed, or persisted.
+   * The job reconciles submitted transaction statuses. Horizon event polling is still pending.
    *
    * It is intentionally scoped separately from test-coverage work: because there is
    * no real polling behavior yet, no tests should assert on it. Contributors should
@@ -77,10 +78,10 @@ export class SyncService implements OnModuleInit {
     await this.advisoryLock.runExclusive(
       ADVISORY_LOCK_KEYS.syncHorizonEvents,
       'SyncService.pollHorizonEvents',
-      () => {
+      async () => {
         this.seenInRun.clear();
         // stub — will call HorizonService.fetchContractEvents() when implemented
-        return Promise.resolve();
+        await this.history?.reconcilePending();
       },
     );
   }
@@ -143,6 +144,15 @@ export class SyncService implements OnModuleInit {
       creatorWallet,
       goal,
     });
+    if (event.txHash) {
+      await this.history?.record(creatorWallet, {
+        txHash: event.txHash,
+        type: 'pool_creation',
+        status: 'completed',
+        amount: '0',
+        recipient: creatorWallet,
+      });
+    }
   }
 
   /**
@@ -164,7 +174,16 @@ export class SyncService implements OnModuleInit {
     }
 
     const contractPoolId = event.topic[1];
-    await this.poolsService.markCompleted(contractPoolId);
+    const pool = await this.poolsService.markCompleted(contractPoolId);
+    if (event.txHash && pool) {
+      await this.history?.record(pool.creatorWallet, {
+        txHash: event.txHash,
+        type: 'pool_close',
+        status: 'completed',
+        amount: '0',
+        recipient: contractPoolId,
+      });
+    }
   }
 
   /**

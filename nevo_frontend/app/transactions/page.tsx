@@ -4,14 +4,17 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { BackToTopButton } from '@/components';
 import { EmptyState } from '@/components/EmptyState';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { fetchTransactions } from '@/lib/transactions-api';
-import type { Transaction, TxType, TxStatus } from '@/src/lib/mockTransactions';
+import { fetchTransactions, type ApiHistoryItem as Transaction } from '@/lib/api-client';
+
+type TxType = Transaction['type'];
+type TxStatus = Transaction['status'];
 
 const PAGE_SIZE = 8;
 
 const TYPE_LABELS: Record<TxType, string> = {
   donation: 'Donation',
   pool_creation: 'Pool Created',
+  pool_close: 'Pool Closed',
   withdrawal: 'Withdrawal',
 };
 
@@ -121,12 +124,14 @@ function SearchIcon() {
 const TYPE_ICON: Record<TxType, React.ReactNode> = {
   donation: <DonationIcon />,
   pool_creation: <PoolIcon />,
+  pool_close: <PoolIcon />,
   withdrawal: <WithdrawIcon />,
 };
 
 const TYPE_ICON_BG: Record<TxType, string> = {
   donation: 'bg-brand-100 text-brand-600',
   pool_creation: 'bg-warning-light text-warning-dark',
+  pool_close: 'bg-warning-light text-warning-dark',
   withdrawal: 'bg-success-light text-success-dark',
 };
 
@@ -154,18 +159,18 @@ function TransactionsPageContent() {
 
     fetchTransactions({
       page,
-      pageSize: PAGE_SIZE,
+      limit: PAGE_SIZE,
       type: typeFilter === 'all' ? undefined : typeFilter,
       status: statusFilter === 'all' ? undefined : statusFilter,
       search: search || undefined,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
+      from: dateFrom || undefined,
+      to: dateTo || undefined,
     })
       .then((result) => {
         if (cancelled) return;
-        setTransactions(result.items ?? []);
+        setTransactions(result.data ?? []);
         setTotal(result.total ?? 0);
-        setTotalPages(Math.max(1, result.totalPages ?? 1));
+        setTotalPages(Math.max(1, Math.ceil((result.total ?? 0) / PAGE_SIZE)));
       })
       .catch(() => {
         if (cancelled) return;
@@ -262,6 +267,7 @@ function TransactionsPageContent() {
           <option value="all">All Types</option>
           <option value="donation">Donation</option>
           <option value="pool_creation">Pool Created</option>
+          <option value="pool_close">Pool Closed</option>
           <option value="withdrawal">Withdrawal</option>
         </select>
 

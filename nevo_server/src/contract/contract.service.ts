@@ -14,6 +14,7 @@ import {
   scValToNative,
 } from '@stellar/stellar-sdk';
 import { rpc as StellarRpc } from '@stellar/stellar-sdk';
+import type { HistoryEntry } from '../transactions/history.service.js';
 import { StellarError } from './stellar.error.js';
 
 const NETWORK_PASSPHRASE =
@@ -126,6 +127,37 @@ export class ContractService {
     }
   }
 
+  describeSubmission(signedXdr: string, wallet: string): Omit<HistoryEntry, 'txHash' | 'status'> | undefined {
+    let parsed: Transaction | FeeBumpTransaction;
+    try {
+      parsed = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+    } catch {
+      throw new StellarError('invalid_xdr');
+    }
+    const tx = parsed instanceof FeeBumpTransaction ? parsed.innerTransaction : parsed;
+    const [op] = tx.operations;
+    if (tx.operations.length !== 1 || op?.type !== 'invokeHostFunction' || (op.source ?? tx.source) !== wallet) return;
+    if (op.func.switch().name !== 'hostFunctionTypeInvokeContract') return;
+    const invocation = op.func.invokeContract();
+    if (scValToNative(xdr.ScVal.scvAddress(invocation.contractAddress())) !== this.contract.contractId()) return;
+
+    const functionName = invocation.functionName().toString();
+    const [first, second, third] = invocation.args().map((arg) => String(scValToNative(arg)));
+    switch (functionName) {
+      case 'create_pool':
+        if (first === wallet) return { type: 'pool_creation', amount: '0', recipient: wallet };
+        return;
+      case 'donate':
+        if (third !== undefined && second !== wallet) return;
+        return { type: 'donation', amount: third ?? second ?? '0', recipient: first ?? '' };
+      case 'withdraw':
+        return { type: 'withdrawal', amount: '0', recipient: first ?? '' };
+      case 'close_pool':
+        if (second === undefined || second === wallet) return { type: 'pool_close', amount: '0', recipient: first ?? '' };
+        return;
+    }
+  }
+
   async submitSignedXdr(signedXdr: string): Promise<string> {
     let tx: Transaction | FeeBumpTransaction;
     try {
@@ -139,6 +171,12 @@ export class ContractService {
     } catch (err: unknown) {
       throw this.mapError(err);
     }
+  }
+
+  async getSubmissionStatus(txHash: string): Promise<'completed' | 'failed' | undefined> {
+    const result = await this.rpcServer.getTransaction(txHash);
+    if (result.status === StellarRpc.Api.GetTransactionStatus.SUCCESS) return 'completed';
+    if (result.status === StellarRpc.Api.GetTransactionStatus.FAILED) return 'failed';
   }
 
   async getContributionOnChain(poolId: number, donor: string): Promise<bigint> {

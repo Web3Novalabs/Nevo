@@ -15,6 +15,7 @@ import { User } from './user.entity';
 
 const makeUser = (overrides: Partial<User> = {}): User => ({
   id: 'uuid-1',
+  tokenVersion: 0,
   publicKey: 'GABC1234567890',
   displayName: 'Alice',
   createdAt: new Date(),
@@ -29,13 +30,15 @@ describe('UsersController', () => {
   let controller: UsersController;
   let usersService: {
     updateDisplayName: jest.Mock;
-    getPublicProfile: jest.Mock;
+    findByPublicKey: jest.Mock;
+    findPublicProfile: jest.Mock;
   };
 
   beforeEach(async () => {
     usersService = {
       updateDisplayName: jest.fn(),
-      getPublicProfile: jest.fn(),
+      findByPublicKey: jest.fn(),
+      findPublicProfile: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -54,6 +57,17 @@ describe('UsersController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  it('returns only the signed-in user’s profile fields', async () => {
+    const user = makeUser();
+    usersService.findByPublicKey.mockResolvedValue(user);
+    await expect(controller.getMe(makeReq(user.publicKey))).resolves.toEqual({
+      publicKey: user.publicKey,
+      displayName: user.displayName,
+      createdAt: user.createdAt,
+    });
+    expect(usersService.findByPublicKey).toHaveBeenCalledWith(user.publicKey);
   });
 
   describe('updateMe (PATCH /users/me)', () => {
@@ -174,16 +188,16 @@ describe('UsersController', () => {
         poolsCreated: 3,
         totalRaised: '1500.0000000',
       };
-      usersService.getPublicProfile.mockResolvedValue(profile);
+      usersService.findPublicProfile.mockResolvedValue(profile);
 
       const result = await controller.getPublicProfile(publicKey);
 
-      expect(usersService.getPublicProfile).toHaveBeenCalledWith(publicKey);
+      expect(usersService.findPublicProfile).toHaveBeenCalledWith(publicKey);
       expect(result).toEqual(profile);
     });
 
     it('does not expose private fields such as id, createdAt or updatedAt', async () => {
-      usersService.getPublicProfile.mockResolvedValue({
+      usersService.findPublicProfile.mockResolvedValue({
         publicKey,
         displayName: 'Alice',
         joinedAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -202,7 +216,7 @@ describe('UsersController', () => {
     });
 
     it('throws NotFoundException when the user does not exist', async () => {
-      usersService.getPublicProfile.mockResolvedValue(null);
+      usersService.findPublicProfile.mockResolvedValue(null);
 
       await expect(controller.getPublicProfile('GUNKNOWN')).rejects.toThrow(
         NotFoundException,
@@ -210,7 +224,7 @@ describe('UsersController', () => {
     });
 
     it('throws NotFoundException with "User not found" message', async () => {
-      usersService.getPublicProfile.mockResolvedValue(null);
+      usersService.findPublicProfile.mockResolvedValue(null);
 
       await expect(controller.getPublicProfile('GUNKNOWN')).rejects.toThrow(
         'User not found',
@@ -218,7 +232,7 @@ describe('UsersController', () => {
     });
 
     it('propagates unexpected errors from usersService', async () => {
-      usersService.getPublicProfile.mockRejectedValue(
+      usersService.findPublicProfile.mockRejectedValue(
         new Error('DB connection lost'),
       );
 
@@ -267,7 +281,8 @@ describe('UsersController (PATCH /users/me validation)', () => {
   let app: INestApplication;
   let usersService: {
     updateDisplayName: jest.Mock;
-    getPublicProfile: jest.Mock;
+    findByPublicKey: jest.Mock;
+    findPublicProfile: jest.Mock;
   };
 
   const jwtSecret = process.env.JWT_SECRET ?? JWT_SECRET_FALLBACK;
@@ -277,7 +292,7 @@ describe('UsersController (PATCH /users/me validation)', () => {
   beforeEach(async () => {
     usersService = {
       updateDisplayName: jest.fn().mockResolvedValue(makeUser()),
-      getPublicProfile: jest.fn(),
+      findPublicProfile: jest.fn(),
     };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -339,7 +354,8 @@ describe('UsersController (GET /users/:publicKey)', () => {
   let app: INestApplication;
   let usersService: {
     updateDisplayName: jest.Mock;
-    getPublicProfile: jest.Mock;
+    findByPublicKey: jest.Mock;
+    findPublicProfile: jest.Mock;
   };
 
   const validKey = 'GABC1234567890';
@@ -347,7 +363,8 @@ describe('UsersController (GET /users/:publicKey)', () => {
   beforeEach(async () => {
     usersService = {
       updateDisplayName: jest.fn(),
-      getPublicProfile: jest.fn(),
+      findByPublicKey: jest.fn(),
+      findPublicProfile: jest.fn(),
     };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -375,7 +392,7 @@ describe('UsersController (GET /users/:publicKey)', () => {
   });
 
   it('returns 200 with the public DTO for a valid key', async () => {
-    usersService.getPublicProfile.mockResolvedValue({
+    usersService.findPublicProfile.mockResolvedValue({
       publicKey: validKey,
       displayName: 'Alice',
       joinedAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -387,7 +404,7 @@ describe('UsersController (GET /users/:publicKey)', () => {
       .get(`/users/${validKey}`)
       .expect(200);
 
-    expect(usersService.getPublicProfile).toHaveBeenCalledWith(validKey);
+    expect(usersService.findPublicProfile).toHaveBeenCalledWith(validKey);
     expect(res.body).toMatchObject({
       publicKey: validKey,
       displayName: 'Alice',
@@ -402,11 +419,11 @@ describe('UsersController (GET /users/:publicKey)', () => {
   it('returns 400 for an invalid key format', async () => {
     await request(app.getHttpServer()).get('/users/not-a-key').expect(400);
 
-    expect(usersService.getPublicProfile).not.toHaveBeenCalled();
+    expect(usersService.findPublicProfile).not.toHaveBeenCalled();
   });
 
   it('returns 404 for an unknown key', async () => {
-    usersService.getPublicProfile.mockResolvedValue(null);
+    usersService.findPublicProfile.mockResolvedValue(null);
 
     await request(app.getHttpServer()).get(`/users/${validKey}`).expect(404);
   });

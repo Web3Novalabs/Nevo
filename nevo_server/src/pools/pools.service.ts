@@ -79,10 +79,15 @@ export class PoolsService {
       queryBuilder.andWhere('pool.status = :status', { status: query.status });
     }
 
+    if (query.creator) {
+      queryBuilder.andWhere('pool.creatorWallet = :creator', { creator: query.creator });
+    }
+
     if (query.search) {
+      const escaped = query.search.replace(/[!%_\\]/g, '!$&');
       queryBuilder.andWhere(
-        '(LOWER(pool.title) LIKE LOWER(:search) OR LOWER(pool.description) LIKE LOWER(:search))',
-        { search: `%${query.search}%` },
+        "(pool.title ILIKE :search ESCAPE '!' OR pool.description ILIKE :search ESCAPE '!')",
+        { search: `%${escaped}%` },
       );
     }
 

@@ -5,9 +5,12 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
+import { STELLAR_PUBLIC_KEY } from '../../common/stellar-public-key.js';
 import { PoolStatus } from '../pool.entity.js';
 
 /**
@@ -32,7 +35,13 @@ export class FilterPoolsDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   search?: string;
+
+  @ApiPropertyOptional({ description: 'Stellar public key of the pool creator.' })
+  @IsOptional()
+  @Matches(STELLAR_PUBLIC_KEY)
+  creator?: string;
 
   @ApiPropertyOptional({
     description: 'Exact category match, case-insensitive.',
