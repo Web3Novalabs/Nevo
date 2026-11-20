@@ -14,6 +14,7 @@ import { GlobalExceptionFilter } from './common/global-exception.filter.js';
 import { buildDataSourceOptions } from './db.config.js';
 import { DonationsModule } from './donations/donations.module.js';
 import { PoolsModule } from './pools/pools.module.js';
+import { ReconciliationModule } from './reconciliation/reconciliation.module.js';
 import { StatsModule } from './stats/stats.module.js';
 import { SyncModule } from './sync/sync.module.js';
 

@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 export const ADVISORY_LOCK_KEYS = {
   syncHorizonEvents: 1754000001,
   nonceCleanup: 1754000002,
+  poolReconciliation: 1754000003,
 } as const;
 
 @Injectable()
