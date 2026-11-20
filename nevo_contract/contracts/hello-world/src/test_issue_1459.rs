@@ -60,7 +60,7 @@ fn test_refund_blocked_after_token_swap() {
 }
 
 #[test]
-fn test_claim_funds_uses_unrelated_token() {
+fn test_claim_funds_rejects_unrelated_token() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -96,11 +96,14 @@ fn test_claim_funds_uses_unrelated_token() {
     );
     client.set_application_status(&admin, &pool_id, &student, &approved(&env));
 
-    client.claim_funds(&student, &pool_id, &100_000i128, &token_b);
+    assert_eq!(
+        client.try_claim_funds(&student, &pool_id, &100_000i128, &token_b),
+        Err(Ok(ContractError::TokenTransferFailed.into()))
+    );
 
     let student_balance_b =
         soroban_sdk::token::Client::new(&env, &token_b).balance(&student);
-    assert_eq!(student_balance_b, 99_000);
+    assert_eq!(student_balance_b, 0);
 
     let stored = stored_pool_token(&env, &contract_id, pool_id);
     assert_eq!(stored, Some(token_a));

@@ -1,8 +1,6 @@
 #![cfg(test)]
 
-//! Issue #1460 — `claim_funds` takes a caller-supplied `token_address` and
-//! never validates it against `POOL_TOKEN_PREFIX`, unlike `donate_with_token`
-//! and `refund_donation` which both enforce the stored pool token.
+//! Configured pool tokens apply to donations, claims, and refunds.
 
 use super::*;
 use soroban_sdk::{
@@ -24,16 +22,11 @@ fn approved(env: &Env) -> String {
 }
 
 // =============================================================================
-// Test A — claim_funds accepts any token, ignoring the configured pool token
+// Test A — claim_funds enforces the configured pool token
 // =============================================================================
 
-/// Bug #1460, part 1.
-///
-/// Pool is configured for token A, donations arrive in A, but the student
-/// claims in token B. `claim_funds` never reads `POOL_TOKEN_PREFIX`, so the
-/// transfer goes through against token B's balance of the contract.
 #[test]
-fn test_claim_funds_ignores_configured_pool_token() {
+fn test_claim_funds_enforces_configured_pool_token() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -44,7 +37,7 @@ fn test_claim_funds_ignores_configured_pool_token() {
     let student = Address::generate(&env);
     let admin = Address::generate(&env);
     let school = Address::generate(&env);
-    // Both tokens are minted to the contract so both transfer paths can succeed.
+    // Fund both tokens so the error specifically verifies token validation.
     let token_a = create_token(&env, 1_000_000, &contract_id);
     let token_b = create_token(&env, 1_000_000, &contract_id);
     // The donor needs A to fund the pool through donate_with_token.
@@ -71,28 +64,28 @@ fn test_claim_funds_ignores_configured_pool_token() {
     client.set_application_status(&admin, &pool_id, &student, &approved(&env));
 
     // Claim using token B — different from the configured pool token (A).
-    client.claim_funds(&student, &pool_id, &100_000i128, &token_b);
+    assert_eq!(
+        client.try_claim_funds(&student, &pool_id, &100_000i128, &token_b),
+        Err(Ok(ContractError::TokenTransferFailed.into()))
+    );
 
-    // The student received B. Token A is untouched — the transfer succeeded
-    // against a completely unrelated token.
     let student_bal_b =
         soroban_sdk::token::Client::new(&env, &token_b).balance(&student);
-    assert_eq!(student_bal_b, 99_000); // 100_000 minus 1% fee
+    assert_eq!(student_bal_b, 0);
 
     let student_bal_a =
         soroban_sdk::token::Client::new(&env, &token_a).balance(&student);
     assert_eq!(student_bal_a, 0);
+    assert_eq!(client.get_claimed_amount(&pool_id, &student), 0);
+
+    client.claim_funds(&student, &pool_id, &100_000i128, &token_a);
+    assert_eq!(soroban_sdk::token::Client::new(&env, &token_a).balance(&student), 99_000);
 }
 
 // =============================================================================
-// Test B — refund_donation rejects a mismatched token (the inconsistency)
+// Test B — refund_donation rejects a mismatched token
 // =============================================================================
 
-/// Bug #1460, part 2.
-///
-/// Same pool state as Test A, but calling `refund_donation` with token B
-/// panics with `"TokenTransferFailed"` — proving `refund_donation` *does*
-/// validate the stored pool token while `claim_funds` does not.
 #[test]
 #[should_panic(expected = "TokenTransferFailed")]
 fn test_refund_donation_rejects_mismatched_token() {
@@ -137,13 +130,8 @@ fn test_refund_donation_rejects_mismatched_token() {
 // Test C — side-by-side: claim_funds vs donate_with_token on the same pool
 // =============================================================================
 
-/// Bug #1460, part 3 (the "enumerate the inconsistency" part of the issue).
-///
-/// Donations in token B are rejected by `donate_with_token` because the
-/// stored token is A. But a claim in token B by an approved student
-/// *succeeds*. Same pool, same stored token, opposite outcomes.
 #[test]
-fn test_inconsistency_between_donation_and_claim_token_checks() {
+fn test_donation_and_claim_reject_the_same_mismatched_token() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -186,10 +174,12 @@ fn test_inconsistency_between_donation_and_claim_token_checks() {
     let donate_b = client.try_donate_with_token(&pool_id, &donor, &token_b, &1_000i128);
     assert!(donate_b.is_err(), "donate_with_token must reject token B");
 
-    // Claim in token B: accepted by claim_funds.
-    client.claim_funds(&student, &pool_id, &100_000i128, &token_b);
+    assert_eq!(
+        client.try_claim_funds(&student, &pool_id, &100_000i128, &token_b),
+        Err(Ok(ContractError::TokenTransferFailed.into()))
+    );
 
     let student_bal_b =
         soroban_sdk::token::Client::new(&env, &token_b).balance(&student);
-    assert_eq!(student_bal_b, 99_000);
+    assert_eq!(student_bal_b, 0);
 }
