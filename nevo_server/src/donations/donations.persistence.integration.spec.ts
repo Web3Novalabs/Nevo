@@ -1,6 +1,6 @@
 import { DataSource } from 'typeorm';
 import { Donation } from './donation.entity';
-import { DonationsService } from './donations.service';
+import { DonationSortBy, DonationsService } from './donations.service';
 import { UpdateDonationsAssetLength1800000000000 } from '../migrations/1800000000000-UpdateDonationsAssetLength';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -101,7 +101,12 @@ describeWithDatabase('Donations persistence (Postgres)', () => {
     it('findByPool returns { data, total, page, limit } with the full total', async () => {
       await seed();
 
-      const result = await service.findByPool('pool-1', { page: 1, limit: 2 });
+      const result = await service.findByPool(
+        'pool-1',
+        DonationSortBy.newest,
+        1,
+        2,
+      );
 
       expect(result.total).toBe(5);
       expect(result.page).toBe(1);
@@ -113,9 +118,24 @@ describeWithDatabase('Donations persistence (Postgres)', () => {
     it('findByPool paginates through the correct window', async () => {
       await seed();
 
-      const first = await service.findByPool('pool-1', { page: 1, limit: 2 });
-      const second = await service.findByPool('pool-1', { page: 2, limit: 2 });
-      const third = await service.findByPool('pool-1', { page: 3, limit: 2 });
+      const first = await service.findByPool(
+        'pool-1',
+        DonationSortBy.newest,
+        1,
+        2,
+      );
+      const second = await service.findByPool(
+        'pool-1',
+        DonationSortBy.newest,
+        2,
+        2,
+      );
+      const third = await service.findByPool(
+        'pool-1',
+        DonationSortBy.newest,
+        3,
+        2,
+      );
 
       expect(first.data).toHaveLength(2);
       expect(second.data).toHaveLength(2);
@@ -133,7 +153,12 @@ describeWithDatabase('Donations persistence (Postgres)', () => {
     it('findByDonor returns { data, total, page, limit } with the full total', async () => {
       await seed();
 
-      const result = await service.findByDonor('GDONOR', { page: 1, limit: 2 });
+      const result = await service.findByDonor(
+        'GDONOR',
+        DonationSortBy.newest,
+        1,
+        2,
+      );
 
       expect(result.total).toBe(5);
       expect(result.page).toBe(1);
@@ -145,9 +170,24 @@ describeWithDatabase('Donations persistence (Postgres)', () => {
     it('findByDonor paginates through the correct window', async () => {
       await seed();
 
-      const first = await service.findByDonor('GDONOR', { page: 1, limit: 2 });
-      const second = await service.findByDonor('GDONOR', { page: 2, limit: 2 });
-      const third = await service.findByDonor('GDONOR', { page: 3, limit: 2 });
+      const first = await service.findByDonor(
+        'GDONOR',
+        DonationSortBy.newest,
+        1,
+        2,
+      );
+      const second = await service.findByDonor(
+        'GDONOR',
+        DonationSortBy.newest,
+        2,
+        2,
+      );
+      const third = await service.findByDonor(
+        'GDONOR',
+        DonationSortBy.newest,
+        3,
+        2,
+      );
 
       expect(first.data).toHaveLength(2);
       expect(second.data).toHaveLength(2);

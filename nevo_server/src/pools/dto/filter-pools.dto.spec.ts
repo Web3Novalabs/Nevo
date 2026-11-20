@@ -47,10 +47,19 @@ describe('FilterPoolsDto (GET /pools query contract)', () => {
 
   it('validates the creator and search length', async () => {
     const creator = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
-    await request(app.getHttpServer()).get('/pools').query({ creator }).expect(200);
+    await request(app.getHttpServer())
+      .get('/pools')
+      .query({ creator })
+      .expect(200);
     expect(findAll).toHaveBeenCalledWith(expect.objectContaining({ creator }));
-    await request(app.getHttpServer()).get('/pools').query({ creator: 'invalid' }).expect(400);
-    await request(app.getHttpServer()).get('/pools').query({ search: 'a'.repeat(201) }).expect(400);
+    await request(app.getHttpServer())
+      .get('/pools')
+      .query({ creator: 'invalid' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/pools')
+      .query({ search: 'a'.repeat(201) })
+      .expect(400);
   });
 
   it('applies the declared defaults when no query parameters are given', async () => {

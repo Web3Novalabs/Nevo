@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { User } from './user.entity';
+import { Pool } from '../pools/pool.entity';
 
 describe('UsersService', () => {
   const publicKey = 'GABC1234567890';
@@ -22,6 +23,7 @@ describe('UsersService', () => {
       providers: [
         UsersService,
         { provide: getRepositoryToken(User), useValue: repo },
+        { provide: getRepositoryToken(Pool), useValue: {} },
       ],
     }).compile();
     return {
@@ -36,6 +38,7 @@ describe('UsersService', () => {
       id: 'uuid-1',
       publicKey,
       displayName: 'alice',
+      tokenVersion: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -63,6 +66,7 @@ describe('UsersService', () => {
       id: 'uuid-1',
       publicKey,
       displayName: 'alice',
+      tokenVersion: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -111,6 +115,7 @@ describe('UsersService', () => {
         providers: [
           UsersService,
           { provide: getRepositoryToken(User), useValue: repo },
+          { provide: getRepositoryToken(Pool), useValue: {} },
           { provide: getRepositoryToken(Pool), useValue: poolRepo },
         ],
       }).compile();
@@ -123,6 +128,7 @@ describe('UsersService', () => {
         id: 'uuid-1',
         publicKey,
         displayName: 'alice',
+        tokenVersion: 0,
         createdAt,
         updatedAt: new Date(),
       };
@@ -172,8 +178,9 @@ describe('UsersService', () => {
             return Promise.resolve(saved);
           } else {
             // Second save fails with unique constraint violation
-            const error: any = new Error('duplicate key value');
-            error.code = '23505'; // PostgreSQL unique constraint code
+            const error = Object.assign(new Error('duplicate key value'), {
+              code: '23505', // PostgreSQL unique constraint code
+            });
             return Promise.reject(error);
           }
         }),
@@ -186,6 +193,7 @@ describe('UsersService', () => {
         providers: [
           UsersService,
           { provide: getRepositoryToken(User), useValue: repo },
+          { provide: getRepositoryToken(Pool), useValue: {} },
         ],
       }).compile();
 
@@ -220,6 +228,7 @@ describe('UsersService', () => {
         id: 'uuid-seq-1',
         publicKey: testKey,
         displayName: null,
+        tokenVersion: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -238,7 +247,11 @@ describe('UsersService', () => {
           }
         }),
         save: jest.fn().mockImplementation((u: User) => {
-          return Promise.resolve({ ...u, id: 'uuid-seq-1', createdAt: new Date() });
+          return Promise.resolve({
+            ...u,
+            id: 'uuid-seq-1',
+            createdAt: new Date(),
+          });
         }),
         create: jest
           .fn()
@@ -249,6 +262,7 @@ describe('UsersService', () => {
         providers: [
           UsersService,
           { provide: getRepositoryToken(User), useValue: repo },
+          { provide: getRepositoryToken(Pool), useValue: {} },
         ],
       }).compile();
 
@@ -277,6 +291,7 @@ describe('UsersService', () => {
         id: 'uuid-triple',
         publicKey: testKey,
         displayName: null,
+        tokenVersion: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -292,7 +307,9 @@ describe('UsersService', () => {
             return Promise.resolve(createdUser);
           }
         }),
-        save: jest.fn().mockResolvedValue({ ...createdUser, createdAt: new Date() }),
+        save: jest
+          .fn()
+          .mockResolvedValue({ ...createdUser, createdAt: new Date() }),
         create: jest
           .fn()
           .mockImplementation((d: Partial<User>) => ({ ...d }) as User),
@@ -302,6 +319,7 @@ describe('UsersService', () => {
         providers: [
           UsersService,
           { provide: getRepositoryToken(User), useValue: repo },
+          { provide: getRepositoryToken(Pool), useValue: {} },
         ],
       }).compile();
 
@@ -328,7 +346,11 @@ describe('UsersService', () => {
       const repo = {
         findOne: jest.fn().mockResolvedValue(null),
         save: jest.fn().mockImplementation((u: User) => {
-          const saved = { ...u, id: `uuid-${u.publicKey}`, createdAt: new Date() };
+          const saved = {
+            ...u,
+            id: `uuid-${u.publicKey}`,
+            createdAt: new Date(),
+          };
           results[u.publicKey] = saved;
           return Promise.resolve(saved);
         }),
@@ -341,6 +363,7 @@ describe('UsersService', () => {
         providers: [
           UsersService,
           { provide: getRepositoryToken(User), useValue: repo },
+          { provide: getRepositoryToken(Pool), useValue: {} },
         ],
       }).compile();
 

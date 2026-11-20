@@ -47,14 +47,14 @@ describe('AddSyncState migration', () => {
 
     const keyColumn = table!.findColumnByName('key');
     expect(keyColumn).toBeDefined();
-    expect(keyColumn!.type).toBe('varchar');
+    expect(keyColumn!.type).toBe('character varying');
     expect(keyColumn!.length).toBe('50');
     expect(keyColumn!.isPrimary).toBe(true);
     expect(keyColumn!.isNullable).toBe(false);
 
     const valueColumn = table!.findColumnByName('value');
     expect(valueColumn).toBeDefined();
-    expect(valueColumn!.type).toBe('varchar');
+    expect(valueColumn!.type).toBe('character varying');
     expect(valueColumn!.length).toBe('255');
     expect(valueColumn!.isNullable).toBe(false);
   });

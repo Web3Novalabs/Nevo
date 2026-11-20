@@ -219,8 +219,8 @@ describe('NonceService', () => {
 
       await service.deleteExpiredNonces();
 
-      const deleteCall = jest.spyOn(repository, 'delete').mock.calls[0][0] as
-        FindOptionsWhere<Nonce>;
+      const deleteCall = jest.spyOn(repository, 'delete').mock
+        .calls[0][0] as FindOptionsWhere<Nonce>;
       const expiresAtCriteria = deleteCall.expiresAt;
 
       // Must be a TypeORM FindOperator, not a bare Date (which would be an
@@ -249,15 +249,13 @@ describe('NonceService', () => {
 
       await service.deleteExpiredNonces();
 
-      const deleteCall = jest.spyOn(repository, 'delete').mock.calls[0][0] as
-        FindOptionsWhere<Nonce>;
+      const deleteCall = jest.spyOn(repository, 'delete').mock
+        .calls[0][0] as FindOptionsWhere<Nonce>;
       const expiresAtCriteria = deleteCall.expiresAt as FindOperator<Date>;
 
       expect(expiresAtCriteria.type).toBe('lessThan');
       // The cutoff is "now": past-expiry nonces match, future ones do not.
-      expect(expiresAtCriteria.value.getTime()).toBeLessThanOrEqual(
-        Date.now(),
-      );
+      expect(expiresAtCriteria.value.getTime()).toBeLessThanOrEqual(Date.now());
       expect(expiresAtCriteria.value.getTime()).toBeGreaterThanOrEqual(
         now - 1000,
       );
@@ -282,8 +280,8 @@ describe('NonceService', () => {
 
       await service.deleteExpiredNonces();
 
-      const deleteCall = jest.spyOn(repository, 'delete').mock.calls[0][0] as
-        FindOptionsWhere<Nonce>;
+      const deleteCall = jest.spyOn(repository, 'delete').mock
+        .calls[0][0] as FindOptionsWhere<Nonce>;
       const expiresAtCriteria = deleteCall.expiresAt as FindOperator<Date>;
 
       // The delete criteria only filters on expiry, so an unexpired used
@@ -376,8 +374,8 @@ describe('NonceService', () => {
 
       await service.cleanupExpiredNonces();
 
-      const deleteCall = jest.spyOn(repository, 'delete').mock.calls[0][0] as
-        FindOptionsWhere<Nonce>;
+      const deleteCall = jest.spyOn(repository, 'delete').mock
+        .calls[0][0] as FindOptionsWhere<Nonce>;
       const expiresAtCriteria = deleteCall.expiresAt as FindOperator<Date>;
 
       expect(expiresAtCriteria).toBeInstanceOf(FindOperator);

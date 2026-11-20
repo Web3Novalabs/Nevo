@@ -87,7 +87,8 @@ describe('CreatePoolDto (POST /pools body contract)', () => {
   });
 
   it('rejects a missing required field (contractPoolId) with 400', async () => {
-    const { contractPoolId: _omitted, ...bodyWithoutId } = validBody;
+    const bodyWithoutId: Record<string, unknown> = { ...validBody };
+    delete bodyWithoutId.contractPoolId;
     await request(app.getHttpServer())
       .post('/pools')
       .send(bodyWithoutId)
@@ -97,7 +98,8 @@ describe('CreatePoolDto (POST /pools body contract)', () => {
   });
 
   it('rejects a missing required field (creatorWallet) with 400', async () => {
-    const { creatorWallet: _omitted, ...bodyWithoutWallet } = validBody;
+    const bodyWithoutWallet: Record<string, unknown> = { ...validBody };
+    delete bodyWithoutWallet.creatorWallet;
     await request(app.getHttpServer())
       .post('/pools')
       .send(bodyWithoutWallet)

@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
 import request from 'supertest';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ContractController } from './contract.controller';
@@ -9,6 +8,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtStrategy } from '../auth/jwt.strategy';
 import { JWT_SECRET_FALLBACK } from '../auth/jwt.config';
 import { StellarError } from './stellar.error';
+import { UsersService } from '../users/users.service';
 
 describe('ContractController', () => {
   let controller: ContractController;
@@ -84,7 +84,6 @@ describe('ContractController', () => {
     });
 
     it('applies JwtAuthGuard at the method level of submitXdr', () => {
-      const reflector = new Reflector();
       // The guard is registered as a NestJS metadata entry on the method
       const metadata = Reflect.getMetadata(
         '__guards__',
@@ -124,6 +123,14 @@ describe('ContractController (guard / HTTP)', () => {
       controllers: [ContractController],
       providers: [
         { provide: ContractService, useValue: contractService },
+        {
+          provide: UsersService,
+          useValue: {
+            findByPublicKey: jest
+              .fn()
+              .mockResolvedValue({ publicKey: 'GPUBKEY', tokenVersion: 0 }),
+          },
+        },
         JwtStrategy,
       ],
     }).compile();
@@ -157,7 +164,10 @@ describe('ContractController (guard / HTTP)', () => {
   });
 
   it('returns 401 when an already-expired JWT is provided', async () => {
-    const expiredToken = signToken({ sub: 'GPUBKEY' }, { expiresIn: '-1s' });
+    const expiredToken = signToken(
+      { sub: 'GPUBKEY', tokenVersion: 0 },
+      { expiresIn: '-1s' },
+    );
 
     await request(app.getHttpServer())
       .post('/contract/submit')
@@ -185,7 +195,10 @@ describe('ContractController (guard / HTTP)', () => {
   });
 
   it('rejects expired/invalid JWTs with the same response as a missing token', async () => {
-    const expiredToken = signToken({ sub: 'GPUBKEY' }, { expiresIn: '-1s' });
+    const expiredToken = signToken(
+      { sub: 'GPUBKEY', tokenVersion: 0 },
+      { expiresIn: '-1s' },
+    );
     const server = app.getHttpServer();
 
     const missing = await request(server)
@@ -209,7 +222,7 @@ describe('ContractController (guard / HTTP)', () => {
   });
 
   it('returns 201 and calls submitSignedXdr when a valid JWT is provided', async () => {
-    const token = signToken({ sub: 'GPUBKEY' });
+    const token = signToken({ sub: 'GPUBKEY', tokenVersion: 0 });
 
     await request(app.getHttpServer())
       .post('/contract/submit')

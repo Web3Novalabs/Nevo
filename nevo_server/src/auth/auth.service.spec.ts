@@ -32,15 +32,6 @@ describe('AuthService', () => {
     updatedAt: new Date(),
   };
 
-  const mockNonce: Nonce = {
-    id: 'nonce-uuid-1',
-    nonce: 'test-nonce-12345',
-    publicKey: 'GABC123',
-    createdAt: new Date(),
-    expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
-    used: false,
-  };
-
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -49,7 +40,7 @@ describe('AuthService', () => {
           provide: UsersService,
           useValue: {
             findOrCreate: jest.fn().mockResolvedValue(mockUser),
-            findById: jest.fn().mockResolvedValue(mockUser),
+            findByPublicKey: jest.fn().mockResolvedValue(mockUser),
             incrementTokenVersion: jest
               .fn()
               .mockResolvedValue({ ...mockUser, tokenVersion: 1 }),
@@ -265,15 +256,6 @@ describe('AuthService', () => {
       const message = 'expired-nonce';
       const signature = keypair.sign(Buffer.from(message)).toString('hex');
 
-      const expiredNonce: Nonce = {
-        id: 'nonce-uuid-2',
-        nonce: message,
-        publicKey: keypair.publicKey(),
-        createdAt: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes ago
-        expiresAt: new Date(Date.now() - 5 * 60 * 1000), // Expired 5 minutes ago
-        used: false,
-      };
-
       const dto: VerifyAuthDto = {
         publicKey: keypair.publicKey(),
         signature,
@@ -412,15 +394,6 @@ describe('AuthService', () => {
       const message = 'test-message';
       const invalidSignature = 'invalid-signature-hex';
 
-      const validNonce: Nonce = {
-        id: 'nonce-uuid-5',
-        nonce: message,
-        publicKey: keypair.publicKey(),
-        createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-        used: false,
-      };
-
       const dto: VerifyAuthDto = {
         publicKey: keypair.publicKey(),
         signature: invalidSignature,
@@ -550,120 +523,49 @@ describe('AuthService', () => {
   });
 
   describe('logout - JWT revocation', () => {
-    it('should increment the user token version and return a success message', async () => {
+    it('increments the token version of the user with that public key', async () => {
       const incrementSpy = jest
         .spyOn(usersService, 'incrementTokenVersion')
         .mockResolvedValue({ ...mockUser, tokenVersion: 1 });
 
-      const result = await service.logout(mockUser.id);
+      await service.logout(mockUser.publicKey);
 
-      expect(incrementSpy).toHaveBeenCalledWith(mockUser.id);
-      expect(result).toEqual({ message: 'Logged out successfully' });
+      expect(usersService.findByPublicKey).toHaveBeenCalledWith(
+        mockUser.publicKey,
+      );
+      expect(incrementSpy).toHaveBeenCalledWith(mockUser.publicKey);
     });
 
-    it('should throw UnauthorizedException when the user does not exist', async () => {
-      jest
-        .spyOn(usersService, 'incrementTokenVersion')
-        .mockResolvedValue(null as any);
+    it('throws UnauthorizedException when the user does not exist', async () => {
+      jest.spyOn(usersService, 'findByPublicKey').mockResolvedValue(null);
 
-      await expect(service.logout('missing-user')).rejects.toThrow(
+      await expect(service.logout('GMISSING')).rejects.toThrow(
         UnauthorizedException,
       );
-    });
-
-    it('should invalidate previously issued tokens by bumping the version', async () => {
-      const user: User = { ...mockUser, tokenVersion: 3 };
-      jest.spyOn(usersService, 'incrementTokenVersion').mockResolvedValue({
-        ...user,
-        tokenVersion: 4,
-      });
-
-      await service.logout(user.id);
-
-      // A token issued before logout carries tokenVersion 3, which is now stale.
-      expect(user.tokenVersion).toBe(3);
-      expect(usersService.incrementTokenVersion).toHaveBeenCalledWith(user.id);
+      expect(usersService.incrementTokenVersion).not.toHaveBeenCalled();
     });
   });
 
-  describe('Dead/unreachable code proof - generateChallenge & challenges Map (Issue #1490)', () => {
-    it('populates internal challenges Map when generateChallenge is called', () => {
-      const keypair = StellarSdk.Keypair.random();
-      const result = service.generateChallenge(keypair.publicKey());
-
-      expect(result).toBeDefined();
-      expect(result.nonce).toBeDefined();
-      expect(typeof result.nonce).toBe('string');
-      expect(result.expiresAt).toBeGreaterThan(Date.now());
-
-      const challengesMap = (service as any).challenges as Map<string, any>;
-      expect(challengesMap.has(keypair.publicKey())).toBe(true);
-      expect(challengesMap.get(keypair.publicKey())).toEqual({
-        nonce: result.nonce,
-        expiresAt: result.expiresAt,
-      });
+  describe('removed in-memory challenge flow (Issue #1490)', () => {
+    it('no longer exposes generateChallenge or a challenges map', () => {
+      const untyped = service as unknown as Record<string, unknown>;
+      expect(untyped.generateChallenge).toBeUndefined();
+      expect(untyped.challenges).toBeUndefined();
     });
 
-    it('proves the challenges Map populated by generateChallenge is NEVER read by verify()', async () => {
+    it('verify() rejects when NonceService has no record of the nonce', async () => {
       const keypair = StellarSdk.Keypair.random();
-
-      // Step 1: Populate challenges Map via generateChallenge
-      const challenge = service.generateChallenge(keypair.publicKey());
-      const signature = keypair
-        .sign(Buffer.from(challenge.nonce))
-        .toString('hex');
-
+      const message = 'never-issued-nonce';
       const dto: VerifyAuthDto = {
         publicKey: keypair.publicKey(),
-        signature,
-        message: challenge.nonce,
+        signature: keypair.sign(Buffer.from(message)).toString('hex'),
+        message,
       };
-
-      const challengesMap = (service as any).challenges as Map<string, any>;
-      const getSpy = jest.spyOn(challengesMap, 'get');
-      const hasSpy = jest.spyOn(challengesMap, 'has');
-
-      // Step 2: Signature is valid, but NonceService has no record of this nonce
-      // (because generateChallenge only saved it to the in-memory Map, never to NonceService/DB).
-      jest.spyOn(service as any, 'verifySignature').mockReturnValue(true);
       jest.spyOn(nonceService, 'findAndValidateNonce').mockResolvedValue(null);
 
-      // verify() MUST reject despite the challenge being active in `this.challenges`
-      await expect(service.verify(dto)).rejects.toThrow(UnauthorizedException);
       await expect(service.verify(dto)).rejects.toThrow(
         'Invalid or expired nonce',
       );
-
-      // Proves requirement (2): challenges Map is NEVER read (no .get(), no .has()) by verify()
-      expect(getSpy).not.toHaveBeenCalled();
-      expect(hasSpy).not.toHaveBeenCalled();
-
-      // Step 3: Now simulate that NonceService validates the nonce (as in the DB flow)
-      const mockDbNonce: Nonce = {
-        id: 'nonce-uuid-deadcode-audit',
-        nonce: challenge.nonce,
-        publicKey: keypair.publicKey(),
-        createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-        used: false,
-      };
-
-      jest
-        .spyOn(nonceService, 'findAndValidateNonce')
-        .mockResolvedValue(mockDbNonce);
-      jest.spyOn(nonceService, 'markNonceAsUsed').mockResolvedValue();
-      jest.spyOn(usersService, 'findOrCreate').mockResolvedValue(mockUser);
-      jest.spyOn(jwtService, 'sign').mockReturnValue('jwt-token');
-
-      const authResult = await service.verify(dto);
-
-      expect(authResult.accessToken).toBe('jwt-token');
-      // Proves: even during successful verification, challenges Map is still NEVER read
-      expect(getSpy).not.toHaveBeenCalled();
-      expect(hasSpy).not.toHaveBeenCalled();
-
-      // Proves: the entry in challenges Map was untouched and unconsumed
-      expect(challengesMap.has(keypair.publicKey())).toBe(true);
     });
   });
 });

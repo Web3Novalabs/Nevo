@@ -119,7 +119,6 @@ describe('SyncService', () => {
 
     it('short-circuits on a duplicate txHash already seen in-run', async () => {
       const loggerWarnSpy = jest
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         .spyOn((service as any).logger, 'warn')
         .mockImplementation(() => {});
       const event: HorizonContractEvent = {
@@ -167,7 +166,6 @@ describe('SyncService', () => {
   describe('processDonationEvent', () => {
     it('logs a warning and skips processing when event.txHash is missing', async () => {
       const loggerWarnSpy = jest
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         .spyOn((service as any).logger, 'warn')
         .mockImplementation(() => {});
       const event: HorizonContractEvent = {
@@ -387,7 +385,6 @@ describe('SyncService', () => {
 
     it('short-circuits on a duplicate txHash already seen in-run before calling markCompleted', async () => {
       const loggerWarnSpy = jest
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         .spyOn((service as any).logger, 'warn')
         .mockImplementation(() => {});
       const event: HorizonContractEvent = {
@@ -476,7 +473,6 @@ describe('SyncService', () => {
 
     it('warns and skips on duplicate txHash within the same run', async () => {
       const loggerWarnSpy = jest
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         .spyOn((service as any).logger, 'warn')
         .mockImplementation(() => {});
       const event: HorizonContractEvent = {

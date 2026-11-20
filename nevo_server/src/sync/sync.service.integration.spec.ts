@@ -13,11 +13,9 @@ import { Donation } from '../donations/donation.entity';
 
 describe('SyncService Integration Tests', () => {
   let service: SyncService;
-  let poolsService: PoolsService;
   let donationsService: DonationsService;
   let poolRepo: Repository<Pool>;
   let donationRepo: Repository<Donation>;
-  let syncStateRepo: Repository<SyncState>;
 
   beforeEach(async () => {
     // Mock repositories with in-memory storage
@@ -126,14 +124,10 @@ describe('SyncService Integration Tests', () => {
     }).compile();
 
     service = module.get<SyncService>(SyncService);
-    poolsService = module.get<PoolsService>(PoolsService);
     donationsService = module.get<DonationsService>(DonationsService);
     poolRepo = module.get<Repository<Pool>>(getRepositoryToken(Pool));
     donationRepo = module.get<Repository<Donation>>(
       getRepositoryToken(Donation),
-    );
-    syncStateRepo = module.get<Repository<SyncState>>(
-      getRepositoryToken(SyncState),
     );
   });
 

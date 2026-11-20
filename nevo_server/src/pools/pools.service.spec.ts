@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, QueryRunner, Repository } from 'typeorm';
+import {
+  createSchemaDataSource,
+  dropSchemaAndDestroy,
+} from '../testing/test-database';
 import { PoolsService, ChainPoolData } from './pools.service';
 import { Pool, PoolStatus } from './pool.entity';
 import { ContractService } from '../contract/contract.service';
@@ -57,9 +61,7 @@ async function buildService(
     getTotalRaisedOnChain: jest.fn().mockResolvedValue(0n),
     getDonorCountOnChain: jest.fn().mockResolvedValue(0),
     buildClosePoolTransaction: jest.fn().mockReturnValue('close-xdr-string'),
-    buildWithdrawTransaction: jest
-      .fn()
-      .mockReturnValue('withdraw-xdr-string'),
+    buildWithdrawTransaction: jest.fn().mockReturnValue('withdraw-xdr-string'),
   };
 
   const mockConfigService = {
@@ -202,11 +204,15 @@ describe('PoolsService', () => {
 
     it('filters pools by the creator wallet', async () => {
       const { service, qb } = await buildService(makePool());
-      const creator = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+      const creator =
+        'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
 
       await service.findAll({ creator });
 
-      expect(qb.andWhere).toHaveBeenCalledWith('pool.creatorWallet = :creator', { creator });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'pool.creatorWallet = :creator',
+        { creator },
+      );
     });
 
     it('applies search filter when provided', async () => {
@@ -222,7 +228,10 @@ describe('PoolsService', () => {
     });
 
     it('combined filter + pagination: applies both category filter and custom pagination', async () => {
-      const pools = [makePool(), makePool({ id: 'uuid-2', contractPoolId: '2' })];
+      const pools = [
+        makePool(),
+        makePool({ id: 'uuid-2', contractPoolId: '2' }),
+      ];
       const { service, qb } = await buildService(null, {
         getManyAndCount: jest.fn().mockResolvedValue([pools, 2]),
       });
@@ -272,7 +281,7 @@ describe('PoolsService', () => {
 
   describe('create', () => {
     it('saves a new pool with all provided fields', async () => {
-      const { service, repo, savedArg } = await buildService(null);
+      const { service, repo } = await buildService(null);
       const dto = {
         contractPoolId: 'pool-42',
         creatorWallet: 'GCREATOR',
@@ -370,7 +379,9 @@ describe('PoolsService', () => {
       const existing = makePool({ imageUrl: null });
       const { service, savedArg } = await buildService(existing);
 
-      await service.updateMeta('1', { imageUrl: 'https://new-image.com/img.png' });
+      await service.updateMeta('1', {
+        imageUrl: 'https://new-image.com/img.png',
+      });
 
       expect(savedArg().imageUrl).toBe('https://new-image.com/img.png');
     });
@@ -473,7 +484,10 @@ describe('PoolsService', () => {
 
   describe('buildWithdrawTx', () => {
     it('calls ContractService.buildWithdrawTransaction with creatorWallet, numeric poolId and TOKEN_ADDRESS', async () => {
-      const pool = makePool({ contractPoolId: '7', creatorWallet: 'GCREATOR_KEY' });
+      const pool = makePool({
+        contractPoolId: '7',
+        creatorWallet: 'GCREATOR_KEY',
+      });
       const { service, contractService } = await buildService(pool);
 
       service.buildWithdrawTx(pool);
@@ -520,7 +534,10 @@ describe('PoolsService', () => {
     });
 
     it('calls ContractService.buildClosePoolTransaction with creatorWallet and numeric poolId', async () => {
-      const pool = makePool({ contractPoolId: '5', creatorWallet: 'GCREATOR_KEY' });
+      const pool = makePool({
+        contractPoolId: '5',
+        creatorWallet: 'GCREATOR_KEY',
+      });
       const { service, contractService } = await buildService(pool);
 
       service.buildClosePoolTx(pool);
@@ -534,7 +551,9 @@ describe('PoolsService', () => {
     it('returns the XDR string from ContractService', async () => {
       const pool = makePool({ contractPoolId: '3', creatorWallet: 'GWALLET' });
       const { service, contractService } = await buildService(pool);
-      contractService.buildClosePoolTransaction.mockReturnValue('close-pool-xdr');
+      contractService.buildClosePoolTransaction.mockReturnValue(
+        'close-pool-xdr',
+      );
 
       const result = service.buildClosePoolTx(pool);
 
@@ -547,7 +566,8 @@ describe('PoolsService', () => {
 
       service.buildClosePoolTx(pool);
 
-      const [, poolIdArg] = contractService.buildClosePoolTransaction.mock.calls[0];
+      const [, poolIdArg] =
+        contractService.buildClosePoolTransaction.mock.calls[0];
       expect(typeof poolIdArg).toBe('number');
       expect(poolIdArg).toBe(42);
     });
@@ -638,43 +658,28 @@ describe('PoolsService', () => {
   // ── Pool entity defaults & DB constraints ─────────────────────────────────
 
   describe('Pool entity defaults and constraints (DB level)', () => {
+    const SCHEMA = 'spec_pools_service';
     let dataSource: DataSource;
     let poolRepo: Repository<Pool>;
 
     beforeAll(async () => {
-      dataSource = new DataSource({
-        type: 'better-sqlite3',
-        database: ':memory:',
-        entities: [Pool],
-        synchronize: false,
-      });
-      await dataSource.initialize();
+      dataSource = await createSchemaDataSource(SCHEMA, { entities: [Pool] });
       // Apply the real migration so column defaults and the unique index on
-      // contract_pool_id match production.
-      await dataSource.query(
-        'CREATE TABLE "pools" ("id" varchar PRIMARY KEY NOT NULL, ' +
-          '"contract_pool_id" varchar NOT NULL, ' +
-          '"creator_wallet" varchar NOT NULL, ' +
-          '"goal" varchar NOT NULL, ' +
-          '"raised" varchar NOT NULL DEFAULT (\'0\'), ' +
-          '"status" varchar NOT NULL DEFAULT (\'active\'), ' +
-          '"category" varchar NOT NULL DEFAULT (\'\'), ' +
-          '"title" varchar NOT NULL, ' +
-          '"description" varchar NOT NULL, ' +
-          '"image_url" varchar, ' +
-          '"created_at" datetime NOT NULL DEFAULT (datetime(\'now\')), ' +
-          '"updated_at" datetime NOT NULL DEFAULT (datetime(\'now\')))',
-      );
-      await dataSource.query(
-        'CREATE UNIQUE INDEX "IDX_pools_contract_pool_id" ON "pools" ("contract_pool_id")',
-      );
+      // contract_pool_id match production. The migration schema-qualifies its
+      // enum with "public"; redirect it into this spec's private schema.
+      const runner = dataSource.createQueryRunner();
+      await runner.connect();
+      const scoped = {
+        query: (sql: string, params?: unknown[]) =>
+          runner.query(sql.replaceAll('"public".', `"${SCHEMA}".`), params),
+      } as unknown as QueryRunner;
+      await new CreatePoolsTable().up(scoped);
+      await runner.release();
       poolRepo = dataSource.getRepository(Pool);
-    });
+    }, 30000);
 
     afterAll(async () => {
-      if (dataSource?.isInitialized) {
-        await dataSource.destroy();
-      }
+      await dropSchemaAndDestroy(dataSource, SCHEMA);
     });
 
     beforeEach(async () => {
@@ -846,25 +851,28 @@ describe('PoolsService', () => {
 
     it('loses an update when two concurrent increments read the same stale entity (read-then-write)', async () => {
       // The implementation is read-then-write: it does findOne() and then
-      // save(). When two calls run concurrently and the repository returns the
-      // same stale entity instance, both compute their new value from the same
-      // starting `raised`, so one increment is lost. This test documents that
-      // known limitation (an atomic SQL increment would be required to fix it).
+      // save(). When two calls run concurrently and both read before either
+      // writes, both compute their new value from the same starting `raised`,
+      // so one increment is lost. This test documents that known limitation
+      // (an atomic SQL increment would be required to fix it).
       const existing = makePool({ raised: '1000' });
-      const { service, savedArg } = await buildService(existing);
+      const { service, repo } = await buildService(existing);
+      // Each read returns its own snapshot taken before either write lands.
+      repo.findOne.mockImplementation(() => Promise.resolve({ ...existing }));
 
       const [first, second] = await Promise.all([
         service.incrementRaised('1', '500'),
         service.incrementRaised('1', '500'),
       ]);
 
-      // Both calls resolve, but they share the same entity instance and the
-      // second write clobbers the first: 1000 + 500 = 1500, not 2000.
+      // Both calls resolve, but each computed from the same starting value, so
+      // the second write clobbers the first: 1000 + 500 = 1500, not 2000.
       expect(first).not.toBeNull();
       expect(second).not.toBeNull();
-      expect(savedArg().raised).toBe('1500');
-      expect(savedArg().raised).not.toBe('2000');
+      const written = repo.save.mock.calls.map(
+        (call: [Pool]) => call[0].raised,
+      );
+      expect(written).toEqual(['1500', '1500']);
     });
   });
 });
-
