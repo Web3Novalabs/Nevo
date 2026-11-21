@@ -2074,6 +2074,7 @@ mod test_issue_1459;
 mod test_issue_1353_grace_period_boundaries;
 mod test_issue_1377_pool_deadline;
 mod test_issue_1462_crowdfunding_token_event;
+mod test_issue_1331_withdraw_unallocated_funds;
 
 #[cfg(test)]
 mod test_pool_disbursement_safety;
