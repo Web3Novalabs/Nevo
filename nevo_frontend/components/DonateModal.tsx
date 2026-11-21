@@ -148,6 +148,7 @@ export function DonateModal({
 
     try {
       // Build the unsigned XDR from the contract service
+      // TODO(#1738): Replace float math with exact string-based stroop parsing.
       const amountInBaseUnits = BigInt(
         Math.round(numAmount * 10 ** TOKEN_DECIMALS[asset])
       );

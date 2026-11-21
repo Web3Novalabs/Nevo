@@ -30,6 +30,7 @@ interface Story {
   beforeAfter?: { before: string; after: string };
 }
 
+// TODO(#1741): Fetch impact totals from GET /stats and label stories illustrative.
 const IMPACT_METRICS: ImpactMetric[] = [
   { value: '$480K+', label: 'Total Donated' },
   { value: '1,200+', label: 'Pools Created' },

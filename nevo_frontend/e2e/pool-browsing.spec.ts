@@ -1,6 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import { makePool, mockApi } from './helpers';
 
+// TODO(#1740): Add axe audits for core pages in light and dark themes.
+
 async function mockPools(page: Page, pools: ReturnType<typeof makePool>[]) {
   await mockApi(page, /\/pools(\?.*)?$/, (route) =>
     route.fulfill({ json: pools })
