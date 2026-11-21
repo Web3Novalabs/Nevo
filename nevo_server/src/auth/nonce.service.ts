@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Repository } from 'typeorm';
+import { LessThan, MoreThan, Repository } from 'typeorm';
 import {
   ADVISORY_LOCK_KEYS,
   AdvisoryLockService,
@@ -12,6 +12,8 @@ import * as crypto from 'crypto';
 @Injectable()
 export class NonceService {
   private readonly NONCE_LIFETIME_SECONDS = 300; // 5 minutes
+  /** Unused, unexpired nonces a single key may hold at once. */
+  static readonly MAX_OUTSTANDING_NONCES_PER_KEY = 5;
 
   constructor(
     @InjectRepository(Nonce)
@@ -20,6 +22,16 @@ export class NonceService {
   ) {}
 
   async generateNonce(publicKey: string): Promise<string> {
+    const outstanding = await this.nonceRepository.count({
+      where: { publicKey, used: false, expiresAt: MoreThan(new Date()) },
+    });
+    if (outstanding >= NonceService.MAX_OUTSTANDING_NONCES_PER_KEY) {
+      throw new HttpException(
+        'Too many outstanding challenges for this public key',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const nonce = crypto.randomBytes(16).toString('hex');
     const expiresAt = new Date(Date.now() + this.NONCE_LIFETIME_SECONDS * 1000);
 

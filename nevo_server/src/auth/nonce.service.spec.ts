@@ -1,3 +1,4 @@
+import { HttpStatus } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ScheduleModule, SchedulerRegistry } from '@nestjs/schedule';
@@ -39,6 +40,7 @@ describe('NonceService', () => {
           provide: getRepositoryToken(Nonce),
           useValue: {
             save: jest.fn(),
+            count: jest.fn().mockResolvedValue(0),
             findOne: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
@@ -99,6 +101,40 @@ describe('NonceService', () => {
       const nonce2 = await service.generateNonce(publicKey);
 
       expect(nonce1).not.toEqual(nonce2);
+    });
+
+    it('counts only unused, unexpired nonces for the key', async () => {
+      jest.spyOn(repository, 'save').mockResolvedValue(mockNonce);
+
+      await service.generateNonce('GABC123');
+
+      const where = (repository.count as jest.Mock).mock.calls[0][0]
+        .where as FindOptionsWhere<Nonce>;
+      expect(where.publicKey).toBe('GABC123');
+      expect(where.used).toBe(false);
+      expect(where.expiresAt).toBeInstanceOf(FindOperator);
+      expect((where.expiresAt as FindOperator<Date>).type).toBe('moreThan');
+    });
+
+    it('saves a nonce while the key is under the outstanding cap', async () => {
+      jest
+        .spyOn(repository, 'count')
+        .mockResolvedValue(NonceService.MAX_OUTSTANDING_NONCES_PER_KEY - 1);
+      jest.spyOn(repository, 'save').mockResolvedValue(mockNonce);
+
+      await expect(service.generateNonce('GABC123')).resolves.toHaveLength(32);
+      expect(repository.save).toHaveBeenCalled();
+    });
+
+    it('rejects with 429 and writes nothing once the cap is reached', async () => {
+      jest
+        .spyOn(repository, 'count')
+        .mockResolvedValue(NonceService.MAX_OUTSTANDING_NONCES_PER_KEY);
+
+      await expect(service.generateNonce('GABC123')).rejects.toMatchObject({
+        status: HttpStatus.TOO_MANY_REQUESTS,
+      });
+      expect(repository.save).not.toHaveBeenCalled();
     });
   });
 
