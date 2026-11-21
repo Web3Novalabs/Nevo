@@ -35,11 +35,13 @@ function fakeAccount(publicKey: string): StellarRpc.Api.GetAccountResponse {
     accountId: () => publicKey,
     sequenceNumber: () => '100',
     incrementSequenceNumber: () => {},
-  } as unknown as StellarRpc.Api.GetAccountResponse;
+  };
 }
 
 /** Build a SimulateTransactionResponse that carries a return value */
-function fakeSimResult(scVal: xdr.ScVal): StellarRpc.Api.SimulateTransactionSuccessResponse {
+function fakeSimResult(
+  scVal: xdr.ScVal,
+): StellarRpc.Api.SimulateTransactionSuccessResponse {
   return {
     result: { retval: scVal, auth: [] },
     latestLedger: 1,
@@ -48,7 +50,7 @@ function fakeSimResult(scVal: xdr.ScVal): StellarRpc.Api.SimulateTransactionSucc
     cost: { cpuInsns: '0', memBytes: '0' },
     events: [],
     stateChanges: [],
-  } as unknown as StellarRpc.Api.SimulateTransactionSuccessResponse;
+  };
 }
 
 /** Build a SimulateTransactionResponse that carries an error */
@@ -57,7 +59,7 @@ function fakeSimError(): StellarRpc.Api.SimulateTransactionErrorResponse {
     error: 'contract error',
     latestLedger: 1,
     events: [],
-  } as unknown as StellarRpc.Api.SimulateTransactionErrorResponse;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -72,7 +74,7 @@ const mockRpcServer = {
 
 // Patch the constructor so every `new StellarRpc.Server(...)` returns our mock
 jest.mock('@stellar/stellar-sdk', () => {
-  const actual = jest.requireActual('@stellar/stellar-sdk') as Record<string, unknown>;
+  const actual = jest.requireActual('@stellar/stellar-sdk');
   const actualRpc = actual['rpc'] as Record<string, unknown>;
   return {
     ...actual,
@@ -124,10 +126,10 @@ describe('ContractService', () => {
         description: 'desc',
       });
 
-      expect(typeof xdr).toBe('string');
-      expect(xdr.length).toBeGreaterThan(0);
+      expect(typeof xdrStr).toBe('string');
+      expect(xdrStr.length).toBeGreaterThan(0);
       // Must be parseable back into a transaction
-      expect(() => TransactionBuilder.fromXDR(xdr, NETWORK)).not.toThrow();
+      expect(() => TransactionBuilder.fromXDR(xdrStr, NETWORK)).not.toThrow();
     });
 
     it('buildCreatePoolTransaction — sequence number is 1 (Account seeded with 0)', () => {
@@ -182,7 +184,9 @@ describe('ContractService', () => {
         () => service.buildClosePoolTransaction(SOURCE, 1),
       ];
       for (const build of cases) {
-        expect(() => TransactionBuilder.fromXDR(build(), NETWORK)).not.toThrow();
+        expect(() =>
+          TransactionBuilder.fromXDR(build(), NETWORK),
+        ).not.toThrow();
       }
     });
   });
@@ -332,7 +336,9 @@ describe('ContractService', () => {
     it('decodes scvI128 return value correctly', async () => {
       // Mock RPC getAccount to return a valid Account
       const mockAccount = new Account(Keypair.random().publicKey(), '0');
-      jest.spyOn(service['rpcServer'], 'getAccount').mockResolvedValue(mockAccount as any);
+      jest
+        .spyOn(service['rpcServer'], 'getAccount')
+        .mockResolvedValue(mockAccount);
 
       // Mock simulateTransaction to return a result with retval
       const mockResult = {
@@ -342,10 +348,12 @@ describe('ContractService', () => {
           },
         },
       };
-      jest.spyOn(service['rpcServer'], 'simulateTransaction').mockResolvedValue(mockResult as any);
+      jest
+        .spyOn(service['rpcServer'], 'simulateTransaction')
+        .mockResolvedValue(mockResult as any);
 
       // Mock xdr.ScVal.fromXDR to return an object indicating scvI128 with parts
-      jest.spyOn(xdr.ScVal, 'fromXDR').mockReturnValue({
+      const fromXdrSpy = jest.spyOn(xdr.ScVal, 'fromXDR').mockReturnValue({
         switch: () => ({ name: 'scvI128' }),
         i128: () => ({
           hi: () => ({ toString: () => '0' }),
@@ -355,10 +363,13 @@ describe('ContractService', () => {
       } as any);
 
       const donor = Keypair.random().publicKey();
-      const contribution = await service.getContributionOnChain(1, donor);
-      expect(contribution).toBe(123n);
+      try {
+        const contribution = await service.getContributionOnChain(1, donor);
+        expect(contribution).toBe(123n);
+      } finally {
+        fromXdrSpy.mockRestore();
+      }
     });
-  });
 
     it('getDonorCountOnChain returns 0 when getAccount throws', async () => {
       mockRpcServer.getAccount.mockRejectedValueOnce(new Error('timeout'));
@@ -414,10 +425,14 @@ describe('ContractService', () => {
 
     it('returns the total raised from the simulation result', async () => {
       const mockAccount = new Account(Keypair.random().publicKey(), '0');
-      jest.spyOn(service['rpcServer'], 'getAccount').mockResolvedValue(mockAccount as any);
-      jest.spyOn(service['rpcServer'], 'simulateTransaction').mockResolvedValue({
-        result: { retval: nativeToScVal(5000n, { type: 'i128' }) },
-      } as any);
+      jest
+        .spyOn(service['rpcServer'], 'getAccount')
+        .mockResolvedValue(mockAccount);
+      jest
+        .spyOn(service['rpcServer'], 'simulateTransaction')
+        .mockResolvedValue({
+          result: { retval: nativeToScVal(5000n, { type: 'i128' }) },
+        } as any);
 
       const result = await service.getTotalRaisedOnChain(1);
       expect(result).toBe(5000n);
@@ -449,10 +464,14 @@ describe('ContractService', () => {
 
     it('returns the donor count from the simulation result', async () => {
       const mockAccount = new Account(Keypair.random().publicKey(), '0');
-      jest.spyOn(service['rpcServer'], 'getAccount').mockResolvedValue(mockAccount as any);
-      jest.spyOn(service['rpcServer'], 'simulateTransaction').mockResolvedValue({
-        result: { retval: nativeToScVal(7, { type: 'u32' }) },
-      } as any);
+      jest
+        .spyOn(service['rpcServer'], 'getAccount')
+        .mockResolvedValue(mockAccount);
+      jest
+        .spyOn(service['rpcServer'], 'simulateTransaction')
+        .mockResolvedValue({
+          result: { retval: nativeToScVal(7, { type: 'u32' }) },
+        } as any);
 
       const result = await service.getDonorCountOnChain(1);
       expect(result).toBe(7);
@@ -491,13 +510,17 @@ describe('ContractService', () => {
     it('maps op_no_source_account to StellarError', () => {
       const err = service['mapError'](new Error('op_no_source_account'));
       expect(err).toBeInstanceOf(StellarError);
-      expect((err as HttpException).getResponse()).toBe('Source account does not exist on the network');
+      expect((err as HttpException).getResponse()).toBe(
+        'Source account does not exist on the network',
+      );
     });
 
     it('maps timeout keyword to StellarError', () => {
       const err = service['mapError'](new Error('timeout'));
       expect(err).toBeInstanceOf(StellarError);
-      expect(String((err as HttpException).getResponse())).toMatch(/timed out/i);
+      expect(String((err as HttpException).getResponse())).toMatch(
+        /timed out/i,
+      );
     });
 
     it('wraps unknown errors by message', () => {

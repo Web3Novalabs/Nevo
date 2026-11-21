@@ -4,16 +4,19 @@ import { UsersService } from '../users/users.service';
 
 describe('JwtStrategy', () => {
   let strategy: JwtStrategy;
-  let usersService: { findById: jest.Mock };
+  let usersService: { findByPublicKey: jest.Mock };
 
   beforeEach(() => {
     process.env.JWT_SECRET = 'test-secret';
-    usersService = { findById: jest.fn() };
+    usersService = { findByPublicKey: jest.fn() };
     strategy = new JwtStrategy(usersService as unknown as UsersService);
   });
 
   it('returns sub and publicKey when both are present', async () => {
-    usersService.findById.mockResolvedValue({ id: 'GSUB', tokenVersion: 0 });
+    usersService.findByPublicKey.mockResolvedValue({
+      id: 'GSUB',
+      tokenVersion: 0,
+    });
 
     await expect(
       strategy.validate({ sub: 'GSUB', publicKey: 'GPUBKEY', tokenVersion: 0 }),
@@ -24,7 +27,10 @@ describe('JwtStrategy', () => {
   });
 
   it('falls back to sub when publicKey is missing', async () => {
-    usersService.findById.mockResolvedValue({ id: 'GSUB', tokenVersion: 0 });
+    usersService.findByPublicKey.mockResolvedValue({
+      id: 'GSUB',
+      tokenVersion: 0,
+    });
 
     await expect(
       strategy.validate({ sub: 'GSUB', tokenVersion: 0 }),
@@ -35,7 +41,7 @@ describe('JwtStrategy', () => {
   });
 
   it('rejects when the user is missing', async () => {
-    usersService.findById.mockResolvedValue(null);
+    usersService.findByPublicKey.mockResolvedValue(null);
 
     await expect(
       strategy.validate({ sub: 'GSUB', publicKey: 'GPUBKEY', tokenVersion: 0 }),
@@ -43,7 +49,10 @@ describe('JwtStrategy', () => {
   });
 
   it('rejects when the token version is stale', async () => {
-    usersService.findById.mockResolvedValue({ id: 'GSUB', tokenVersion: 1 });
+    usersService.findByPublicKey.mockResolvedValue({
+      id: 'GSUB',
+      tokenVersion: 1,
+    });
 
     await expect(
       strategy.validate({ sub: 'GSUB', publicKey: 'GPUBKEY', tokenVersion: 0 }),
@@ -51,7 +60,10 @@ describe('JwtStrategy', () => {
   });
 
   it('accepts when the token version matches', async () => {
-    usersService.findById.mockResolvedValue({ id: 'GSUB', tokenVersion: 2 });
+    usersService.findByPublicKey.mockResolvedValue({
+      id: 'GSUB',
+      tokenVersion: 2,
+    });
 
     await expect(
       strategy.validate({ sub: 'GSUB', publicKey: 'GPUBKEY', tokenVersion: 2 }),

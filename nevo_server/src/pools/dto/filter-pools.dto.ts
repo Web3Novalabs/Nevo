@@ -38,7 +38,9 @@ export class FilterPoolsDto {
   @MaxLength(200)
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Stellar public key of the pool creator.' })
+  @ApiPropertyOptional({
+    description: 'Stellar public key of the pool creator.',
+  })
   @IsOptional()
   @Matches(STELLAR_PUBLIC_KEY)
   creator?: string;

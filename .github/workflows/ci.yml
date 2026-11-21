@@ -91,16 +91,51 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Lint
+        run: npm run lint
+
       - name: Test
-        run: npm test -- --runInBand donations
+        run: npm test -- --runInBand --coverage --coverageReporters=text-summary --coverageReporters=json-summary
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            node -e '
+              const t = require("./coverage/coverage-summary.json").total;
+              const rows = ["lines", "statements", "functions", "branches"].map(
+                (k) => `| ${k} | ${t[k].pct}% | ${t[k].covered}/${t[k].total} |`,
+              );
+              console.log(["### Server test coverage", "", "| metric | % | covered |", "|---|---|---|", ...rows].join("\n"));
+            ' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No coverage summary was produced (the test step failed before coverage was written)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-coverage
+          path: |
+            nevo_server/coverage/coverage-summary.json
+            nevo_server/coverage/lcov.info
+          if-no-files-found: warn
 
       - name: Build
         run: npm run build
 
       - name: Export OpenAPI spec
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
         run: npm run export:openapi
 
+      - name: Install frontend dependencies
+        working-directory: ./nevo_frontend
+        run: npm install --legacy-peer-deps
+
       - name: Check generated API types are up to date
+        working-directory: ./nevo_frontend
         run: npm run check:api-types
 
   contract:

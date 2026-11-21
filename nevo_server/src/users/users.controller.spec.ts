@@ -12,6 +12,10 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtStrategy } from '../auth/jwt.strategy';
 import { JWT_SECRET_FALLBACK } from '../auth/jwt.config';
 import { User } from './user.entity';
+import { Keypair } from '@stellar/stellar-sdk';
+
+const VALID_KEY = Keypair.random().publicKey();
+const UNKNOWN_KEY = Keypair.random().publicKey();
 
 const makeUser = (overrides: Partial<User> = {}): User => ({
   id: 'uuid-1',
@@ -23,8 +27,7 @@ const makeUser = (overrides: Partial<User> = {}): User => ({
   ...overrides,
 });
 
-const makeReq = (publicKey: string) =>
-  ({ user: { publicKey } }) as { user: { publicKey: string } } & any;
+const makeReq = (publicKey: string) => ({ user: { publicKey } });
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -178,7 +181,7 @@ describe('UsersController', () => {
   });
 
   describe('getPublicProfile (GET /users/:publicKey)', () => {
-    const publicKey = 'GABC1234567890';
+    const publicKey = VALID_KEY;
 
     it('returns the public profile DTO from usersService', async () => {
       const profile = {
@@ -205,10 +208,9 @@ describe('UsersController', () => {
         totalRaised: '0.0000000',
       });
 
-      const result = (await controller.getPublicProfile(publicKey)) as Record<
-        string,
-        unknown
-      >;
+      const result = (await controller.getPublicProfile(
+        publicKey,
+      )) as unknown as Record<string, unknown>;
 
       expect(result).not.toHaveProperty('id');
       expect(result).not.toHaveProperty('createdAt');
@@ -218,7 +220,7 @@ describe('UsersController', () => {
     it('throws NotFoundException when the user does not exist', async () => {
       usersService.findPublicProfile.mockResolvedValue(null);
 
-      await expect(controller.getPublicProfile('GUNKNOWN')).rejects.toThrow(
+      await expect(controller.getPublicProfile(UNKNOWN_KEY)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -226,7 +228,7 @@ describe('UsersController', () => {
     it('throws NotFoundException with "User not found" message', async () => {
       usersService.findPublicProfile.mockResolvedValue(null);
 
-      await expect(controller.getPublicProfile('GUNKNOWN')).rejects.toThrow(
+      await expect(controller.getPublicProfile(UNKNOWN_KEY)).rejects.toThrow(
         'User not found',
       );
     });
@@ -266,7 +268,6 @@ describe('UsersController', () => {
 
     it('does not apply JwtAuthGuard at the class level (only on specific routes)', () => {
       // Guard is only on the method, not the whole controller
-      const classMetadata = Reflect.getMetadata('__guards__', UsersController);
       // class-level guards would be defined; method-level is sufficient
       const methodMetadata = Reflect.getMetadata(
         '__guards__',
@@ -287,11 +288,19 @@ describe('UsersController (PATCH /users/me validation)', () => {
 
   const jwtSecret = process.env.JWT_SECRET ?? JWT_SECRET_FALLBACK;
   const signToken = (publicKey: string) =>
-    new JwtService({ secret: jwtSecret }).sign({ sub: publicKey });
+    new JwtService({ secret: jwtSecret }).sign({
+      sub: publicKey,
+      tokenVersion: 0,
+    });
 
   beforeEach(async () => {
     usersService = {
       updateDisplayName: jest.fn().mockResolvedValue(makeUser()),
+      findByPublicKey: jest
+        .fn()
+        .mockImplementation((publicKey: string) =>
+          Promise.resolve({ publicKey, tokenVersion: 0 }),
+        ),
       findPublicProfile: jest.fn(),
     };
 
@@ -358,12 +367,16 @@ describe('UsersController (GET /users/:publicKey)', () => {
     findPublicProfile: jest.Mock;
   };
 
-  const validKey = 'GABC1234567890';
+  const validKey = VALID_KEY;
 
   beforeEach(async () => {
     usersService = {
       updateDisplayName: jest.fn(),
-      findByPublicKey: jest.fn(),
+      findByPublicKey: jest
+        .fn()
+        .mockImplementation((publicKey: string) =>
+          Promise.resolve({ publicKey, tokenVersion: 0 }),
+        ),
       findPublicProfile: jest.fn(),
     };
 

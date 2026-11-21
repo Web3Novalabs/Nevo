@@ -120,6 +120,45 @@ corrects it, since anyone who already ran the old one will never re-run it.
 `pools.goal`, `pools.raised` and `donations.amount` are `NUMERIC(39,0)` so the full on-chain `i128` range (up to `170141183460469231731687303715884105727`) fits exactly. The `pg` driver returns `NUMERIC` as a string, and every monetary field stays a `string` in TypeScript, DTOs and JSON responses. Never pass these values through `Number`/`parseFloat`; use `BigInt` for arithmetic in code, or SQL `numeric` arithmetic in queries.
 
 Migration `MonetaryAmountsToNumeric1800000000004` is reversible. `down` restores `bigint`/`bigint`/`varchar(255)` and refuses to run (leaving data untouched) if any pool `goal`/`raised` exceeds the `bigint` maximum.
+## Pool reconciliation
+
+The indexer maintains `pools.raised`, but missed events, duplicates or refunds can make it drift from the chain. `ReconciliationService` periodically compares `pools.raised` with the contract's `get_total_raised` for every **Active** pool and overwrites the database value when they differ (the chain is authoritative).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `RECONCILIATION_INTERVAL_MS` | `300000` | Time between scheduled runs. Invalid values fall back to the default. |
+| `RECONCILIATION_BATCH_SIZE` | `20` | Pools read from the chain concurrently per batch (bounds RPC load). |
+| `RECONCILIATION_ENABLED` | `true` | `false` disables the schedule; the manual trigger still works. |
+| `ADMIN_PUBLIC_KEYS` | _(empty)_ | Comma-separated Stellar public keys allowed to call `/admin/*`. Empty means nobody. |
+
+Behaviour:
+- Amounts are compared and written as exact integers (`BigInt`/strings), never floats.
+- An RPC failure leaves that pool untouched (it is never treated as a zero total); other pools in the batch continue. A failed DB update affects only that pool.
+- The update is conditional on the `raised` value that was read, so a concurrent indexer write is not clobbered; such conflicts are retried on the next run.
+- Runs never overlap: an in-process flag plus a Postgres advisory lock (safe across instances). A skipped run reports `status: "skipped"`.
+- Each discrepancy is logged at `warn` with pool id, contract pool id, database value, chain value and signed delta, followed by a per-run summary.
+- Running it again on unchanged data changes nothing (idempotent).
+
+Endpoints (JWT + admin required; non-admins get `403`):
+- `POST /admin/reconciliation` runs a reconciliation now and returns the run summary.
+- `GET /admin/reconciliation` returns cumulative counters (`driftDetected`, `driftCorrected`, `rpcErrors`, `dbErrors`, ...) and the last run, for scraping or alerting on `driftDetected`/`rpcErrors` growth.
+## Platform stats
+
+`GET /stats` (public) returns aggregate impact metrics computed from the database in a single `REPEATABLE READ` snapshot:
+
+```json
+{
+  "totalRaised": [{ "asset": "XLM", "amount": "1500000000" }],
+  "activePools": 12,
+  "completedPools": 4,
+  "uniqueDonors": 87
+}
+```
+
+- `totalRaised`: `SUM(donations.amount)` per asset (exact `numeric` arithmetic in PostgreSQL), returned as integer **strings** in base units, ordered by asset code. Empty array when there are no donations.
+- `activePools` / `completedPools`: pools with `PoolStatus.Active` / `PoolStatus.Completed`.
+- `uniqueDonors`: `COUNT(DISTINCT donations.donor_wallet)`.
+- Responses are cached in memory for `STATS_CACHE_TTL_MS` (default `30000`, `0` disables), so totals are never more than one TTL stale; concurrent cache misses share one query and failures are not cached.
 
 ## Run tests
 
@@ -132,7 +171,33 @@ $ npm run test:e2e
 
 # test coverage
 $ npm run test:cov
+
+# lint (check only, never modifies files) / lint with auto-fix
+$ npm run lint
+$ npm run lint:fix
 ```
+
+### CI expectations
+
+Every push and pull request runs, in `nevo_server/`: `npm run lint`, the **entire**
+unit suite with `npm test -- --runInBand --coverage` (no spec directories or
+test names are filtered out), `npm run build`, and the OpenAPI export / API-type
+check. A coverage summary is written to the job summary and `coverage-summary.json`
+plus `lcov.info` are uploaded as the `server-coverage` artifact (also when tests fail).
+
+Some specs talk to a real PostgreSQL. They read `TEST_DATABASE_URL`
+(default `postgres://postgres:postgres@localhost:5432/nevo_test`) and each works
+in its own schema or cleans up after itself, so a plain `nevo_test` database is
+enough:
+
+```bash
+$ createdb nevo_test
+$ TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/nevo_test npm test -- --runInBand
+```
+
+Jest compiles specs to CommonJS through `tsconfig.jest.json` (the application
+itself builds with `nest build`); this is what lets specs use dynamic `import()`
+and `jest.mock` without `--experimental-vm-modules`.
 
 ## Deployment
 

@@ -1,9 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ContractService } from '../contract/contract.service.js';
 import { DataSource } from 'typeorm';
-import type { HistoryItemDto, HistoryPageDto, HistoryQueryDto } from './history.dto.js';
+import type {
+  HistoryItemDto,
+  HistoryPageDto,
+  HistoryQueryDto,
+} from './history.dto.js';
 
-export type HistoryEntry = Pick<HistoryItemDto, 'txHash' | 'type' | 'amount' | 'recipient' | 'status'>;
+export type HistoryEntry = Pick<
+  HistoryItemDto,
+  'txHash' | 'type' | 'amount' | 'recipient' | 'status'
+>;
 
 @Injectable()
 export class HistoryService {
@@ -41,13 +48,22 @@ export class HistoryService {
        ON CONFLICT (wallet, tx_hash, type) DO UPDATE
        SET status = EXCLUDED.status, amount = EXCLUDED.amount, recipient = EXCLUDED.recipient
        WHERE EXCLUDED.status = 'completed'`,
-      [wallet, entry.txHash, entry.type, entry.status, entry.amount, entry.recipient],
+      [
+        wallet,
+        entry.txHash,
+        entry.type,
+        entry.status,
+        entry.amount,
+        entry.recipient,
+      ],
     );
   }
 
   async list(wallet: string, query: HistoryQueryDto): Promise<HistoryPageDto> {
     const { page, limit } = query;
-    const [result] = await this.dataSource.query<Array<{ data: HistoryItemDto[]; total: number }>>(
+    const [result] = await this.dataSource.query<
+      Array<{ data: HistoryItemDto[]; total: number }>
+    >(
       `WITH history AS (
          SELECT d.id::text, 'donation' AS type, 'completed' AS status, d.amount::text AS amount, d.asset,
                 d.pool_id AS recipient, d.pool_id, d.tx_hash AS "txHash", d.created_at AS date
@@ -75,9 +91,20 @@ export class HistoryService {
        )
        SELECT COALESCE((SELECT json_agg(paged ORDER BY date DESC, id DESC) FROM paged), '[]') AS data,
               (SELECT count(*)::int FROM filtered) AS total`,
-      [wallet, query.type, query.status, query.from,
-        query.to?.length === 10 ? new Date(new Date(query.to).getTime() + 86400000) : query.to,
-        query.poolId, query.asset, limit, (page - 1) * limit, query.search],
+      [
+        wallet,
+        query.type,
+        query.status,
+        query.from,
+        query.to?.length === 10
+          ? new Date(new Date(query.to).getTime() + 86400000)
+          : query.to,
+        query.poolId,
+        query.asset,
+        limit,
+        (page - 1) * limit,
+        query.search,
+      ],
     );
     return { ...result, page, limit };
   }

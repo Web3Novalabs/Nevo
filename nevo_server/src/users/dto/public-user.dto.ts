@@ -2,6 +2,12 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class PublicUserDto {
   @ApiProperty({
+    description: 'Stellar public key of the creator',
+    example: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+  })
+  publicKey: string;
+
+  @ApiProperty({
     description: 'Display name of the creator',
     example: 'Jane Doe',
     nullable: true,
@@ -23,8 +29,9 @@ export class PublicUserDto {
   poolsCreated: number;
 
   @ApiProperty({
-    description: 'Total amount raised across all pools created by this creator',
-    example: 15000.5,
+    description:
+      'Total amount raised across all pools created by this creator, in base units, as an exact integer string',
+    example: '15000500000',
   })
-  totalRaised: number;
+  totalRaised: string;
 }

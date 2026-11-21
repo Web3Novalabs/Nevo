@@ -1,5 +1,4 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Matches } from 'class-validator';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { ContractService } from '../../contract/contract.service';
@@ -26,9 +25,7 @@ describe('DonatePoolDto (POST /pools/:id/donate body contract)', () => {
   const POOL_ID = '1';
 
   beforeEach(async () => {
-    buildDonateTransaction = jest
-      .fn()
-      .mockReturnValue('unsigned-xdr-string');
+    buildDonateTransaction = jest.fn().mockReturnValue('unsigned-xdr-string');
     findByContractId = jest
       .fn()
       .mockResolvedValue({ id: POOL_ID, creatorWallet: 'GWALLET' });

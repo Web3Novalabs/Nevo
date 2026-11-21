@@ -54,7 +54,7 @@ export class CreatePoolDto {
   category?: string;
 
   @ApiPropertyOptional({
-    description: 'URL to the pool\'s image',
+    description: "URL to the pool's image",
     nullable: true,
   })
   @IsOptional()
