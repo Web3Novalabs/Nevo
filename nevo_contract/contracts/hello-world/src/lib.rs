@@ -2075,6 +2075,7 @@ mod test_withdraw;
 mod test_issue_1460;
 mod test_issue_1459;
 mod test_issue_1353_grace_period_boundaries;
+mod test_issue_1377_pool_deadline;
 
 #[cfg(test)]
 mod test_pool_disbursement_safety;
