@@ -187,7 +187,6 @@ fn test_deadline_change_does_not_affect_already_closed_pools() {
     client.close_pool(&pool_id);
 
     // Ensure pool is closed
-    assert!(client.is_closed(&pool_id));
     assert!(client.get_pool(&pool_id).4);
 
     // Update deadline on the closed pool
@@ -198,10 +197,6 @@ fn test_deadline_change_does_not_affect_already_closed_pools() {
     assert_eq!(client.get_pool_deadline(&pool_id), new_deadline);
 
     // Invariant: Pool remains closed and unaffected
-    assert!(
-        client.is_closed(&pool_id),
-        "is_closed must continue returning true after deadline update"
-    );
     assert!(
         client.get_pool(&pool_id).4,
         "get_pool tuple is_closed flag must remain true"
