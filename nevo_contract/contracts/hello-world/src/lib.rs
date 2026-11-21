@@ -2074,6 +2074,7 @@ mod test_issue_1455;
 mod test_withdraw;
 mod test_issue_1460;
 mod test_issue_1459;
+mod test_issue_1355_pool_state_completeness;
 
 #[cfg(test)]
 mod test_pool_disbursement_safety;
