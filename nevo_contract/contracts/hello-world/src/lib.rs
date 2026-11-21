@@ -2076,6 +2076,7 @@ mod test_issue_1460;
 mod test_issue_1459;
 mod test_issue_1358_donate_close_claim_ordering;
 mod test_issue_1371_emergency_withdraw_duplicate_requests;
+mod test_issue_1352_set_pool_state_transitions;
 
 #[cfg(test)]
 mod test_pool_disbursement_safety;
