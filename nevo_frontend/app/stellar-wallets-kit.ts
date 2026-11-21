@@ -86,6 +86,7 @@ let kit: StellarWalletsKit | null = null;
 
 /** Returns (and lazily initialises) the shared wallets-kit instance. */
 function getKit(): StellarWalletsKit {
+  // TODO(#1746): check wallet network on connect/sign and block mismatches
   if (!kit) {
     kit = new StellarWalletsKit({
       network: WalletNetwork.TESTNET,

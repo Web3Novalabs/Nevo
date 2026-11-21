@@ -1208,6 +1208,7 @@ impl Contract {
     /// - `"Insolvency: locked funds exceed collected"` if locked > collected
     /// - `"No surplus to withdraw"` if surplus == 0
     pub fn withdraw_unallocated_funds(env: Env, pool_id: u32, token_address: Address) {
+        // TODO(#1748): resolve pool token and reject a mismatched token_address
         let mut pool: Pool = env
             .storage()
             .persistent()
@@ -1580,6 +1581,7 @@ impl Contract {
     /// - `ContractError::PoolNotExpired` if the deadline has not passed (or grace not elapsed)
     /// - `ContractError::NoContributionToRefund` if the donor has no recorded contribution
     pub fn refund_donation(env: Env, pool_id: u32, donor: Address, token_address: Address) {
+        // TODO(#1749): resolve donation token and reject mismatches with TokenTransferFailed
         donor.require_auth();
 
         let mut pool: Pool = env
