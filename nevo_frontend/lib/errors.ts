@@ -2,6 +2,53 @@ import { ApiError } from './api-client';
 
 const FALLBACK_MESSAGE = 'Something went wrong. Please try again.';
 
+/**
+ * Maps on-chain `ContractError` numeric codes to user-facing messages.
+ *
+ * Codes must stay in sync with `nevo_contract/ERRORS.md`. Each variant has a
+ * unique discriminant; `TokenTransferFailed` (28) and `InvalidTokenAddress`
+ * (29) were reassigned to resolve duplicate discriminants 21 and 24.
+ */
+export const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
+  1: 'Unauthorized: you are not allowed to perform this action.',
+  2: 'The contract is paused.',
+  3: 'Invalid input provided.',
+  4: 'The requested resource was not found.',
+  5: 'Insufficient balance.',
+  6: 'Insufficient allowance.',
+  7: 'Token not found.',
+  8: 'Application not found.',
+  9: 'Application already exists.',
+  10: 'Invalid application status.',
+  11: 'Application is not pending.',
+  12: 'Application is not approved.',
+  13: 'Application is not rejected.',
+  14: 'Withdrawal not found.',
+  15: 'Withdrawal already processed.',
+  16: 'Withdrawal not approved.',
+  17: 'Emergency withdrawal not found.',
+  18: 'Emergency withdrawal already processed.',
+  19: 'Emergency withdrawal not approved.',
+  20: 'Emergency withdrawal already requested.',
+  21: 'Emergency withdrawal was not requested.',
+  22: 'Invalid threshold configuration.',
+  23: 'Invalid signer configuration.',
+  24: 'Application status not found.',
+  25: 'Invalid contract address.',
+  26: 'Invalid amount.',
+  27: 'Arithmetic overflow.',
+  28: 'Token transfer failed.',
+  29: 'Invalid token address.',
+};
+
+/**
+ * Returns the user-facing message for a `ContractError` code, or `undefined`
+ * when the code is unknown.
+ */
+export function getContractErrorMessage(code: number): string | undefined {
+  return CONTRACT_ERROR_MESSAGES[code];
+}
+
 interface AxiosErrorResponseData {
   message?: unknown;
   error?: unknown;

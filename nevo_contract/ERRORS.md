@@ -40,6 +40,13 @@ These errors are encoded as numeric codes and returned via `env.panic_with_error
 | 21 | `ApplicationStatusNotFound` | 404 | Student has no application status record for this pool; student must apply first |
 | 22 | `ApplicationNotApproved` | 403 | Application status is not "Approved"; school must approve before claiming |
 | 23 | `OverdrawAttempt` | 422 | Claim would exceed the pool's collected funds |
+| 24 | `ApplicationStatusNotFound` | 404 | Reserved alias — see note below; use code 21 |
+| 26 | `EmergencyWithdrawalNotRequested` | 404 | No pending emergency withdrawal request exists for this pool |
+| 27 | `EmergencyWithdrawalAlreadyRequested` | 409 | An emergency withdrawal request is already pending for this pool |
+| 28 | `TokenTransferFailed` | 502 | Token transfer between contract and account failed |
+| 29 | `InvalidTokenAddress` | 400 | Provided token address is invalid or not a valid contract address |
+
+> **Note on codes 24 and 26/27:** `TokenTransferFailed` and `InvalidTokenAddress` previously reused codes 21 and 24, which caused a Rust `E0081` duplicate-discriminant compile error. They now use the next free codes, 28 and 29. If you have persisted or hard-coded the old values, migrate: `TokenTransferFailed` 21 → 28, `InvalidTokenAddress` 24 → 29. Code 24 is no longer emitted by the contract.
 
 ### Functions by Error
 
@@ -360,6 +367,50 @@ try {
 
 ---
 
+#### `TokenTransferFailed` (Code 28)
+
+**Raised by:**
+- Any operation that moves tokens via the configured crowdfunding token (e.g. `donate()`, `claim_funds()`, `request_refund()`, `withdraw_unallocated_funds()`, `claim_protocol_fees()`) when the underlying token transfer returns an error.
+
+**Meaning:** The contract invoked the token contract's transfer and the transfer did not succeed. Common causes: insufficient balance or allowance on the source account, a frozen or deauthorized token holder, or a misconfigured token address. The transaction is rolled back, so no partial state change persists.
+
+**Frontend Handling:**
+```javascript
+try {
+  await contract.donate(poolId, donor, amount);
+} catch (e) {
+  if (e.errorCode === 28) {
+    showError("Token transfer failed. Check your balance and token authorization, then retry.");
+  }
+}
+```
+
+**Server Handling:** Treat as a client/account-level failure (HTTP 502 analogy). Log the token address, source account and amount; do not blindly retry — surface the failure to the caller.
+
+---
+
+#### `InvalidTokenAddress` (Code 29)
+
+**Raised by:**
+- `set_crowdfunding_token()` - The supplied token address is not a valid contract address (e.g. malformed or not a contract).
+
+**Meaning:** The token address passed to the contract cannot be used as a token contract. Verify the address is a deployed token contract on the same network.
+
+**Frontend Handling:**
+```javascript
+try {
+  await contract.setCrowdfundingToken(admin, tokenAddress);
+} catch (e) {
+  if (e.errorCode === 29) {
+    showError("That token address is invalid. Double-check the contract ID and network.");
+  }
+}
+```
+
+**Server Handling:** Treat as a validation error (HTTP 400 analogy). Validate the address format before submitting the transaction.
+
+---
+
 ## String Panic Messages
 
 These are ad-hoc panic messages (not part of the `#[contracterror]` enum). While they should be replaced with typed errors over time, integrators should be aware of them as they may be encountered in production.
@@ -492,4 +543,5 @@ See the Contributing Guide for details.
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0.0 | July 29, 2026 | Initial error catalogue creation |
+| 1.0.1 | — | Fixed duplicate discriminants: `TokenTransferFailed` moved 21 → 28, `InvalidTokenAddress` moved 24 → 29 (issue #1639). Documented codes 26, 27, 28, 29. |
 

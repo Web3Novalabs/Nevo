@@ -168,7 +168,7 @@ fn test_refund_donation_uses_same_token_address() {
 
 /// (4) Mismatched token_address on refund is rejected.
 #[test]
-#[should_panic(expected = "TokenTransferFailed")]
+#[should_panic(expected = "Error(Contract, #28)")]
 fn test_mismatched_token_address_on_refund_rejected() {
     let env = Env::default();
     env.mock_all_auths();
