@@ -23,7 +23,7 @@ describeWithDatabase('Donations persistence (Postgres)', () => {
         "id" uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
         "pool_id" character varying(255) NOT NULL,
         "donor_wallet" character varying(56) NOT NULL,
-        "amount" character varying(255) NOT NULL,
+        "amount" numeric(39,0) NOT NULL,
         "asset" character varying(10) NOT NULL,
         "tx_hash" character varying(64) NOT NULL UNIQUE,
         "memo" text,

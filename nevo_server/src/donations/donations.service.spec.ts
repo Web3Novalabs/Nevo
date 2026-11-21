@@ -70,6 +70,8 @@ describe('DonationsService', () => {
         limit: 10,
       });
       expect(mockRepo.createQueryBuilder).toHaveBeenCalledWith('d');
+      expect(mockQb.where).toHaveBeenCalledWith('d.poolId = :poolId', { poolId: '1' });
+      expect(mockQb.orderBy).toHaveBeenCalledWith('d.amount', 'DESC');
       expect(mockQb.where).toHaveBeenCalledWith('d.poolId = :poolId', {
         poolId: '1',
       });
@@ -137,6 +139,8 @@ describe('DonationsService', () => {
         limit: 10,
       });
       expect(mockRepo.createQueryBuilder).toHaveBeenCalledWith('d');
+      expect(mockQb.where).toHaveBeenCalledWith('d.donorWallet = :donorWallet', { donorWallet: 'ABC' });
+      expect(mockQb.orderBy).toHaveBeenCalledWith('d.amount', 'DESC');
       expect(mockQb.where).toHaveBeenCalledWith(
         'd.donorWallet = :donorWallet',
         { donorWallet: 'ABC' },

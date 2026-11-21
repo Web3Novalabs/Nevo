@@ -79,7 +79,7 @@ export class DonationsService {
     }
 
     if (sortBy === DonationSortBy.largest) {
-      qb.orderBy('CAST(d.amount AS NUMERIC)', 'DESC');
+      qb.orderBy('d.amount', 'DESC');
     } else {
       qb.orderBy('d.createdAt', 'DESC');
     }

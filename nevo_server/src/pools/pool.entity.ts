@@ -43,10 +43,10 @@ export class Pool {
   })
   status: PoolStatus;
 
-  @Column({ type: 'bigint' })
+  @Column({ type: 'numeric', precision: 39, scale: 0 })
   goal: string;
 
-  @Column({ type: 'bigint', default: 0 })
+  @Column({ type: 'numeric', precision: 39, scale: 0, default: 0 })
   raised: string;
 
   @Column({ name: 'image_url', type: 'varchar', length: 2048, nullable: true })

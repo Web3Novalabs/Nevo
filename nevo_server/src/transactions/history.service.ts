@@ -65,7 +65,7 @@ export class HistoryService {
       Array<{ data: HistoryItemDto[]; total: number }>
     >(
       `WITH history AS (
-         SELECT d.id::text, 'donation' AS type, 'completed' AS status, d.amount, d.asset,
+         SELECT d.id::text, 'donation' AS type, 'completed' AS status, d.amount::text AS amount, d.asset,
                 d.pool_id AS recipient, d.pool_id, d.tx_hash AS "txHash", d.created_at AS date
          FROM donations d WHERE d.donor_wallet = $1
          UNION ALL
