@@ -12,6 +12,35 @@ import { env } from './env';
 
 export type DonationAsset = 'XLM' | 'USDC';
 
+/** Mirrors the on-chain `ApplicationStatus` contracttype enum. */
+export type ApplicationStatus = 'Pending' | 'Approved' | 'Rejected';
+
+const APPLICATION_STATUS_VARIANTS: readonly ApplicationStatus[] = [
+  'Pending',
+  'Approved',
+  'Rejected',
+];
+
+/**
+ * Normalizes a decoded `ApplicationStatus` enum value into a typed status.
+ *
+ * Soroban enums decode to their variant name (e.g. `"Approved"`), but some
+ * SDK versions may surface them as `{ tag: "Approved" }` or `["Approved"]`.
+ * Anything unrecognized is rejected rather than silently coerced.
+ */
+export function parseApplicationStatus(value: unknown): ApplicationStatus {
+  let variant: unknown = value;
+  if (Array.isArray(variant)) variant = variant[0];
+  if (variant && typeof variant === 'object' && 'tag' in variant) {
+    variant = (variant as { tag: unknown }).tag;
+  }
+  if (typeof variant === 'string') {
+    const match = APPLICATION_STATUS_VARIANTS.find((s) => s === variant);
+    if (match) return match;
+  }
+  throw new Error(`Unexpected application status: ${String(value)}`);
+}
+
 const USDC_ISSUER = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
 
 /** SAC contract ID for the asset used by a token-backed donation. */
@@ -162,6 +191,38 @@ class ContractService {
 
     const prepared = await this.server.prepareTransaction(tx);
     return prepared.toXDR();
+  }
+
+  /**
+   * Reads the status of an application from the contract.
+   *
+   * The contract returns an `ApplicationStatus` enum, which is decoded into a
+   * typed `ApplicationStatus` value.
+   */
+  async getApplicationStatus(applicationId: number): Promise<ApplicationStatus> {
+    const contract = new Contract(getContractId());
+    const source = Keypair.random();
+    const account = await this.server.getAccount(source.publicKey());
+    const tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(
+        contract.call(
+          'get_application_status',
+          nativeToScVal(applicationId, { type: 'u32' })
+        )
+      )
+      .setTimeout(TX_TIMEOUT)
+      .build();
+
+    const result = await this.server.simulateTransaction(tx);
+    if ('error' in result) {
+      throw new Error(`Failed to read application status: ${result.error}`);
+    }
+    const retVal = result.result?.retval;
+    if (!retVal) throw new Error('No application status returned');
+    return parseApplicationStatus(scValToNative(retVal));
   }
 
   /** Builds an XDR-encoded transaction to close a pool permanently. */

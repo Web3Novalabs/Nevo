@@ -42,11 +42,8 @@ const EMERGENCY_WITHDRAWAL_PREFIX: &str = "emergency_withdraw";
 const GRACE_PERIOD_SECS: u64 = 86400; // 24 hours
 
 // Application and claim tracking constants
-const APPLICATION_STATUS_PREFIX: &str = "app_status";
 const CLAIMED_AMOUNT_PREFIX: &str = "claimed_amount";
 const POOL_CLAIMED_PREFIX: &str = "pool_claimed";
-const APPLICATION_STATUS_APPROVED: &str = "Approved";
-const APPLICATION_STATUS_REJECTED: &str = "Rejected";
 
 // Protocol fees accumulator - tracks unclaimed fees collected from operations
 const UNCLAIMED_FEES: &str = "unclaimed_fees";
@@ -84,6 +81,8 @@ const SCHOOL_REGISTERED: Symbol = symbol_short!("schl_reg");
 
 // Issue #954: named constants for previously-uneventful state-changing functions
 const APP_APPROVED: Symbol = symbol_short!("app_aprvd");
+const APP_REJECTED: Symbol = symbol_short!("app_rjctd");
+const APP_REVOKED: Symbol = symbol_short!("app_rvk");
 const MILESTONES_SET: Symbol = symbol_short!("mile_set");
 const FUNDS_CLAIMED: Symbol = symbol_short!("fund_clmd");
 const FEES_CLAIMED: Symbol = symbol_short!("fees_clmd");
@@ -166,6 +165,10 @@ pub enum ContractError {
     TokenTransferFailed = 28,
     /// Token address is invalid (e.g., contract's own address).
     InvalidTokenAddress = 29,
+    /// The requested application status transition is not permitted.
+    InvalidStatusTransition = 30,
+    /// The refund deadline would precede the funding (application) deadline.
+    InvalidRefundDeadline = 31,
 }
 
 // Helper functions for timestamp/deadline edge-case tests
@@ -211,6 +214,32 @@ pub fn set_deadline(deadline: u64) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// Lifecycle status of a student's application to a pool.
+///
+/// # State Machine
+///
+/// - `Pending` (initial state, set by `apply_to_pool`)
+/// - `Pending -> Approved` (school/admin approves)
+/// - `Pending -> Rejected` (school/admin rejects)
+/// - `Approved -> Revoked` (only while `amount_claimed == 0`)
+/// - `Rejected -> Approved` (re-approval by the school/admin)
+///
+/// Any other transition is rejected with
+/// `ContractError::InvalidStatusTransition`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ApplicationStatus {
+    /// Application submitted, awaiting a decision.
+    Pending,
+    /// Application approved; the student may claim funds.
+    Approved,
+    /// Application rejected; the student may not claim funds.
+    Rejected,
+    /// Previously approved application whose approval was withdrawn
+    /// before any funds were claimed.
+    Revoked,
+}
+
 /// Tracks a student's approved funding and how much has been streamed so far.
 ///
 /// `amount_claimed` starts at zero and increments with each partial withdrawal,
@@ -222,7 +251,7 @@ pub struct Application {
     pub pool_id: u32,
     pub student: Address,
     pub application_data: String,
-    pub status: String,
+    pub status: ApplicationStatus,
     /// The total amount the student is approved to receive from this pool.
     pub approved_amount: i128,
     /// Running total of funds already disbursed to the student.
@@ -317,6 +346,34 @@ pub struct EmergencyWithdrawalRequest {
     pub request_timestamp: u64,
     /// Address that requested the withdrawal and will receive the tokens.
     pub requested_by: Address,
+}
+
+/// Validate an application status transition.
+///
+/// Allowed transitions:
+/// - `Pending -> Approved`
+/// - `Pending -> Rejected`
+/// - `Rejected -> Approved` (re-approval)
+/// - `Approved -> Revoked` only when `amount_claimed == 0`
+///
+/// Returns `Err(ContractError::InvalidStatusTransition)` otherwise.
+pub fn validate_transition(
+    from: &ApplicationStatus,
+    to: &ApplicationStatus,
+    amount_claimed: i128,
+) -> Result<(), ContractError> {
+    let allowed = match (from, to) {
+        (ApplicationStatus::Pending, ApplicationStatus::Approved) => true,
+        (ApplicationStatus::Pending, ApplicationStatus::Rejected) => true,
+        (ApplicationStatus::Rejected, ApplicationStatus::Approved) => true,
+        (ApplicationStatus::Approved, ApplicationStatus::Revoked) => amount_claimed == 0,
+        _ => false,
+    };
+    if allowed {
+        Ok(())
+    } else {
+        Err(ContractError::InvalidStatusTransition)
+    }
 }
 
 fn pool_claimed(env: &Env, pool_id: u32) -> u128 {
@@ -935,7 +992,7 @@ impl Contract {
                 pool_id,
                 student: student.clone(),
                 application_data,
-                status: String::from_str(&env, "Pending"),
+                status: ApplicationStatus::Pending,
                 approved_amount: 0,
                 amount_claimed: 0,
             },
@@ -943,14 +1000,6 @@ impl Contract {
 
         env.storage().persistent().set(&applicant_key, &true);
         env.storage().persistent().set(&count_key, &app_count);
-
-        let pending = String::from_str(&env, "Pending");
-        let status_key = (
-            Symbol::new(&env, APPLICATION_STATUS_PREFIX),
-            pool_id,
-            student.clone(),
-        );
-        env.storage().persistent().set(&status_key, &pending);
 
         // Emit application/contribution event with privacy flag (default: false for public)
         env.events().publish(
@@ -1014,15 +1063,56 @@ impl Contract {
         }
 
         let status = if approved {
-            String::from_str(&env, APPLICATION_STATUS_APPROVED)
+            ApplicationStatus::Approved
         } else {
-            String::from_str(&env, APPLICATION_STATUS_REJECTED)
+            ApplicationStatus::Rejected
         };
         Self::set_application_status(env.clone(), school.clone(), pool_id, student.clone(), status);
 
-        // Issue #954: emit application-approved event
+        // Emit a distinct event for approve vs reject.
+        if approved {
+            env.events()
+                .publish((APP_APPROVED, pool_id), (student.clone(),));
+        } else {
+            env.events()
+                .publish((APP_REJECTED, pool_id), (student.clone(),));
+        }
+    }
+
+    /// Revoke a previously approved application.
+    ///
+    /// Only the linked school (or admin) may revoke. Revocation is only
+    /// permitted while the student has not yet claimed any funds
+    /// (`amount_claimed == 0`); otherwise the transition fails with
+    /// `ContractError::InvalidStatusTransition`.
+    ///
+    /// # Panics
+    /// - `ContractError::PoolNotFound` if pool_id is invalid
+    /// - `ContractError::StudentHasNotApplied` if the student never applied
+    /// - `ContractError::InvalidStatusTransition` if the application is not
+    ///   `Approved` or the student has already claimed funds
+    pub fn revoke_application(env: Env, pool_id: u32, school: Address, student: Address) {
+        school.require_auth();
+
+        let applicant_key = (
+            Symbol::new(&env, APPLICANT_PREFIX),
+            pool_id,
+            student.clone(),
+        );
+        if !env.storage().persistent().has(&applicant_key) {
+            env.panic_with_error(ContractError::StudentHasNotApplied);
+        }
+
+        Self::set_application_status(
+            env.clone(),
+            school,
+            pool_id,
+            student.clone(),
+            ApplicationStatus::Revoked,
+        );
+
         env.events()
-            .publish((APP_APPROVED, pool_id), (student.clone(), approved));
+            .publish((APP_REVOKED, pool_id), (student.clone(),));
     }
 
     /// Set application milestones and enforce sum(amounts) == pool goal.
@@ -1038,13 +1128,25 @@ impl Contract {
         student: Address,
         milestones: Vec<Milestone>,
     ) {
-        student.require_auth();
-
         let pool: Pool = env
             .storage()
             .persistent()
             .get::<_, Pool>(&pool_id)
             .unwrap_or_else(|| env.panic_with_error(ContractError::PoolNotFound));
+
+        // Issue #1662: milestones are configured by the linked school (or the
+        // platform admin), matching `approve_application`. The student cannot
+        // define their own disbursement schedule.
+        let linked_school = Self::get_pool_school(env.clone(), pool_id);
+        let admin_key = Symbol::new(&env, ADMIN_KEY);
+        let admin: Option<Address> = env.storage().persistent().get::<_, Address>(&admin_key);
+        let is_admin = admin.map(|a| a == student).unwrap_or(false);
+        if is_admin {
+            // Admin path: the admin address must authorize the call.
+            student.require_auth();
+        } else {
+            linked_school.require_auth();
+        }
 
         let applicant_key = (
             Symbol::new(&env, APPLICANT_PREFIX),
@@ -1058,7 +1160,7 @@ impl Contract {
         // Issue #1345: milestones may only be configured for an approved
         // application. Mirrors the same check already enforced by claim_funds.
         let status = Self::get_application_status(env.clone(), pool_id, student.clone());
-        if status != String::from_str(&env, APPLICATION_STATUS_APPROVED) {
+        if status != ApplicationStatus::Approved {
             panic!("Application is not approved");
         }
 
@@ -1101,12 +1203,17 @@ impl Contract {
     }
 
     /// Set application status for a student in a pool.
+    ///
+    /// The status is stored only inside the `Application` record. The
+    /// transition is validated against the documented state machine
+    /// (see [`ApplicationStatus`]) and rejected with
+    /// `ContractError::InvalidStatusTransition` when not permitted.
     pub fn set_application_status(
         env: Env,
         caller: Address,
         pool_id: u32,
         student: Address,
-        status: String,
+        status: ApplicationStatus,
     ) {
         caller.require_auth();
         let linked_school = Self::get_pool_school(env.clone(), pool_id);
@@ -1121,41 +1228,44 @@ impl Contract {
         if caller != linked_school && !is_admin {
             env.panic_with_error(ContractError::UnauthorizedAdmin);
         }
-        let status_key = (
-            Symbol::new(&env, APPLICATION_STATUS_PREFIX),
-            pool_id,
-            student.clone(),
-        );
-        env.storage().persistent().set(&status_key, &status);
 
         let application_key = (
             Symbol::new(&env, CLAIMED_AMOUNT_PREFIX),
             pool_id,
-            student,
+            student.clone(),
         );
-        if let Some(mut application) = env
+        let mut application: Application = env
             .storage()
             .persistent()
             .get::<_, Application>(&application_key)
+            .unwrap_or_else(|| env.panic_with_error(ContractError::ApplicationStatusNotFound));
+
+        if let Err(err) =
+            validate_transition(&application.status, &status, application.amount_claimed)
         {
-            application.status = status;
-            env.storage()
-                .persistent()
-                .set(&application_key, &application);
+            env.panic_with_error(err);
         }
+
+        application.status = status;
+        env.storage()
+            .persistent()
+            .set(&application_key, &application);
     }
 
     /// Get application status for a student in a pool.
-    pub fn get_application_status(env: Env, pool_id: u32, student: Address) -> String {
-        let status_key = (
-            Symbol::new(&env, APPLICATION_STATUS_PREFIX),
+    ///
+    /// Returns `ApplicationStatus::Pending` if the student has not applied.
+    pub fn get_application_status(env: Env, pool_id: u32, student: Address) -> ApplicationStatus {
+        let application_key = (
+            Symbol::new(&env, CLAIMED_AMOUNT_PREFIX),
             pool_id,
             student.clone(),
         );
         env.storage()
             .persistent()
-            .get::<_, String>(&status_key)
-            .unwrap_or(String::from_str(&env, ""))
+            .get::<_, Application>(&application_key)
+            .map(|application| application.status)
+            .unwrap_or(ApplicationStatus::Pending)
     }
 
     /// Returns true if the student has already applied to the given pool.
@@ -1205,7 +1315,7 @@ impl Contract {
     /// Withdraw surplus funds not locked by active applications.
     ///
     /// Locked funds = sum of (approved_amount - amount_claimed) for every
-    /// application whose status is "Approved" or "Pending".
+    /// application whose status is `Approved` or `Pending`.
     /// Surplus = pool.collected - locked_funds.
     ///
     /// # Panics
@@ -1228,44 +1338,34 @@ impl Contract {
             .get::<_, u32>(&count_key)
             .unwrap_or(0);
 
-        let approved_str = String::from_str(&env, APPLICATION_STATUS_APPROVED);
-        let pending_str = String::from_str(&env, "Pending");
-
         let mut locked: u128 = 0u128;
         for idx in 1..=app_count {
             let app_key = (Symbol::new(&env, APPLICATION_PREFIX), pool_id, idx);
             let entry: Option<(u32, Address, soroban_sdk::String)> =
                 env.storage().persistent().get(&app_key);
             if let Some((_, student, _)) = entry {
-                let status_key = (
-                    Symbol::new(&env, APPLICATION_STATUS_PREFIX),
+                let claim_key = (
+                    Symbol::new(&env, CLAIMED_AMOUNT_PREFIX),
                     pool_id,
                     student.clone(),
                 );
-                let status: String = env
+                let application: Application = env
                     .storage()
                     .persistent()
-                    .get::<_, String>(&status_key)
-                    .unwrap_or(String::from_str(&env, ""));
-
-                if status == approved_str || status == pending_str {
-                    let claim_key = (
-                        Symbol::new(&env, CLAIMED_AMOUNT_PREFIX),
+                    .get::<_, Application>(&claim_key)
+                    .unwrap_or(Application {
                         pool_id,
-                        student.clone(),
-                    );
-                    let application: Application = env
-                        .storage()
-                        .persistent()
-                        .get::<_, Application>(&claim_key)
-                        .unwrap_or(Application {
-                            pool_id,
-                            student: student.clone(),
-                            application_data: String::from_str(&env, ""),
-                            status: status.clone(),
-                            approved_amount: 0,
-                            amount_claimed: 0,
-                        });
+                        student: student.clone(),
+                        application_data: String::from_str(&env, ""),
+                        status: ApplicationStatus::Pending,
+                        approved_amount: 0,
+                        amount_claimed: 0,
+                    });
+
+                if matches!(
+                    application.status,
+                    ApplicationStatus::Approved | ApplicationStatus::Pending
+                ) {
                     let remaining =
                         (application.approved_amount - application.amount_claimed).max(0) as u128;
                     locked = locked
@@ -1331,18 +1431,8 @@ impl Contract {
         }
 
         // Verify application is approved
-        let status_key = (
-            Symbol::new(&env, APPLICATION_STATUS_PREFIX),
-            pool_id,
-            student.clone(),
-        );
-        let status: String = env
-            .storage()
-            .persistent()
-            .get::<_, String>(&status_key)
-            .unwrap_or_else(|| env.panic_with_error(ContractError::ApplicationStatusNotFound));
-
-        if status != String::from_str(&env, APPLICATION_STATUS_APPROVED) {
+        let status = Self::get_application_status(env.clone(), pool_id, student.clone());
+        if status != ApplicationStatus::Approved {
             env.panic_with_error(ContractError::ApplicationNotApproved);
         }
 
@@ -1387,7 +1477,7 @@ impl Contract {
                 pool_id,
                 student: student.clone(),
                 application_data: String::from_str(&env, ""),
-                status: Self::get_application_status(env.clone(), pool_id, student.clone()),
+                status: ApplicationStatus::Approved,
                 approved_amount: collected,
                 amount_claimed: 0,
             });
@@ -1534,11 +1624,17 @@ impl Contract {
     /// The deadline must be in the future (greater than the current ledger)
     /// and no more than `MAX_POOL_DEADLINE_LEDGERS` ledgers ahead of it.
     ///
+    /// Issue #1664: ledger sequence is the single time base for refunds. The
+    /// refund deadline must not precede the pool's funding deadline, so a pool
+    /// can never be refundable while donations are still being accepted.
+    ///
     /// # Panics
     /// - `ContractError::PoolNotFound` if pool_id is invalid
     /// - `"Error(Auth, InvalidAction)"` if caller is not the pool sponsor
     /// - `"Deadline must be in the future"` if deadline <= current ledger
     /// - `"Deadline too far in the future"` if the deadline exceeds the maximum horizon
+    /// - `ContractError::InvalidRefundDeadline` if the deadline precedes the
+    ///   pool's funding deadline
     pub fn set_pool_deadline(env: Env, pool_id: u32, deadline: u32) {
         let _pool: Pool = env
             .storage()
@@ -1556,6 +1652,14 @@ impl Contract {
             panic!("Deadline too far in the future");
         }
 
+        // Issue #1664: the refund window must not open before the funding
+        // deadline. `application_deadline` is a timestamp; convert it to the
+        // ledger sequence at which it elapses so both share one time base.
+        let funding_deadline_ledger = Self::funding_deadline_ledger(&env, &_pool);
+        if deadline < funding_deadline_ledger {
+            env.panic_with_error(ContractError::InvalidRefundDeadline);
+        }
+
         let deadline_key = (Symbol::new(&env, POOL_DEADLINE_PREFIX), pool_id);
         env.storage().persistent().set(&deadline_key, &deadline);
 
@@ -1564,25 +1668,55 @@ impl Contract {
             .publish((DEADLINE_SET, pool_id), (_pool.sponsor.clone(), deadline));
     }
 
-    /// Get the refund deadline ledger for a pool.
-    /// Returns `0` if no deadline has been set.
+    /// Convert a pool's funding deadline (timestamp) to the ledger sequence at
+    /// which it elapses, using the current ledger as the reference point.
+    fn funding_deadline_ledger(env: &Env, pool: &Pool) -> u32 {
+        let now_ts = env.ledger().timestamp();
+        let now_seq = env.ledger().sequence();
+        if pool.application_deadline <= now_ts {
+            return now_seq;
+        }
+        // 5 seconds per ledger; round up so the funding window is never
+        // shortened.
+        let secs_remaining = pool.application_deadline - now_ts;
+        let ledgers_remaining = ((secs_remaining + 4) / 5) as u32;
+        now_seq.saturating_add(ledgers_remaining)
+    }
+
+    /// Get the effective refund deadline ledger for a pool.
+    ///
+    /// Issue #1664: if no explicit refund deadline has been set, the refund
+    /// window is derived from the funding deadline plus the grace period, so
+    /// every pool has a reachable refund window. Returns `0` only if the pool
+    /// does not exist.
     pub fn get_pool_deadline(env: Env, pool_id: u32) -> u32 {
-        let deadline_key = (Symbol::new(&env, POOL_DEADLINE_PREFIX), pool_id);
-        env.storage()
+        let pool: Pool = env
+            .storage()
             .persistent()
-            .get::<_, u32>(&deadline_key)
-            .unwrap_or(0)
+            .get::<_, Pool>(&pool_id)
+            .unwrap_or_else(|| env.panic_with_error(ContractError::PoolNotFound));
+
+        let deadline_key = (Symbol::new(&env, POOL_DEADLINE_PREFIX), pool_id);
+        if let Some(deadline) = env.storage().persistent().get::<_, u32>(&deadline_key) {
+            return deadline;
+        }
+
+        Self::funding_deadline_ledger(&env, &pool)
+            .saturating_add(REFUND_GRACE_PERIOD_LEDGERS)
     }
 
     /// Refund a donor's contribution from an expired pool.
     ///
+    /// Issue #1664: ledger sequence is the single time base. The effective
+    /// refund deadline is the explicit `pool_deadline` if set, otherwise the
+    /// pool's funding deadline plus `REFUND_GRACE_PERIOD_LEDGERS`, so every
+    /// pool is refundable.
+    ///
     /// A refund is only permitted when ALL of the following hold:
-    ///   1. The pool has a deadline set (non-zero).
-    ///   2. The current ledger is strictly after the deadline
-    ///      (`current_ledger > deadline`).
-    ///   3. The grace period has elapsed
+    ///   1. The current ledger is strictly after the effective deadline.
+    ///   2. The grace period has elapsed
     ///      (`current_ledger >= deadline + REFUND_GRACE_PERIOD_LEDGERS`).
-    ///   4. The pool is open and no student funds have been disbursed.
+    ///   3. The pool is open and no student funds have been disbursed.
     ///
     /// # Panics
     /// - `ContractError::PoolNotFound` if pool_id is invalid
@@ -1604,7 +1738,10 @@ impl Contract {
             .storage()
             .persistent()
             .get::<_, u32>(&deadline_key)
-            .unwrap_or(0);
+            .unwrap_or_else(|| {
+                Self::funding_deadline_ledger(&env, &pool)
+                    .saturating_add(REFUND_GRACE_PERIOD_LEDGERS)
+            });
 
         let current_ledger = env.ledger().sequence();
 
@@ -1617,7 +1754,7 @@ impl Contract {
         let grace_elapsed = deadline
             .checked_add(REFUND_GRACE_PERIOD_LEDGERS)
             .map_or(true, |grace_limit| current_ledger >= grace_limit);
-        if deadline == 0 || current_ledger <= deadline || !grace_elapsed {
+        if current_ledger <= deadline || !grace_elapsed {
             env.panic_with_error(ContractError::PoolNotExpired);
         }
 

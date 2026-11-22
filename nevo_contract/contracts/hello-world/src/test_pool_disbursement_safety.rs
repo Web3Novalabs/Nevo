@@ -79,11 +79,13 @@ impl PoolFixture {
             &self.school,
             &self.pool,
             &self.student,
-            &String::from_str(&self.env, APPLICATION_STATUS_APPROVED),
+            &ApplicationStatus::Approved,
         );
     }
 
     fn expire_refunds(&self) {
+        // Pools without an explicit refund deadline become refundable once the
+        // funding deadline plus the grace period has passed.
         let deadline = self.env.ledger().sequence() + 1;
         self.client().set_pool_deadline(&self.pool, &deadline);
         self.env
@@ -290,7 +292,7 @@ fn repeated_claims_cannot_spend_past_the_pool_total() {
         &fixture.school,
         &fixture.pool,
         &other_student,
-        &String::from_str(&fixture.env, APPLICATION_STATUS_APPROVED),
+        &ApplicationStatus::Approved,
     );
 
     // The student authorizes a nested call in this test-only batch.

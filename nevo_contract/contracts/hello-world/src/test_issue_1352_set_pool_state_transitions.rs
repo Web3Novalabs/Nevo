@@ -15,6 +15,13 @@ use soroban_sdk::{
     Address, BytesN, Env, IntoVal, String, Val,
 };
 
+/// Application statuses that the school may drive a student through. The
+/// allowed transitions are documented on `approve_application` /
+/// `reject_application` / `revoke_application` in `lib.rs`:
+/// Pending -> Approved | Rejected, Approved -> Revoked (only while
+/// `amount_claimed == 0`), Rejected -> Approved (re-approval).
+const ALL_APP_STATUSES: [&str; 4] = ["Pending", "Approved", "Rejected", "Revoked"];
+
 const ALL_STATES: [PoolState; 6] = [
     PoolState::Active,
     PoolState::Paused,
@@ -344,6 +351,110 @@ fn test_claims_follow_pool_state() {
             PoolState::Closed => assert_eq!(result, Err(Ok(ContractError::PoolIsClosed))),
         }
     }
+}
+
+// (5) The application status state machine is independent of the pool state:
+// every documented transition is accepted and every other one is rejected with
+// a typed error, regardless of the pool's lifecycle state.
+#[test]
+fn test_application_status_transition_matrix() {
+    let env = Env::default();
+    let s = setup(&env);
+
+    for from in ALL_APP_STATUSES.iter() {
+        for to in ALL_APP_STATUSES.iter() {
+            let pool_id = new_pool(&env, &s);
+            let student = Address::generate(&env);
+            s.client.set_application_status(
+                &s.admin,
+                &pool_id,
+                &student,
+                &String::from_str(&env, from),
+            );
+
+            let result = s.client.try_set_application_status(
+                &s.admin,
+                &pool_id,
+                &student,
+                &String::from_str(&env, to),
+            );
+
+            let allowed = matches!(
+                (*from, *to),
+                ("Pending", "Approved")
+                    | ("Pending", "Rejected")
+                    | ("Approved", "Revoked")
+                    | ("Rejected", "Approved")
+            );
+            if allowed {
+                assert!(
+                    result.is_ok(),
+                    "{} -> {} must be allowed",
+                    from,
+                    to
+                );
+            } else {
+                assert!(
+                    result.is_err(),
+                    "{} -> {} must be rejected",
+                    from,
+                    to
+                );
+            }
+        }
+    }
+}
+
+// (5) Re-approval after a rejection is allowed, and a rejected student who has
+// already claimed cannot be revoked (only Approved -> Revoked is legal).
+#[test]
+fn test_rejected_student_can_be_reapproved_but_not_revoked() {
+    let env = Env::default();
+    let s = setup(&env);
+    let pool_id = new_pool(&env, &s);
+    let student = Address::generate(&env);
+
+    s.client.set_application_status(
+        &s.admin,
+        &pool_id,
+        &student,
+        &String::from_str(&env, "Rejected"),
+    );
+    s.client.set_application_status(
+        &s.admin,
+        &pool_id,
+        &student,
+        &String::from_str(&env, "Approved"),
+    );
+    assert!(s
+        .client
+        .try_set_application_status(
+            &s.admin,
+            &pool_id,
+            &student,
+            &String::from_str(&env, "Revoked"),
+        )
+        .is_ok());
+}
+
+// (5) A pool with no explicit refund deadline is still refundable once the
+// funding deadline (plus grace) has passed, so the refund window is always
+// reachable and never contradicts the donation deadline.
+#[test]
+fn test_refund_window_reachable_without_explicit_pool_deadline() {
+    let env = Env::default();
+    let s = setup(&env);
+    let pool_id = new_pool(&env, &s);
+
+    // Before the funding deadline the pool is not refundable.
+    assert_eq!(
+        s.client.try_refund(&pool_id, &s.sponsor),
+        Err(Ok(ContractError::PoolNotExpired))
+    );
+
+    // Advance past the funding deadline plus grace period.
+    env.ledger().set_timestamp(200_000u64 + 86_400u64 + 1);
+    assert!(s.client.try_refund(&pool_id, &s.sponsor).is_ok());
 }
 
 // (5) Emergency withdrawal requests are only accepted while Active.

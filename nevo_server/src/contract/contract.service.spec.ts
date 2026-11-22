@@ -592,6 +592,75 @@ describe('ContractService', () => {
   });
 
   // =========================================================================
+  // Application status — enum-based decoding
+  // =========================================================================
+
+  describe('getApplicationStatusOnChain — mocked RPC', () => {
+    it('decodes the Pending enum variant', async () => {
+      const scVal = nativeToScVal('Pending', { type: 'symbol' });
+      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(scVal),
+      );
+      const result = await service.getApplicationStatusOnChain(1, DONOR);
+      expect(result).toBe('Pending');
+    });
+
+    it('decodes the Approved enum variant', async () => {
+      const scVal = nativeToScVal('Approved', { type: 'symbol' });
+      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(scVal),
+      );
+      const result = await service.getApplicationStatusOnChain(1, DONOR);
+      expect(result).toBe('Approved');
+    });
+
+    it('decodes the Rejected enum variant', async () => {
+      const scVal = nativeToScVal('Rejected', { type: 'symbol' });
+      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(scVal),
+      );
+      const result = await service.getApplicationStatusOnChain(1, DONOR);
+      expect(result).toBe('Rejected');
+    });
+
+    it('returns null when retval is missing', async () => {
+      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce({
+        result: { retval: null, auth: [] },
+        latestLedger: 1,
+      });
+      const result = await service.getApplicationStatusOnChain(1, DONOR);
+      expect(result).toBeNull();
+    });
+
+    it('returns null when getAccount throws', async () => {
+      mockRpcServer.getAccount.mockRejectedValueOnce(new Error('timeout'));
+      const result = await service.getApplicationStatusOnChain(1, DONOR);
+      expect(result).toBeNull();
+    });
+
+    it('returns null when simulate returns error shape', async () => {
+      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(fakeSimError());
+      const result = await service.getApplicationStatusOnChain(1, DONOR);
+      expect(result).toBeNull();
+    });
+
+    it('returns null for an unrecognized enum variant', async () => {
+      const scVal = nativeToScVal('Unknown', { type: 'symbol' });
+      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(scVal),
+      );
+      const result = await service.getApplicationStatusOnChain(1, DONOR);
+      expect(result).toBeNull();
+    });
+  });
+
+  // =========================================================================
   // mapError — internal error mapping
   // =========================================================================
 

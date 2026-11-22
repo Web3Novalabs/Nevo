@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::{Contract, ContractClient, ContractError, PoolState};
+    use crate::{ApplicationStatus, Contract, ContractClient, ContractError, PoolState};
     use soroban_sdk::{testutils::*, Address, Env, String};
 
     fn setup_pool_with_school(env: &Env, client: &ContractClient) -> (u32, Address, Address) {
@@ -54,6 +54,10 @@ mod tests {
         // Verify student has applied
         let has_applied = client.has_applied(&pool_id, &student);
         assert!(has_applied, "Student should have applied to the pool");
+
+        // Verify the application status is Pending
+        let status = client.get_application_status(&pool_id, &student);
+        assert_eq!(status, ApplicationStatus::Pending);
     }
 
     #[test]
@@ -243,6 +247,20 @@ mod tests {
         assert!(client.has_applied(&pool_id, &student1));
         assert!(client.has_applied(&pool_id, &student2));
         assert!(client.has_applied(&pool_id, &student3));
+
+        // Verify all applications start in Pending status
+        assert_eq!(
+            client.get_application_status(&pool_id, &student1),
+            ApplicationStatus::Pending
+        );
+        assert_eq!(
+            client.get_application_status(&pool_id, &student2),
+            ApplicationStatus::Pending
+        );
+        assert_eq!(
+            client.get_application_status(&pool_id, &student3),
+            ApplicationStatus::Pending
+        );
     }
 
     #[test]
@@ -268,5 +286,15 @@ mod tests {
         // Assert the getter returns 2
         let count = client.get_application_count(&pool_id);
         assert_eq!(count, 2, "Application count should be 2");
+
+        // Both applications should be Pending
+        assert_eq!(
+            client.get_application_status(&pool_id, &student1),
+            ApplicationStatus::Pending
+        );
+        assert_eq!(
+            client.get_application_status(&pool_id, &student2),
+            ApplicationStatus::Pending
+        );
     }
 }

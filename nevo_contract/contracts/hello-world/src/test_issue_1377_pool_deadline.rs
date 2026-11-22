@@ -82,8 +82,14 @@ fn test_get_pool_deadline_reflects_updated_value_immediately() {
 
     let (pool_id, _) = setup_pool(&env, &client);
 
-    // Initial deadline returns default 0 before being explicitly configured
-    assert_eq!(client.get_pool_deadline(&pool_id), 0u32);
+    // With no explicit refund deadline, the getter returns the derived refund
+    // window: the funding deadline plus the grace period (ledger sequence base).
+    let derived_deadline = client.get_pool_deadline(&pool_id);
+    assert_eq!(
+        derived_deadline,
+        client.get_pool(&pool_id).3 + REFUND_GRACE_PERIOD_LEDGERS,
+        "get_pool_deadline must derive the refund window from the funding deadline"
+    );
 
     let first_deadline = env.ledger().sequence() + 1_000;
     client.set_pool_deadline(&pool_id, &first_deadline);
@@ -255,4 +261,35 @@ fn test_set_pool_deadline_rejects_deadline_beyond_max_horizon() {
         .saturating_add(MAX_POOL_DEADLINE_LEDGERS)
         + 1;
     client.set_pool_deadline(&pool_id, &deadline);
+}
+
+// ── Test 7: set_pool_deadline rejects deadlines before the funding deadline ─
+
+#[test]
+fn test_set_pool_deadline_rejects_deadline_before_funding_deadline() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let (pool_id, _) = setup_pool(&env, &client);
+
+    // The funding deadline (application_deadline) is the lower bound for the
+    // refund window; a refund deadline before it would be contradictory.
+    let funding_deadline = client.get_pool(&pool_id).3;
+    let contradictory_deadline = funding_deadline.saturating_sub(1);
+
+    let err = client.try_set_pool_deadline(&pool_id, &contradictory_deadline);
+    assert_eq!(
+        err,
+        Err(Ok(ContractError::DeadlineBeforeFundingDeadline)),
+        "set_pool_deadline must reject a deadline earlier than the funding deadline"
+    );
+
+    // The stored/derived deadline must be unchanged after the rejected call.
+    assert_eq!(
+        client.get_pool_deadline(&pool_id),
+        funding_deadline + REFUND_GRACE_PERIOD_LEDGERS,
+        "rejected update must not alter the derived refund window"
+    );
 }
