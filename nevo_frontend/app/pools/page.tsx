@@ -34,7 +34,14 @@ interface ActiveFilter {
 
 const ITEMS_PER_PAGE = 6;
 const DEFAULT_SORT: SortOption = 'newest';
-const STATUS_OPTIONS: PoolStatus[] = ['Active', 'Completed'];
+const STATUS_OPTIONS: PoolStatus[] = [
+  'Active',
+  'Paused',
+  'Completed',
+  'Cancelled',
+  'Disbursed',
+  'Closed',
+];
 const PARAM_KEYS = {
   search: 'q',
   categories: 'category',

@@ -18,8 +18,9 @@ import { PoolStatus } from '../pool.entity.js';
  *
  * - `search` — case-insensitive substring match on pool title and description.
  * - `category` — case-insensitive exact match on the pool's category.
- * - `status` — one of the {@link PoolStatus} values (`Active`, `Completed`);
- *   anything else is rejected with a 400.
+ * - `status` — one of the {@link PoolStatus} values (`Active`, `Paused`,
+ *   `Completed`, `Cancelled`, `Disbursed`, `Closed`); anything else is
+ *   rejected with a 400.
  * - `page` — 1-based page number, defaults to 1. Must be an integer >= 1.
  * - `limit` — results per page, defaults to 20. Must be an integer in 1-100.
  *

@@ -638,22 +638,32 @@ describe('PoolsService', () => {
     });
   });
 
-  // ── markCompleted ─────────────────────────────────────────────────────────
+  // ── markStatus ────────────────────────────────────────────────────────────
 
-  describe('markCompleted', () => {
-    it('sets pool status to Completed and saves', async () => {
+  describe('markStatus', () => {
+    it('sets pool status and saves', async () => {
       const existing = makePool({ status: PoolStatus.Active });
       const { service, savedArg } = await buildService(existing);
 
-      await service.markCompleted('pool-1');
+      await service.markStatus('pool-1', PoolStatus.Closed);
 
-      expect(savedArg().status).toBe(PoolStatus.Completed);
+      expect(savedArg().status).toBe(PoolStatus.Closed);
     });
 
     it('returns null if pool is not found', async () => {
       const { service } = await buildService(null);
-      const result = await service.markCompleted('nonexistent');
+      const result = await service.markStatus('nonexistent', PoolStatus.Closed);
       expect(result).toBeNull();
+    });
+
+    it('is a no-op when the pool already has the requested status', async () => {
+      const existing = makePool({ status: PoolStatus.Active });
+      const { service, savedArg } = await buildService(existing);
+
+      const result = await service.markStatus('pool-1', PoolStatus.Active);
+
+      expect(result).toBe(existing);
+      expect(savedArg()).toBeUndefined();
     });
   });
 

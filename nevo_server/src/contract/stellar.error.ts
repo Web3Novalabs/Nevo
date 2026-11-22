@@ -24,6 +24,14 @@ const STELLAR_CODE_MAP: Record<
     status: HttpStatus.BAD_REQUEST,
     message: 'Invalid transaction XDR',
   },
+  tx_submit_failed: {
+    status: HttpStatus.BAD_REQUEST,
+    message: 'Transaction rejected by the network',
+  },
+  tx_retry_later: {
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    message: 'Transaction could not be processed yet — retry later',
+  },
 };
 
 const CONTRACT_CODE_MAP: Record<

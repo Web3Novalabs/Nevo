@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { scValToNative, rpc as StellarRpc } from '@stellar/stellar-sdk';
 import {
   ADVISORY_LOCK_KEYS,
   AdvisoryLockService,
@@ -9,20 +10,32 @@ import {
 import { PoolsService } from '../pools/pools.service.js';
 import { DonationsService } from '../donations/donations.service.js';
 import { HistoryService } from '../transactions/history.service.js';
+import { StellarConfig } from '../contract/stellar.config.js';
+import { PoolStatus } from '../pools/pool.entity.js';
 import { SyncState } from './sync-state.entity.js';
 
 /** Minimal shape of a Stellar Horizon Soroban contract event. */
 export interface HorizonContractEvent {
-  /** Event topic array; index 0 is the event symbol, index 1 is the pool_id. */
+  /** Event topic; index 0 is the event symbol, index 1 is the pool_id. */
   topic: string[];
   /**
-   * Event data value.
-   * For pool_crtd: [creatorWallet, goal, title, description]
+   * Event data value; entries are `scValToNative`-decoded and stringified
+   * (e.g. `['GDONOR123', '500']` for a donation).
    */
   value: string[];
   /** Transaction hash for idempotency — may be undefined for non-donation events. */
   txHash?: string;
 }
+
+/** Maps on-chain PoolState names to the DB PoolStatus enum. */
+const POOL_STATE_TO_STATUS: Record<string, PoolStatus> = {
+  Active: PoolStatus.Active,
+  Paused: PoolStatus.Paused,
+  Completed: PoolStatus.Completed,
+  Cancelled: PoolStatus.Cancelled,
+  Disbursed: PoolStatus.Disbursed,
+  Closed: PoolStatus.Closed,
+};
 
 @Injectable()
 export class SyncService implements OnModuleInit {
@@ -31,14 +44,19 @@ export class SyncService implements OnModuleInit {
   /** Tracks tx hashes seen in the current poll run to detect within-run duplicates. */
   private seenInRun = new Set<string>();
 
+  private readonly rpcServer: StellarRpc.Server;
+
   constructor(
     private readonly poolsService: PoolsService,
     private readonly donationsService: DonationsService,
     @InjectRepository(SyncState)
     private readonly syncStateRepo: Repository<SyncState>,
     private readonly advisoryLock: AdvisoryLockService,
+    private readonly stellar: StellarConfig,
     @Optional() private readonly history?: HistoryService,
-  ) {}
+  ) {
+    this.rpcServer = new StellarRpc.Server(stellar.rpcUrl);
+  }
 
   async onModuleInit() {
     const state = await this.syncStateRepo.findOne({
@@ -59,19 +77,14 @@ export class SyncService implements OnModuleInit {
   }
 
   /**
-   * **Unimplemented stub — not a tested feature.**
+   * Fetches contract events via Soroban RPC `getEvents` and dispatches them
+   * to the `process*Event` handlers. Runs under the advisory lock so
+   * multiple instances can't poll the same cursor concurrently.
    *
-   * This method is a placeholder and does NOT perform any real Horizon polling.
-   * The job reconciles submitted transaction statuses. Horizon event polling is still pending.
-   *
-   * It is intentionally scoped separately from test-coverage work: because there is
-   * no real polling behavior yet, no tests should assert on it. Contributors should
-   * not write tests against this method's (non-existent) polling behavior.
-   *
-   * TODO: replace with a real implementation once HorizonService (#46) is available.
-   * The real implementation must call `HorizonService.fetchContractEvents()` (using
-   * `currentCursor`), dispatch events to the appropriate `process*Event` handlers,
-   * and advance/persist the cursor via `saveCursor()`.
+   * The cursor is persisted after each processed page (`saveCursor`), so a
+   * restart resumes where the last run stopped. On first start or when the
+   * saved cursor has fallen out of RPC retention, polling starts from the
+   * configured ledger (`syncStartLedger` / the RPC's oldest ledger).
    */
   @Cron(CronExpression.EVERY_MINUTE)
   async pollHorizonEvents(): Promise<void> {
@@ -80,10 +93,105 @@ export class SyncService implements OnModuleInit {
       'SyncService.pollHorizonEvents',
       async () => {
         this.seenInRun.clear();
-        // stub — will call HorizonService.fetchContractEvents() when implemented
-        await this.history?.reconcilePending();
+        const filters: StellarRpc.Api.EventFilter[] = [
+          { type: 'contract', contractIds: [this.stellar.contractId] },
+        ];
+
+        let cursor = this.currentCursor;
+        if (cursor && (await this.isCursorStale(cursor))) {
+          // The cursor fell out of RPC retention; restart from the
+          // configured start ledger (or the RPC's oldest ledger).
+          cursor = null;
+          this.currentCursor = null;
+        }
+
+        let request: StellarRpc.Api.GetEventsRequest;
+        if (cursor) {
+          request = { filters, cursor };
+        } else {
+          request = { filters, startLedger: await this.startLedger() };
+        }
+
+        for (;;) {
+          const response = await this.rpcServer.getEvents(request);
+          const events = response.events ?? [];
+          for (const event of events) {
+            await this.dispatchEvent(event);
+          }
+          if (!response.cursor || events.length === 0) break;
+          // Persist the cursor after each processed page.
+          await this.saveCursor(response.cursor);
+          request = { filters, cursor: response.cursor };
+        }
       },
     );
+  }
+
+  /**
+   * Ledger to start polling from: the configured `SYNC_START_LEDGER`, else
+   * the RPC's oldest retained ledger.
+   */
+  private async startLedger(): Promise<number> {
+    const configured = this.stellar.syncStartLedger;
+    if (configured > 0) return configured;
+    try {
+      const health = await this.rpcServer.getHealth();
+      return health.oldestLedger;
+    } catch {
+      return configured;
+    }
+  }
+
+  /** True when the saved cursor has fallen out of RPC retention. */
+  private async isCursorStale(cursor: string): Promise<boolean> {
+    try {
+      const health = await this.rpcServer.getHealth();
+      return Number(cursor) < health.oldestLedger;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Decodes a Soroban RPC contract event into the flat
+   * {@link HorizonContractEvent} shape used by the `process*Event` handlers:
+   * topic/value entries are `scValToNative`-decoded and stringified.
+   */
+  private decodeEvent(
+    event: StellarRpc.Api.EventResponse,
+  ): HorizonContractEvent {
+    const topic = (event.topic ?? []).map((v) => String(scValToNative(v)));
+    const nativeValue = scValToNative(event.value);
+    // `pool_stat` values arrive as [[oldState], [newState]] (the contract
+    // publishes contracttype enums as ScVal::Vec([Symbol])); unwrap them.
+    const value = (Array.isArray(nativeValue) ? nativeValue : [nativeValue]).map(
+      (v) =>
+        Array.isArray(v) && v.length === 1 && typeof v[0] === 'string'
+          ? (v[0] as string)
+          : String(v),
+    );
+    return { topic, value, txHash: event.txHash || undefined };
+  }
+
+  /** Dispatches a decoded contract event to the matching `process*Event` handler. */
+  private async dispatchEvent(
+    event: StellarRpc.Api.EventResponse,
+  ): Promise<void> {
+    const decoded = this.decodeEvent(event);
+    switch (decoded.topic[0]) {
+      case 'pool_crtd':
+        await this.processPoolCreatedEvent(decoded);
+        break;
+      case 'pool_cls':
+        await this.processPoolClosedEvent(decoded);
+        break;
+      case 'pool_stat':
+        await this.processPoolStateEvent(decoded);
+        break;
+      case 'donation':
+        await this.processDonationEvent(decoded);
+        break;
+    }
   }
 
   /**
@@ -163,8 +271,8 @@ export class SyncService implements OnModuleInit {
    * - `topic[1]` — The on-chain pool identifier (`contractPoolId`).
    * - `value` — Not used for this event type (empty array).
    *
-   * The method checks for duplicate transactions, then marks the pool as completed
-   * via `PoolsService.markCompleted()`.
+   * The method checks for duplicate transactions, then marks the pool as
+   * Closed via `PoolsService.markStatus()`.
    *
    * @param event - The Horizon contract event to process.
    */
@@ -174,7 +282,10 @@ export class SyncService implements OnModuleInit {
     }
 
     const contractPoolId = event.topic[1];
-    const pool = await this.poolsService.markCompleted(contractPoolId);
+    const pool = await this.poolsService.markStatus(
+      contractPoolId,
+      PoolStatus.Closed,
+    );
     if (event.txHash && pool) {
       await this.history?.record(pool.creatorWallet, {
         txHash: event.txHash,
@@ -184,6 +295,26 @@ export class SyncService implements OnModuleInit {
         recipient: contractPoolId,
       });
     }
+  }
+
+  /**
+   * Processes a `pool_stat` event emitted by the contract's `set_pool_state`.
+   *
+   * Expected event shape (after decoding):
+   * - `topic[0]` — Event symbol `"pool_stat"`.
+   * - `topic[1]` — The on-chain pool identifier (`contractPoolId`).
+   * - `value[1]` — New on-chain state name (e.g. `"Completed"`).
+   *
+   * Maps the on-chain state to the DB `PoolStatus` and stores it.
+   *
+   * @param event - The Horizon contract event to process.
+   */
+  async processPoolStateEvent(event: HorizonContractEvent): Promise<void> {
+    const contractPoolId = event.topic[1];
+    const stateName = event.value[1];
+    const status = stateName ? POOL_STATE_TO_STATUS[stateName] : undefined;
+    if (!status) return;
+    await this.poolsService.markStatus(contractPoolId, status);
   }
 
   /**
@@ -240,5 +371,12 @@ export class SyncService implements OnModuleInit {
     }
 
     await this.poolsService.incrementRaised(contractPoolId, amount);
+
+    // Mirror the contract: a donation that reaches the goal moves the pool
+    // to Completed (`donate` sets `PoolState::Completed` when `collected >= goal`).
+    const pool = await this.poolsService.findByContractId(contractPoolId);
+    if (pool && BigInt(pool.raised || '0') >= BigInt(pool.goal || '0')) {
+      await this.poolsService.markStatus(contractPoolId, PoolStatus.Completed);
+    }
   }
 }

@@ -21,7 +21,9 @@ describe('TransactionsController', () => {
   beforeEach(async () => {
     contractService = {
       describeSubmission: jest.fn(),
-      submitSignedXdr: jest.fn().mockResolvedValue('tx-hash-12345'),
+      submitSignedXdr: jest
+        .fn()
+        .mockResolvedValue({ txHash: 'tx-hash-12345', status: 'completed' }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -47,8 +49,11 @@ describe('TransactionsController', () => {
   });
 
   describe('submit (POST /transactions/submit)', () => {
-    it('submits signed XDR via ContractService and returns txHash', async () => {
-      contractService.submitSignedXdr.mockResolvedValue('tx-hash-12345');
+    it('submits signed XDR via ContractService and returns the result', async () => {
+      contractService.submitSignedXdr.mockResolvedValue({
+        txHash: 'tx-hash-12345',
+        status: 'completed',
+      });
 
       const result = await controller.submit(
         { xdr: 'AAAA...signedXdr' },
@@ -58,12 +63,18 @@ describe('TransactionsController', () => {
       expect(contractService.submitSignedXdr).toHaveBeenCalledWith(
         'AAAA...signedXdr',
       );
-      expect(result).toEqual({ txHash: 'tx-hash-12345' });
+      expect(result).toEqual({
+        txHash: 'tx-hash-12345',
+        status: 'completed',
+      });
     });
 
     it('forwards the exact xdr string to ContractService.submitSignedXdr', async () => {
       const signedXdr = 'BBBB...differentXdr';
-      contractService.submitSignedXdr.mockResolvedValue('different-hash');
+      contractService.submitSignedXdr.mockResolvedValue({
+        txHash: 'different-hash',
+        status: 'completed',
+      });
 
       const result = await controller.submit(
         { xdr: signedXdr },
@@ -72,7 +83,10 @@ describe('TransactionsController', () => {
 
       expect(contractService.submitSignedXdr).toHaveBeenCalledTimes(1);
       expect(contractService.submitSignedXdr).toHaveBeenCalledWith(signedXdr);
-      expect(result).toEqual({ txHash: 'different-hash' });
+      expect(result).toEqual({
+        txHash: 'different-hash',
+        status: 'completed',
+      });
     });
 
     it('propagates StellarError thrown by ContractService (tx_bad_auth)', async () => {
@@ -112,7 +126,10 @@ describe('TransactionsController', () => {
     });
 
     it('does not call submitSignedXdr more than once per request', async () => {
-      contractService.submitSignedXdr.mockResolvedValue('single-call-hash');
+      contractService.submitSignedXdr.mockResolvedValue({
+        txHash: 'single-call-hash',
+        status: 'completed',
+      });
 
       await controller.submit(
         { xdr: 'once-only' },
@@ -160,7 +177,9 @@ describe('TransactionsController (guard / HTTP)', () => {
   beforeEach(async () => {
     contractService = {
       describeSubmission: jest.fn(),
-      submitSignedXdr: jest.fn().mockResolvedValue('tx-hash-xyz'),
+      submitSignedXdr: jest
+        .fn()
+        .mockResolvedValue({ txHash: 'tx-hash-xyz', status: 'completed' }),
     };
 
     const moduleRef: TestingModule = await Test.createTestingModule({

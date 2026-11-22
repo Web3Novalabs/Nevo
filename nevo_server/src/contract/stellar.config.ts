@@ -35,6 +35,14 @@ export class StellarConfig {
     return this.config.get<string>('STELLAR_RPC_URL') ?? DEFAULT_RPC_URL;
   }
 
+  /**
+   * `SYNC_START_LEDGER`: ledger the event sync polls from (first start or
+   * stale cursor). Defaults to 0, meaning the RPC's oldest retained ledger.
+   */
+  get syncStartLedger(): number {
+    return this.config.get<number>('SYNC_START_LEDGER') ?? 0;
+  }
+
   /** `CONTRACT_ID`: the deployed Nevo contract. */
   get contractId(): string {
     return this.config.get<string>('CONTRACT_ID') ?? DEFAULT_CONTRACT_ID;

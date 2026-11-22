@@ -16,8 +16,30 @@ import type { HistoryEntry } from '../transactions/history.service.js';
 import { StellarError } from './stellar.error.js';
 import { StellarConfig } from './stellar.config.js';
 
+/** How long `submitSignedXdr` waits for `getTransaction` confirmation. */
+const CONFIRMATION_TIMEOUT_MS = 15_000;
+/** Polling interval between `getTransaction` calls during confirmation. */
+const CONFIRMATION_POLL_INTERVAL_MS = 500;
+
+/**
+ * Result of `submitSignedXdr`: the transaction plus its terminal state when
+ * the network reports one.
+ */
+export interface ContractSubmissionResult {
+  txHash: string;
+  status: 'completed' | 'failed' | 'pending';
+  /**
+   * Decoded contract return value of the confirmed transaction, when the
+   * network provides one (e.g. the new pool id for `create_pool`).
+   */
+  returnValue?: unknown;
+}
+
 @Injectable()
 export class ContractService {
+  /** How long `submitSignedXdr` waits for `getTransaction` confirmation. */
+  private confirmTimeoutMs = CONFIRMATION_TIMEOUT_MS;
+
   private readonly logger = new Logger(ContractService.name);
   private readonly rpcServer: StellarRpc.Server;
   private readonly contract: Contract;
@@ -170,7 +192,7 @@ export class ContractService {
     }
   }
 
-  async submitSignedXdr(signedXdr: string): Promise<string> {
+  async submitSignedXdr(signedXdr: string): Promise<ContractSubmissionResult> {
     let tx: Transaction | FeeBumpTransaction;
     try {
       tx = TransactionBuilder.fromXDR(
@@ -180,11 +202,67 @@ export class ContractService {
     } catch {
       throw new StellarError('invalid_xdr');
     }
+
+    let result: StellarRpc.Api.SendTransactionResponse;
     try {
-      const result = await this.rpcServer.sendTransaction(tx);
-      return result.hash;
+      result = await this.rpcServer.sendTransaction(tx);
     } catch (err: unknown) {
       throw this.mapError(err);
+    }
+    if (result.status === 'ERROR') {
+      throw new StellarError('tx_submit_failed');
+    }
+    if (result.status === 'TRY_AGAIN_LATER') {
+      throw new StellarError('tx_retry_later');
+    }
+
+    const txHash = result.hash;
+    const confirmation = await this.waitForConfirmation(txHash);
+    if (!confirmation) {
+      return { txHash, status: 'pending' };
+    }
+    return {
+      txHash,
+      status: confirmation.status,
+      ...(confirmation.returnValue !== undefined
+        ? { returnValue: confirmation.returnValue }
+        : {}),
+    };
+  }
+
+  /**
+   * Polls `getTransaction` until the transaction reaches SUCCESS or FAILED
+   * or the confirmation timeout elapses. Returns `null` when no definitive
+   * status is known by the deadline.
+   */
+  private async waitForConfirmation(
+    txHash: string,
+  ): Promise<
+    { status: 'completed' | 'failed'; returnValue?: unknown } | null
+  > {
+    const deadline = Date.now() + this.confirmTimeoutMs;
+    for (;;) {
+      try {
+        const tx = await this.rpcServer.getTransaction(txHash);
+        if (tx.status === StellarRpc.Api.GetTransactionStatus.SUCCESS) {
+          return {
+            status: 'completed',
+            ...(tx.returnValue !== undefined
+              ? { returnValue: scValToNative(tx.returnValue) }
+              : {}),
+          };
+        }
+        if (tx.status === StellarRpc.Api.GetTransactionStatus.FAILED) {
+          return { status: 'failed' };
+        }
+        // NOT_FOUND: the transaction is not visible yet; keep polling.
+      } catch {
+        // Transient RPC error; keep polling until the deadline.
+      }
+      if (Date.now() >= deadline) return null;
+      await new Promise((resolve) =>
+        setTimeout(resolve, CONFIRMATION_POLL_INTERVAL_MS),
+      );
     }
   }
 
@@ -336,8 +414,6 @@ export class ContractService {
   async getTotalRaisedOnChain(poolId: number): Promise<bigint> {
     try {
       return await this.fetchTotalRaisedOnChain(poolId);
-      const native: unknown = scValToNative(retVal);
-      return typeof native === 'bigint' ? native : BigInt(String(native));
     } catch (err: unknown) {
       this.logger.error(
         `Failed to fetch total raised on-chain for poolId ${poolId}`,

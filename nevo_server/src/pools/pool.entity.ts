@@ -9,7 +9,11 @@ import {
 
 export enum PoolStatus {
   Active = 'Active',
+  Paused = 'Paused',
   Completed = 'Completed',
+  Cancelled = 'Cancelled',
+  Disbursed = 'Disbursed',
+  Closed = 'Closed',
 }
 
 @Entity('pools')

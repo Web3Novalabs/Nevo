@@ -219,3 +219,40 @@ fn test_deadline_change_does_not_affect_already_closed_pools() {
         "Closing an already closed pool must remain rejected with PoolAlreadyClosed"
     );
 }
+
+// ── Test 6: set_pool_deadline bounds deadlines to the maximum horizon ──────
+
+#[test]
+fn test_set_pool_deadline_accepts_deadline_at_max_horizon_boundary() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let (pool_id, _) = setup_pool(&env, &client);
+
+    let deadline = env
+        .ledger()
+        .sequence()
+        .saturating_add(MAX_POOL_DEADLINE_LEDGERS);
+    client.set_pool_deadline(&pool_id, &deadline);
+    assert_eq!(client.get_pool_deadline(&pool_id), deadline);
+}
+
+#[test]
+#[should_panic(expected = "Deadline too far in the future")]
+fn test_set_pool_deadline_rejects_deadline_beyond_max_horizon() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let (pool_id, _) = setup_pool(&env, &client);
+
+    let deadline = env
+        .ledger()
+        .sequence()
+        .saturating_add(MAX_POOL_DEADLINE_LEDGERS)
+        + 1;
+    client.set_pool_deadline(&pool_id, &deadline);
+}

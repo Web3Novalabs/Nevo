@@ -60,6 +60,11 @@ const CROWDFUNDING_TOKEN_KEY: &str = "crowdfunding_token";
 // the grace period (REFUND_GRACE_PERIOD_LEDGERS) has elapsed.
 const POOL_DEADLINE_PREFIX: &str = "pool_deadline";
 const REFUND_GRACE_PERIOD_LEDGERS: u32 = 17_280; // ~24 hours at 5s/ledger
+/// Maximum horizon `set_pool_deadline` accepts: 10 years of ledgers
+/// (~63 072 000 ledgers at 5 s/ledger). Bounding deadlines keeps
+/// `deadline + REFUND_GRACE_PERIOD_LEDGERS` from overflowing `u32` in
+/// `refund_donation` (release builds run with `overflow-checks = true`).
+const MAX_POOL_DEADLINE_LEDGERS: u32 = 10 * 365 * 24 * 3600 / 5;
 
 // Pool metadata validation constraints
 const MAX_TITLE_LENGTH: u32 = 256;
@@ -1526,12 +1531,14 @@ impl Contract {
     /// Set the refund deadline (as a ledger sequence number) for a pool.
     ///
     /// Only the pool sponsor may call this.
-    /// The deadline must be in the future (greater than the current ledger).
+    /// The deadline must be in the future (greater than the current ledger)
+    /// and no more than `MAX_POOL_DEADLINE_LEDGERS` ledgers ahead of it.
     ///
     /// # Panics
     /// - `ContractError::PoolNotFound` if pool_id is invalid
     /// - `"Error(Auth, InvalidAction)"` if caller is not the pool sponsor
     /// - `"Deadline must be in the future"` if deadline <= current ledger
+    /// - `"Deadline too far in the future"` if the deadline exceeds the maximum horizon
     pub fn set_pool_deadline(env: Env, pool_id: u32, deadline: u32) {
         let _pool: Pool = env
             .storage()
@@ -1541,8 +1548,12 @@ impl Contract {
 
         _pool.sponsor.require_auth();
 
-        if deadline <= env.ledger().sequence() {
+        let current_seq = env.ledger().sequence();
+        if deadline <= current_seq {
             panic!("Deadline must be in the future");
+        }
+        if deadline > current_seq.saturating_add(MAX_POOL_DEADLINE_LEDGERS) {
+            panic!("Deadline too far in the future");
         }
 
         let deadline_key = (Symbol::new(&env, POOL_DEADLINE_PREFIX), pool_id);
@@ -1597,11 +1608,16 @@ impl Contract {
 
         let current_ledger = env.ledger().sequence();
 
-        // Deadline must have passed AND grace period must have elapsed
-        if deadline == 0
-            || current_ledger <= deadline
-            || current_ledger.saturating_sub(deadline) < REFUND_GRACE_PERIOD_LEDGERS
-        {
+        // Deadline must have passed AND grace period must have elapsed.
+        // Use `checked_add` so a deadline near `u32::MAX` cannot panic the
+        // grace-period computation (release builds run with
+        // `overflow-checks = true`; see Cargo.toml). On overflow the grace
+        // limit is beyond the last representable ledger, so the grace period
+        // is treated as elapsed.
+        let grace_elapsed = deadline
+            .checked_add(REFUND_GRACE_PERIOD_LEDGERS)
+            .map_or(true, |grace_limit| current_ledger >= grace_limit);
+        if deadline == 0 || current_ledger <= deadline || !grace_elapsed {
             env.panic_with_error(ContractError::PoolNotExpired);
         }
 
