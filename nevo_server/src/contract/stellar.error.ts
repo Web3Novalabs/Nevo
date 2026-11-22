@@ -26,9 +26,32 @@ const STELLAR_CODE_MAP: Record<
   },
 };
 
+const CONTRACT_CODE_MAP: Record<
+  string,
+  { status: HttpStatus; message: string }
+> = {
+  '21': {
+    status: HttpStatus.BAD_REQUEST,
+    message: 'Emergency withdrawal was not requested',
+  },
+  '24': {
+    status: HttpStatus.NOT_FOUND,
+    message: 'Application status not found',
+  },
+  '28': {
+    status: HttpStatus.BAD_GATEWAY,
+    message: 'Token transfer failed',
+  },
+  '29': {
+    status: HttpStatus.BAD_REQUEST,
+    message: 'Invalid token address',
+  },
+};
+
 export class StellarError extends HttpException {
   constructor(codeOrMessage: string) {
-    const mapped = STELLAR_CODE_MAP[codeOrMessage];
+    const mapped =
+      STELLAR_CODE_MAP[codeOrMessage] ?? CONTRACT_CODE_MAP[codeOrMessage];
     super(
       mapped?.message ?? codeOrMessage,
       mapped?.status ?? HttpStatus.INTERNAL_SERVER_ERROR,
