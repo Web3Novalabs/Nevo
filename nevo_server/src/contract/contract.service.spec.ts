@@ -9,6 +9,7 @@ import {
   scValToNative,
   Account,
   xdr,
+  rpc as StellarRpc,
 } from '@stellar/stellar-sdk';
 import { ContractService } from './contract.service.js';
 import { StellarError } from './stellar.error.js';
@@ -286,7 +287,7 @@ describe('ContractService', () => {
     it('returns completed with the decoded return value when the tx is confirmed SUCCESS', async () => {
       mockRpcServer.sendTransaction.mockResolvedValueOnce({
         hash: 'abc123txhash',
-        status: StellarRpc.Api.SendTransactionStatus.PENDING,
+        status: 'PENDING',
         latestLedger: 0,
         latestLedgerCloseTime: 0,
       });
@@ -315,7 +316,7 @@ describe('ContractService', () => {
     it('returns failed when the tx is confirmed FAILED', async () => {
       mockRpcServer.sendTransaction.mockResolvedValueOnce({
         hash: 'failtx',
-        status: StellarRpc.Api.SendTransactionStatus.PENDING,
+        status: 'PENDING',
         latestLedger: 0,
         latestLedgerCloseTime: 0,
       });
@@ -340,7 +341,7 @@ describe('ContractService', () => {
     it('throws a mapped StellarError when sendTransaction returns ERROR', async () => {
       mockRpcServer.sendTransaction.mockResolvedValueOnce({
         hash: 'errtx',
-        status: StellarRpc.Api.SendTransactionStatus.ERROR,
+        status: 'ERROR',
         latestLedger: 0,
         latestLedgerCloseTime: 0,
       });
@@ -355,7 +356,7 @@ describe('ContractService', () => {
     it('throws a mapped StellarError when sendTransaction returns TRY_AGAIN_LATER', async () => {
       mockRpcServer.sendTransaction.mockResolvedValueOnce({
         hash: 'retrytx',
-        status: StellarRpc.Api.SendTransactionStatus.TRY_AGAIN_LATER,
+        status: 'TRY_AGAIN_LATER',
         latestLedger: 0,
         latestLedgerCloseTime: 0,
       });
@@ -371,7 +372,7 @@ describe('ContractService', () => {
       service['confirmTimeoutMs'] = 0;
       mockRpcServer.sendTransaction.mockResolvedValueOnce({
         hash: 'pendtx',
-        status: StellarRpc.Api.SendTransactionStatus.PENDING,
+        status: 'PENDING',
         latestLedger: 0,
         latestLedgerCloseTime: 0,
       });

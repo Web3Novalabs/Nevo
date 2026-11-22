@@ -209,12 +209,10 @@ export class ContractService {
     } catch (err: unknown) {
       throw this.mapError(err);
     }
-    if (result.status === StellarRpc.Api.SendTransactionStatus.ERROR) {
+    if (result.status === 'ERROR') {
       throw new StellarError('tx_submit_failed');
     }
-    if (
-      result.status === StellarRpc.Api.SendTransactionStatus.TRY_AGAIN_LATER
-    ) {
+    if (result.status === 'TRY_AGAIN_LATER') {
       throw new StellarError('tx_retry_later');
     }
 
@@ -416,8 +414,6 @@ export class ContractService {
   async getTotalRaisedOnChain(poolId: number): Promise<bigint> {
     try {
       return await this.fetchTotalRaisedOnChain(poolId);
-      const native: unknown = scValToNative(retVal);
-      return typeof native === 'bigint' ? native : BigInt(String(native));
     } catch (err: unknown) {
       this.logger.error(
         `Failed to fetch total raised on-chain for poolId ${poolId}`,

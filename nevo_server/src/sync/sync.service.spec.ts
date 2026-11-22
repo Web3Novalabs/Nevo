@@ -12,6 +12,7 @@ import { StellarConfig } from '../contract/stellar.config';
 import { Pool, PoolStatus } from '../pools/pool.entity';
 import {
   Contract,
+  Keypair,
   nativeToScVal,
   rpc as StellarRpc,
   xdr,
@@ -19,6 +20,11 @@ import {
 
 const STELLAR_CONTRACT_ID =
   'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM';
+
+// Valid ed25519 strkeys — nativeToScVal rejects fake addresses.
+const CREATOR_WALLET = Keypair.random().publicKey();
+const DONOR_WALLET = Keypair.random().publicKey();
+const CLOSER_WALLET = Keypair.random().publicKey();
 
 const healthResponse = {
   latestLedger: 1000,
@@ -54,7 +60,7 @@ const poolCreatedEvent = eventResponse({
     nativeToScVal('42', { type: 'u32' }),
   ],
   value: nativeToScVal([
-    nativeToScVal('GABC123CREATOR', { type: 'address' }),
+    nativeToScVal(CREATOR_WALLET, { type: 'address' }),
     '50000',
     'My Pool',
     'Description',
@@ -68,7 +74,7 @@ const donationEvent = eventResponse({
     nativeToScVal('42', { type: 'u32' }),
   ],
   value: nativeToScVal([
-    nativeToScVal('GDONOR001', { type: 'address' }),
+    nativeToScVal(DONOR_WALLET, { type: 'address' }),
     '500',
     '500',
   ]),
@@ -90,7 +96,7 @@ const poolClosedEvent = eventResponse({
     nativeToScVal('42', { type: 'u32' }),
   ],
   value: nativeToScVal([
-    nativeToScVal('GCREATOR999', { type: 'address' }),
+    nativeToScVal(CLOSER_WALLET, { type: 'address' }),
     '50000',
   ]),
   txHash: 'tx-close-001',
@@ -176,7 +182,7 @@ describe('SyncService', () => {
       });
       expect(upsertFromChain).toHaveBeenCalledWith({
         contractPoolId: '42',
-        creatorWallet: 'GABC123CREATOR',
+        creatorWallet: CREATOR_WALLET,
         goal: '50000',
       });
     });
@@ -640,7 +646,7 @@ describe('SyncService', () => {
       const decoded = service['decodeEvent'](poolCreatedEvent);
       expect(decoded.topic).toEqual(['pool_crtd', '42']);
       expect(decoded.value).toEqual([
-        'GABC123CREATOR',
+        CREATOR_WALLET,
         '50000',
         'My Pool',
         'Description',
