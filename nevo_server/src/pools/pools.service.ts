@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, MoreThan, Repository } from 'typeorm';
 import { Pool, PoolStatus } from './pool.entity.js';
 import type { UpdatePoolDto } from './dto/update-pool.dto.js';
 import type { CreatePoolDto } from './dto/create-pool.dto.js';
-import type { FilterPoolsDto } from './dto/filter-pools.dto.js';
+import { PoolSortOrder, type FilterPoolsDto } from './dto/filter-pools.dto.js';
 import { ContractService } from '../contract/contract.service.js';
 import { StellarConfig } from '../contract/stellar.config.js';
 
@@ -16,6 +16,8 @@ export interface ChainPoolData {
 
 @Injectable()
 export class PoolsService {
+  private deadlineSyncCursor: string | undefined;
+
   constructor(
     @InjectRepository(Pool)
     private readonly poolRepo: Repository<Pool>,
@@ -95,9 +97,64 @@ export class PoolsService {
       );
     }
 
-    queryBuilder.orderBy('pool.createdAt', 'DESC').skip(skip).take(limit);
+    if (query.sortBy === PoolSortOrder.MostRaised) {
+      queryBuilder.addOrderBy('pool.raised', 'DESC');
+    } else if (query.sortBy === PoolSortOrder.GoalLow) {
+      queryBuilder.addOrderBy('pool.goal', 'ASC');
+    } else if (query.sortBy === PoolSortOrder.EndingSoon) {
+      queryBuilder.addOrderBy(
+        `CASE WHEN pool.status = :activeStatus AND
+          pool.applicationDeadline > EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
+          THEN pool.applicationDeadline END`,
+        'ASC',
+        'NULLS LAST',
+      );
+      queryBuilder.setParameter('activeStatus', PoolStatus.Active);
+    }
+
+    queryBuilder
+      .addOrderBy('pool.createdAt', 'DESC')
+      .addOrderBy('pool.id', 'DESC')
+      .skip(skip)
+      .take(limit);
     const [data, total] = await queryBuilder.getManyAndCount();
     return { data, total, page, limit };
+  }
+
+  async syncApplicationDeadlines(): Promise<void> {
+    const batchSize = 100;
+    const pools = await this.poolRepo.find({
+      select: { id: true, contractPoolId: true },
+      where: {
+        applicationDeadline: IsNull(),
+        ...(this.deadlineSyncCursor && {
+          id: MoreThan(this.deadlineSyncCursor),
+        }),
+      },
+      order: { id: 'ASC' },
+      take: batchSize,
+    });
+
+    if (pools.length === 0) {
+      this.deadlineSyncCursor = undefined;
+      return;
+    }
+
+    const poolIds = pools.map(({ contractPoolId }) => contractPoolId);
+    const deadlines =
+      await this.contractService.getPoolApplicationDeadlines(poolIds);
+    for (const pool of pools) {
+      const deadline = deadlines.get(pool.contractPoolId);
+      if (deadline !== undefined) {
+        await this.poolRepo.update(
+          { id: pool.id, applicationDeadline: IsNull() },
+          { applicationDeadline: deadline },
+        );
+      }
+    }
+
+    this.deadlineSyncCursor =
+      pools.length === batchSize ? pools.at(-1)?.id : undefined;
   }
 
   async create(dto: CreatePoolDto): Promise<Pool> {

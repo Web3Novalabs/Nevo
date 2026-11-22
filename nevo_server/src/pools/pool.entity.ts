@@ -56,6 +56,15 @@ export class Pool {
   @Column({ name: 'image_url', type: 'varchar', length: 2048, nullable: true })
   imageUrl: string | null;
 
+  @Column({
+    name: 'application_deadline',
+    type: 'numeric',
+    precision: 20,
+    scale: 0,
+    nullable: true,
+  })
+  applicationDeadline: string | null;
+
   @Index()
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

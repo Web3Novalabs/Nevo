@@ -64,7 +64,7 @@ export class PoolsController {
   @ApiOperation({
     summary: 'List pools',
     description:
-      'Paginated list of pools, newest first. Optionally filtered by ' +
+      'Paginated list of pools, newest first by default. Optionally filtered by ' +
       'category, status or a free-text search over title and description.',
   })
   @ApiOkResponse({

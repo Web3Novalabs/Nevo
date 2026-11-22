@@ -24,14 +24,9 @@ export class AuthService {
       throw new UnauthorizedException('Invalid signature');
     }
 
-    // Validate nonce from message
-    const nonce = await this.nonceService.findAndValidateNonce(dto.message);
-    if (!nonce) {
+    if (!(await this.nonceService.consumeNonce(dto.message, dto.publicKey))) {
       throw new UnauthorizedException('Invalid or expired nonce');
     }
-
-    // Mark nonce as used
-    await this.nonceService.markNonceAsUsed(nonce.id);
 
     const user = await this.usersService.findOrCreate(dto.publicKey);
     const accessToken = this.jwtService.sign({

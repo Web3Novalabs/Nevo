@@ -237,9 +237,7 @@ export class ContractService {
    */
   private async waitForConfirmation(
     txHash: string,
-  ): Promise<
-    { status: 'completed' | 'failed'; returnValue?: unknown } | null
-  > {
+  ): Promise<{ status: 'completed' | 'failed'; returnValue?: unknown } | null> {
     const deadline = Date.now() + this.confirmTimeoutMs;
     for (;;) {
       try {
@@ -319,6 +317,44 @@ export class ContractService {
       );
       return 0n;
     }
+  }
+
+  async getPoolApplicationDeadlines(
+    poolIds: string[],
+  ): Promise<Map<string, string>> {
+    const contract = this.contract.address().toScAddress();
+    const keys = poolIds
+      .filter((id) => /^[1-9][0-9]{0,9}$/.test(id) && Number(id) <= 0xffffffff)
+      .map((id) =>
+        xdr.LedgerKey.contractData(
+          new xdr.LedgerKeyContractData({
+            contract,
+            key: xdr.ScVal.scvU32(Number(id)),
+            durability: xdr.ContractDataDurability.persistent(),
+          }),
+        ),
+      );
+
+    const deadlines = new Map<string, string>();
+    if (keys.length === 0) return deadlines;
+
+    const { entries } = await this.rpcServer.getLedgerEntries(...keys);
+    for (const entry of entries) {
+      const data = entry.val.contractData();
+      const pool: unknown = scValToNative(data.val());
+      if (
+        pool &&
+        typeof pool === 'object' &&
+        'application_deadline' in pool &&
+        typeof pool.application_deadline === 'bigint'
+      ) {
+        deadlines.set(
+          String(data.key().u32()),
+          pool.application_deadline.toString(),
+        );
+      }
+    }
+    return deadlines;
   }
 
   async getPoolOnChain(poolId: number): Promise<{

@@ -70,8 +70,7 @@ describe('AuthController throttle limits', () => {
           provide: NonceService,
           useValue: {
             generateNonce: jest.fn().mockResolvedValue('nonce-123'),
-            findAndValidateNonce: jest.fn(),
-            markNonceAsUsed: jest.fn(),
+            consumeNonce: jest.fn(),
           },
         },
         {
@@ -138,15 +137,7 @@ describe('AuthController throttle limits', () => {
     const signature = keypair.sign(Buffer.from(nonce)).toString('hex');
 
     jest.spyOn(authService as any, 'verifySignature').mockReturnValue(true);
-    jest.spyOn(nonceService, 'findAndValidateNonce').mockResolvedValue({
-      id: 'nonce-id',
-      nonce,
-      publicKey,
-      createdAt: new Date(),
-      expiresAt: new Date(Date.now() + 10000),
-      used: false,
-    });
-    jest.spyOn(nonceService, 'markNonceAsUsed').mockResolvedValue();
+    jest.spyOn(nonceService, 'consumeNonce').mockResolvedValue(true);
 
     for (let i = 0; i < 5; i++) {
       await request(app.getHttpServer())
@@ -207,8 +198,7 @@ describe('AuthController (challenge/verify)', () => {
           provide: NonceService,
           useValue: {
             generateNonce: jest.fn(),
-            findAndValidateNonce: jest.fn(),
-            markNonceAsUsed: jest.fn(),
+            consumeNonce: jest.fn(),
           },
         },
         {
@@ -315,15 +305,7 @@ describe('AuthController (challenge/verify)', () => {
     const signature = keypair.sign(Buffer.from(nonce)).toString('hex');
 
     jest.spyOn(authService as any, 'verifySignature').mockReturnValue(true);
-    jest.spyOn(nonceService, 'findAndValidateNonce').mockResolvedValue({
-      id: 'nonce-id',
-      nonce,
-      publicKey,
-      createdAt: new Date(),
-      expiresAt: new Date(Date.now() + 10000),
-      used: false,
-    });
-    jest.spyOn(nonceService, 'markNonceAsUsed').mockResolvedValue();
+    jest.spyOn(nonceService, 'consumeNonce').mockResolvedValue(true);
 
     await request(app.getHttpServer())
       .post('/auth/verify')
@@ -354,7 +336,7 @@ describe('AuthController (challenge/verify)', () => {
     const signature = keypair.sign(Buffer.from(nonce)).toString('hex');
 
     jest.spyOn(authService as any, 'verifySignature').mockReturnValue(true);
-    jest.spyOn(nonceService, 'findAndValidateNonce').mockResolvedValue(null);
+    jest.spyOn(nonceService, 'consumeNonce').mockResolvedValue(false);
 
     await request(app.getHttpServer())
       .post('/auth/verify')

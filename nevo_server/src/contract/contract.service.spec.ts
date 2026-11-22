@@ -8,6 +8,7 @@ import {
   nativeToScVal,
   scValToNative,
   Account,
+  Address,
   xdr,
   rpc as StellarRpc,
 } from '@stellar/stellar-sdk';
@@ -73,6 +74,7 @@ const mockRpcServer = {
   sendTransaction: jest.fn(),
   getTransaction: jest.fn(),
   getAccount: jest.fn(),
+  getLedgerEntries: jest.fn(),
   simulateTransaction: jest.fn(),
 };
 
@@ -120,6 +122,45 @@ describe('ContractService', () => {
   // =========================================================================
   // 1. Transaction envelopes — correct source account and sequence number
   // =========================================================================
+
+  it('reads application deadlines from the persistent on-chain pool records', async () => {
+    const contract = Address.fromString(
+      mockConfigService.get('CONTRACT_ID')!,
+    ).toScAddress();
+    const key = xdr.ScVal.scvU32(42);
+    const durability = xdr.ContractDataDurability.persistent();
+    const deadline = 18446744073709551615n;
+
+    mockRpcServer.getLedgerEntries.mockResolvedValue({
+      entries: [
+        {
+          val: xdr.LedgerEntryData.contractData(
+            new xdr.ContractDataEntry({
+              ext: new xdr.ExtensionPoint(0),
+              contract,
+              key,
+              durability,
+              val: xdr.ScVal.scvMap([
+                new xdr.ScMapEntry({
+                  key: xdr.ScVal.scvSymbol('application_deadline'),
+                  val: nativeToScVal(deadline, { type: 'u64' }),
+                }),
+              ]),
+            }),
+          ),
+        },
+      ],
+    });
+
+    await expect(
+      service.getPoolApplicationDeadlines(['42', '4294967296', 'bad']),
+    ).resolves.toEqual(new Map([['42', deadline.toString()]]));
+    expect(mockRpcServer.getLedgerEntries).toHaveBeenCalledWith(
+      xdr.LedgerKey.contractData(
+        new xdr.LedgerKeyContractData({ contract, key, durability }),
+      ),
+    );
+  });
 
   describe('Transaction envelope construction', () => {
     it('buildCreatePoolTransaction — source account matches the creator', () => {

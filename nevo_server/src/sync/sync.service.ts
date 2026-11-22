@@ -58,6 +58,15 @@ export class SyncService implements OnModuleInit {
     this.rpcServer = new StellarRpc.Server(stellar.rpcUrl);
   }
 
+  @Cron(CronExpression.EVERY_MINUTE)
+  async syncPoolDeadlines(): Promise<void> {
+    await this.advisoryLock.runExclusive(
+      ADVISORY_LOCK_KEYS.poolDeadlineSync,
+      'SyncService.syncPoolDeadlines',
+      () => this.poolsService.syncApplicationDeadlines(),
+    );
+  }
+
   async onModuleInit() {
     const state = await this.syncStateRepo.findOne({
       where: { key: 'horizon_cursor' },
@@ -161,14 +170,15 @@ export class SyncService implements OnModuleInit {
     event: StellarRpc.Api.EventResponse,
   ): HorizonContractEvent {
     const topic = (event.topic ?? []).map((v) => String(scValToNative(v)));
-    const nativeValue = scValToNative(event.value);
+    const nativeValue: unknown = scValToNative(event.value);
     // `pool_stat` values arrive as [[oldState], [newState]] (the contract
     // publishes contracttype enums as ScVal::Vec([Symbol])); unwrap them.
-    const value = (Array.isArray(nativeValue) ? nativeValue : [nativeValue]).map(
-      (v) =>
-        Array.isArray(v) && v.length === 1 && typeof v[0] === 'string'
-          ? (v[0] as string)
-          : String(v),
+    const value = (
+      Array.isArray(nativeValue) ? nativeValue : [nativeValue]
+    ).map((v) =>
+      Array.isArray(v) && v.length === 1 && typeof v[0] === 'string'
+        ? v[0]
+        : String(v),
     );
     return { topic, value, txHash: event.txHash || undefined };
   }
