@@ -68,17 +68,30 @@ const poolCreatedEvent = eventResponse({
   txHash: 'tx-pool-created-001',
 });
 
-const donationEvent = eventResponse({
+const contributionEvent = eventResponse({
   topic: [
-    nativeToScVal('donation', { type: 'symbol' }),
+    nativeToScVal('contrib', { type: 'symbol' }),
     nativeToScVal('42', { type: 'u32' }),
   ],
   value: nativeToScVal([
     nativeToScVal(DONOR_WALLET, { type: 'address' }),
     '500',
     '500',
+    false,
   ]),
-  txHash: 'tx-donation-001',
+  txHash: 'tx-contrib-001',
+});
+
+const refundEvent = eventResponse({
+  topic: [
+    nativeToScVal('don_refnd', { type: 'symbol' }),
+    nativeToScVal('42', { type: 'u32' }),
+  ],
+  value: nativeToScVal([
+    nativeToScVal(DONOR_WALLET, { type: 'address' }),
+    '500',
+  ]),
+  txHash: 'tx-refund-001',
 });
 
 const poolStateEvent = eventResponse({
@@ -102,14 +115,18 @@ const poolClosedEvent = eventResponse({
   txHash: 'tx-close-001',
 });
 
+const POOL_TOKEN = 'CDONATIONTOKENAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+
 describe('SyncService', () => {
   let service: SyncService;
   const upsertFromChain = jest.fn();
   const markStatus = jest.fn();
   const incrementRaised = jest.fn();
+  const decrementRaised = jest.fn();
   const findByContractId = jest.fn();
   const isTxProcessed = jest.fn();
   const recordDonation = jest.fn();
+  const markDonationRefunded = jest.fn();
   const syncStateRepo = { findOne: jest.fn(), save: jest.fn() };
   const advisoryLock = {
     runExclusive: jest.fn(
@@ -136,11 +153,17 @@ describe('SyncService', () => {
         SyncService,
         {
           provide: PoolsService,
-          useValue: { upsertFromChain, markStatus, incrementRaised, findByContractId },
+          useValue: {
+            upsertFromChain,
+            markStatus,
+            incrementRaised,
+            decrementRaised,
+            findByContractId,
+          },
         },
         {
           provide: DonationsService,
-          useValue: { isTxProcessed, recordDonation },
+          useValue: { isTxProcessed, recordDonation, markDonationRefunded },
         },
         { provide: getRepositoryToken(SyncState), useValue: syncStateRepo },
         { provide: AdvisoryLockService, useValue: advisoryLock },
@@ -153,9 +176,11 @@ describe('SyncService', () => {
     upsertFromChain.mockReset();
     markStatus.mockReset().mockResolvedValue(null);
     incrementRaised.mockReset().mockResolvedValue(null);
+    decrementRaised.mockReset().mockResolvedValue(null);
     findByContractId.mockReset().mockResolvedValue(null);
     isTxProcessed.mockReset().mockResolvedValue(false);
     recordDonation.mockReset().mockResolvedValue(undefined);
+    markDonationRefunded.mockReset().mockResolvedValue(undefined);
     syncStateRepo.findOne.mockReset();
     syncStateRepo.save.mockReset();
     advisoryLock.runExclusive.mockClear();
@@ -189,7 +214,7 @@ describe('SyncService', () => {
 
     it('persists the cursor after each processed page and continues from it', async () => {
       rpcServer.getEvents
-        .mockResolvedValueOnce({ events: [donationEvent], cursor: '111' })
+        .mockResolvedValueOnce({ events: [contributionEvent], cursor: '111' })
         .mockResolvedValueOnce({ events: [], cursor: '' });
 
       await service.pollHorizonEvents();
@@ -207,6 +232,51 @@ describe('SyncService', () => {
         key: 'horizon_cursor',
         value: '111',
       });
+    });
+
+    it('dispatches contrib events to the donation handler', async () => {
+      rpcServer.getEvents.mockResolvedValueOnce({
+        events: [contributionEvent],
+        cursor: '',
+      });
+
+      await service.pollHorizonEvents();
+
+      expect(recordDonation).toHaveBeenCalledTimes(1);
+      expect(incrementRaised).toHaveBeenCalledTimes(1);
+    });
+
+    it('dispatches don_refnd events to the refund handler', async () => {
+      rpcServer.getEvents.mockResolvedValueOnce({
+        events: [refundEvent],
+        cursor: '',
+      });
+
+      await service.pollHorizonEvents();
+
+      expect(markDonationRefunded).toHaveBeenCalledTimes(1);
+      expect(decrementRaised).toHaveBeenCalledTimes(1);
+    });
+
+    it('dispatches pool_cls events to the pool closed handler', async () => {
+      rpcServer.getEvents.mockResolvedValueOnce({
+        events: [poolClosedEvent],
+        cursor: '',
+      });
+
+      await service.pollHorizonEvents();
+
+      expect(markStatus).toHaveBeenCalledWith('42', PoolStatus.Closed);
+    });
+
+    it('has a handler registered for every money-moving contract event', () => {
+      const handlers = (service as any).eventHandlers as Record<
+        string,
+        unknown
+      >;
+      for (const topic of ['pool_crtd', 'contrib', 'don_refnd', 'pool_cls']) {
+        expect(typeof handlers[topic]).toBe('function');
+      }
     });
 
     it('does not persist a cursor when no events are returned', async () => {
@@ -341,8 +411,8 @@ describe('SyncService', () => {
         .spyOn((service as any).logger, 'warn')
         .mockImplementation(() => {});
       const event: HorizonContractEvent = {
-        topic: ['donation', 'pool-1'],
-        value: ['GDONOR', '100'],
+        topic: ['contrib', 'pool-1'],
+        value: ['GDONOR', '100', '100', false],
       };
 
       await service.processDonationEvent(event);
@@ -352,26 +422,35 @@ describe('SyncService', () => {
       expect(incrementRaised).not.toHaveBeenCalled();
     });
 
-    it("defaults asset to 'XLM' when value[2] is omitted", async () => {
+    it('reads the asset from the pool token rather than the event index', async () => {
+      findByContractId.mockResolvedValueOnce({
+        contractPoolId: 'pool-2',
+        creatorWallet: 'GCREATOR',
+        goal: '1000',
+        raised: '0',
+        status: PoolStatus.Active,
+        token: POOL_TOKEN,
+      } as unknown as Pool);
+
       const event: HorizonContractEvent = {
-        topic: ['donation', 'pool-2'],
-        value: ['GDONOR', '250'],
-        txHash: 'donation-hash-1',
+        topic: ['contrib', 'pool-2'],
+        value: ['GDONOR', '250', '250', false],
+        txHash: 'contrib-hash-1',
       };
 
       await service.processDonationEvent(event);
 
       expect(recordDonation).toHaveBeenCalledTimes(1);
       expect(recordDonation).toHaveBeenCalledWith(
-        expect.objectContaining({ asset: 'XLM' }),
+        expect.objectContaining({ asset: POOL_TOKEN }),
       );
     });
 
     it('calls recordDonation and incrementRaised with matching poolId and amount', async () => {
       const event: HorizonContractEvent = {
-        topic: ['donation', 'pool-3'],
-        value: ['GDONOR', '750', 'USDC'],
-        txHash: 'donation-hash-2',
+        topic: ['contrib', 'pool-3'],
+        value: ['GDONOR', '750', '750', false],
+        txHash: 'contrib-hash-2',
       };
 
       await service.processDonationEvent(event);
@@ -384,19 +463,19 @@ describe('SyncService', () => {
       expect(incrementRaised).toHaveBeenCalledWith('pool-3', '750');
     });
 
-    it('marks the pool Completed when donations reach the goal', async () => {
+    it('marks the pool Completed when the running total reaches the goal', async () => {
       findByContractId.mockResolvedValueOnce({
         contractPoolId: 'pool-3',
         creatorWallet: 'GCREATOR',
         goal: '750',
-        raised: '750',
+        raised: '0',
         status: PoolStatus.Active,
       } as Pool);
 
       const event: HorizonContractEvent = {
-        topic: ['donation', 'pool-3'],
-        value: ['GDONOR', '750', '750'],
-        txHash: 'donation-goal-1',
+        topic: ['contrib', 'pool-3'],
+        value: ['GDONOR', '750', '750', false],
+        txHash: 'contrib-goal-1',
       };
 
       await service.processDonationEvent(event);
@@ -406,24 +485,67 @@ describe('SyncService', () => {
       expect(markStatus).toHaveBeenCalledWith('pool-3', PoolStatus.Completed);
     });
 
-    it('does not mark the pool Completed when donations fall short of the goal', async () => {
+    it('does not mark the pool Completed when the running total falls short of the goal', async () => {
       findByContractId.mockResolvedValueOnce({
         contractPoolId: 'pool-3',
         creatorWallet: 'GCREATOR',
         goal: '1000',
-        raised: '750',
+        raised: '0',
         status: PoolStatus.Active,
       } as Pool);
 
       const event: HorizonContractEvent = {
-        topic: ['donation', 'pool-3'],
-        value: ['GDONOR', '750', '750'],
-        txHash: 'donation-nogoal-1',
+        topic: ['contrib', 'pool-3'],
+        value: ['GDONOR', '750', '750', false],
+        txHash: 'contrib-nogoal-1',
       };
 
       await service.processDonationEvent(event);
 
       expect(markStatus).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('processRefundEvent', () => {
+    it('decrements raised and marks the donation refunded', async () => {
+      const event: HorizonContractEvent = {
+        topic: ['don_refnd', 'pool-5'],
+        value: ['GDONOR', '300'],
+        txHash: 'refund-hash-1',
+      };
+
+      await service.processRefundEvent(event);
+
+      expect(decrementRaised).toHaveBeenCalledWith('pool-5', '300');
+      expect(markDonationRefunded).toHaveBeenCalledWith(
+        expect.objectContaining({ poolId: 'pool-5', amount: '300' }),
+      );
+    });
+
+    it('skips when txHash is missing', async () => {
+      const event: HorizonContractEvent = {
+        topic: ['don_refnd', 'pool-5'],
+        value: ['GDONOR', '300'],
+      };
+
+      await service.processRefundEvent(event);
+
+      expect(decrementRaised).not.toHaveBeenCalled();
+      expect(markDonationRefunded).not.toHaveBeenCalled();
+    });
+
+    it('skips when the tx was already processed', async () => {
+      isTxProcessed.mockResolvedValue(true);
+      const event: HorizonContractEvent = {
+        topic: ['don_refnd', 'pool-5'],
+        value: ['GDONOR', '300'],
+        txHash: 'refund-dup-hash',
+      };
+
+      await service.processRefundEvent(event);
+
+      expect(decrementRaised).not.toHaveBeenCalled();
+      expect(markDonationRefunded).not.toHaveBeenCalled();
     });
   });
 
@@ -736,8 +858,8 @@ describe('SyncService', () => {
   describe('processDonationEvent', () => {
     it('skips when txHash is missing', async () => {
       const event: HorizonContractEvent = {
-        topic: ['donation', 'pool-1'],
-        value: ['GDONOR', '100'],
+        topic: ['contrib', 'pool-1'],
+        value: ['GDONOR', '100', '100', false],
       };
 
       await service.processDonationEvent(event);
@@ -750,9 +872,9 @@ describe('SyncService', () => {
     it('skips when isTxDuplicate returns true', async () => {
       isTxProcessed.mockResolvedValue(true);
       const event: HorizonContractEvent = {
-        topic: ['donation', 'pool-1'],
-        value: ['GDONOR', '100'],
-        txHash: 'dup-donation-hash',
+        topic: ['contrib', 'pool-1'],
+        value: ['GDONOR', '100', '100', false],
+        txHash: 'dup-contrib-hash',
       };
 
       await service.processDonationEvent(event);
@@ -769,8 +891,8 @@ describe('SyncService', () => {
       );
       recordDonation.mockRejectedValue(uniqueViolation);
       const event: HorizonContractEvent = {
-        topic: ['donation', 'pool-1'],
-        value: ['GDONOR', '100'],
+        topic: ['contrib', 'pool-1'],
+        value: ['GDONOR', '100', '100', false],
         txHash: 'race-hash',
       };
 

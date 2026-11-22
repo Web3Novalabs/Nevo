@@ -56,47 +56,51 @@ export class ContractService {
     return this.stellar.networkPassphrase;
   }
 
-  buildCreatePoolTransaction(params: {
+  async buildCreatePoolTransaction(params: {
     creator: string;
-    goal: string;
-    token: string;
     title: string;
     description: string;
-  }): string {
-    const { creator, goal, token, title, description } = params;
+    goal: string;
+    applicationDeadline: string | number | bigint;
+  }): Promise<string> {
+    const { creator, title, description, goal, applicationDeadline } = params;
     return this.buildTransaction(
       creator,
       this.contract.call(
         'create_pool',
         nativeToScVal(creator, { type: 'address' }),
-        nativeToScVal(BigInt(goal), { type: 'i128' }),
-        nativeToScVal(token, { type: 'address' }),
         nativeToScVal(title, { type: 'string' }),
         nativeToScVal(description, { type: 'string' }),
+        nativeToScVal(BigInt(goal), { type: 'u128' }),
+        nativeToScVal(BigInt(applicationDeadline), { type: 'u64' }),
       ),
     );
   }
 
-  buildDonateTransaction(
+  async buildDonateTransaction(
     sourcePublicKey: string,
     poolId: number,
+    donor: string,
+    token: string,
     amount: string,
-  ): string {
+  ): Promise<string> {
     return this.buildTransaction(
       sourcePublicKey,
       this.contract.call(
-        'donate',
+        'donate_with_token',
         nativeToScVal(poolId, { type: 'u32' }),
+        nativeToScVal(donor, { type: 'address' }),
+        nativeToScVal(token, { type: 'address' }),
         nativeToScVal(BigInt(amount), { type: 'i128' }),
       ),
     );
   }
 
-  buildWithdrawTransaction(
+  async buildWithdrawTransaction(
     sourcePublicKey: string,
     poolId: number,
     tokenAddress: string,
-  ): string {
+  ): Promise<string> {
     return this.buildTransaction(
       sourcePublicKey,
       this.contract.call(
@@ -107,7 +111,10 @@ export class ContractService {
     );
   }
 
-  buildClosePoolTransaction(sourcePublicKey: string, poolId: number): string {
+  async buildClosePoolTransaction(
+    sourcePublicKey: string,
+    poolId: number,
+  ): Promise<string> {
     return this.buildTransaction(
       sourcePublicKey,
       this.contract.call(
@@ -118,20 +125,33 @@ export class ContractService {
     );
   }
 
-  private buildTransaction(
+  private async buildTransaction(
     sourcePublicKey: string,
     operation: xdr.Operation,
-  ): string {
+  ): Promise<string> {
+    let source: Account;
     try {
-      const source = new Account(sourcePublicKey, '0');
-      const tx = new TransactionBuilder(source, {
+      source = await this.rpcServer.getAccount(sourcePublicKey);
+    } catch (err: unknown) {
+      throw this.mapError(err);
+    }
+
+    let tx: Transaction;
+    try {
+      tx = new TransactionBuilder(source, {
         fee: BASE_FEE,
         networkPassphrase: this.stellar.networkPassphrase,
       })
         .addOperation(operation)
         .setTimeout(30)
         .build();
-      return tx.toXDR();
+    } catch (err: unknown) {
+      throw this.mapError(err);
+    }
+
+    try {
+      const prepared = await this.rpcServer.prepareTransaction(tx);
+      return prepared.toXDR();
     } catch (err: unknown) {
       throw this.mapError(err);
     }
