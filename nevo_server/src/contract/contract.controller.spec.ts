@@ -40,13 +40,19 @@ describe('ContractController', () => {
   describe('submitXdr (POST /contract/submit)', () => {
     it('forwards the xdr argument to ContractService.submitSignedXdr and returns txHash', async () => {
       const signedXdr = 'AAAA...valid-signed-xdr';
-      contractService.submitSignedXdr.mockResolvedValue('tx-hash-abc123');
+      contractService.submitSignedXdr.mockResolvedValue({
+        txHash: 'tx-hash-abc123',
+        status: 'completed',
+      });
 
       const result = await controller.submitXdr({ xdr: signedXdr });
 
       expect(contractService.submitSignedXdr).toHaveBeenCalledTimes(1);
       expect(contractService.submitSignedXdr).toHaveBeenCalledWith(signedXdr);
-      expect(result).toEqual({ txHash: 'tx-hash-abc123' });
+      expect(result).toEqual({
+        txHash: 'tx-hash-abc123',
+        status: 'completed',
+      });
     });
 
     it('propagates StellarError thrown by ContractService without swallowing it', async () => {
@@ -116,7 +122,9 @@ describe('ContractController (guard / HTTP)', () => {
 
   beforeEach(async () => {
     contractService = {
-      submitSignedXdr: jest.fn().mockResolvedValue('tx-hash-abc'),
+      submitSignedXdr: jest
+        .fn()
+        .mockResolvedValue({ txHash: 'tx-hash-abc', status: 'completed' }),
     };
 
     const moduleRef: TestingModule = await Test.createTestingModule({

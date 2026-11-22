@@ -3,7 +3,8 @@ import { persist } from 'zustand/middleware';
 import { apiClient } from '@/lib/api-client';
 import { parseApiError } from '@/lib/errors';
 
-export type PoolStatus = 'Active' | 'Completed';
+export type PoolStatus =
+  'Active' | 'Paused' | 'Completed' | 'Cancelled' | 'Disbursed' | 'Closed';
 export type SortOption = 'newest' | 'most_raised' | 'goal_low';
 
 export interface Pool {

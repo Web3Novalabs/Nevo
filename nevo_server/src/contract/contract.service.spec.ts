@@ -6,6 +6,7 @@ import {
   Networks,
   Keypair,
   nativeToScVal,
+  scValToNative,
   Account,
   xdr,
 } from '@stellar/stellar-sdk';
@@ -69,6 +70,7 @@ function fakeSimError(): StellarRpc.Api.SimulateTransactionErrorResponse {
 
 const mockRpcServer = {
   sendTransaction: jest.fn(),
+  getTransaction: jest.fn(),
   getAccount: jest.fn(),
   simulateTransaction: jest.fn(),
 };
@@ -281,14 +283,110 @@ describe('ContractService', () => {
       ).rejects.toBeInstanceOf(StellarError);
     });
 
-    it('returns the transaction hash on success', async () => {
+    it('returns completed with the decoded return value when the tx is confirmed SUCCESS', async () => {
       mockRpcServer.sendTransaction.mockResolvedValueOnce({
         hash: 'abc123txhash',
-        status: 'PENDING',
+        status: StellarRpc.Api.SendTransactionStatus.PENDING,
+        latestLedger: 0,
+        latestLedgerCloseTime: 0,
       });
+      mockRpcServer.getTransaction.mockResolvedValueOnce({
+        status: StellarRpc.Api.GetTransactionStatus.SUCCESS,
+        txHash: 'abc123txhash',
+        ledger: 1,
+        createdAt: 0,
+        applicationOrder: 1,
+        feeBump: false,
+        envelopeXdr: 'AAAA',
+        resultXdr: 'AAAA',
+        resultMetaXdr: 'AAAA',
+        returnValue: xdr.ScVal.scvU32(7),
+        events: { transactionEventsXdr: [], contractEventsXdr: [] },
+      } as StellarRpc.Api.GetSuccessfulTransactionResponse);
+
       const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
-      const hash = await service.submitSignedXdr(validXdr);
-      expect(hash).toBe('abc123txhash');
+      const result = await service.submitSignedXdr(validXdr);
+
+      expect(result.txHash).toBe('abc123txhash');
+      expect(result.status).toBe('completed');
+      expect(result.returnValue).toEqual(scValToNative(xdr.ScVal.scvU32(7)));
+    });
+
+    it('returns failed when the tx is confirmed FAILED', async () => {
+      mockRpcServer.sendTransaction.mockResolvedValueOnce({
+        hash: 'failtx',
+        status: StellarRpc.Api.SendTransactionStatus.PENDING,
+        latestLedger: 0,
+        latestLedgerCloseTime: 0,
+      });
+      mockRpcServer.getTransaction.mockResolvedValueOnce({
+        status: StellarRpc.Api.GetTransactionStatus.FAILED,
+        txHash: 'failtx',
+        ledger: 1,
+        createdAt: 0,
+        applicationOrder: 1,
+        feeBump: false,
+        envelopeXdr: 'AAAA',
+        resultXdr: 'AAAA',
+        resultMetaXdr: 'AAAA',
+        events: { transactionEventsXdr: [], contractEventsXdr: [] },
+      });
+
+      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      const result = await service.submitSignedXdr(validXdr);
+      expect(result).toEqual({ txHash: 'failtx', status: 'failed' });
+    });
+
+    it('throws a mapped StellarError when sendTransaction returns ERROR', async () => {
+      mockRpcServer.sendTransaction.mockResolvedValueOnce({
+        hash: 'errtx',
+        status: StellarRpc.Api.SendTransactionStatus.ERROR,
+        latestLedger: 0,
+        latestLedgerCloseTime: 0,
+      });
+
+      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      await expect(service.submitSignedXdr(validXdr)).rejects.toBeInstanceOf(
+        StellarError,
+      );
+      expect(mockRpcServer.getTransaction).not.toHaveBeenCalled();
+    });
+
+    it('throws a mapped StellarError when sendTransaction returns TRY_AGAIN_LATER', async () => {
+      mockRpcServer.sendTransaction.mockResolvedValueOnce({
+        hash: 'retrytx',
+        status: StellarRpc.Api.SendTransactionStatus.TRY_AGAIN_LATER,
+        latestLedger: 0,
+        latestLedgerCloseTime: 0,
+      });
+
+      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      await expect(service.submitSignedXdr(validXdr)).rejects.toBeInstanceOf(
+        StellarError,
+      );
+      expect(mockRpcServer.getTransaction).not.toHaveBeenCalled();
+    });
+
+    it('returns pending when no confirmation arrives within the timeout', async () => {
+      service['confirmTimeoutMs'] = 0;
+      mockRpcServer.sendTransaction.mockResolvedValueOnce({
+        hash: 'pendtx',
+        status: StellarRpc.Api.SendTransactionStatus.PENDING,
+        latestLedger: 0,
+        latestLedgerCloseTime: 0,
+      });
+      mockRpcServer.getTransaction.mockResolvedValue({
+        status: StellarRpc.Api.GetTransactionStatus.NOT_FOUND,
+        txHash: 'pendtx',
+        latestLedger: 0,
+        latestLedgerCloseTime: 0,
+        oldestLedger: 0,
+        oldestLedgerCloseTime: 0,
+      });
+
+      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      const result = await service.submitSignedXdr(validXdr);
+      expect(result).toEqual({ txHash: 'pendtx', status: 'pending' });
     });
   });
 

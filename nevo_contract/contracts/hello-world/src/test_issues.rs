@@ -1243,6 +1243,49 @@ fn test_refund_donation_no_deadline_set_fails() {
     client.refund_donation(&pool_id, &donor, &token);
 }
 
+/// Test 6 (issue #1663): a deadline near `u32::MAX` must not make
+/// `refund_donation` panic from `u32` overflow when the grace-period limit
+/// is computed (release builds run with `overflow-checks = true`).
+#[test]
+fn test_refund_donation_deadline_u32_max_minus_1_no_arithmetic_panic() {
+    let env = Env::default();
+    env.mock_all_auths();
+    // Raise the TTLs so the ledger jumps below stay within entry lifetimes.
+    env.ledger().with_mut(|li| {
+        li.min_persistent_entry_ttl = u32::MAX;
+        li.max_entry_ttl = u32::MAX;
+    });
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let contribution = 50_000_000u128;
+    let token = create_token(&env, contribution as i128, &contract_id);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Max Deadline Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+    client.donate(&pool_id, &donor, &contribution);
+
+    // Set the deadline directly in storage: `set_pool_deadline` now rejects
+    // deadlines beyond the maximum horizon (see MAX_POOL_DEADLINE_LEDGERS).
+    let deadline = u32::MAX - 1;
+    let deadline_key = (Symbol::new(&env, POOL_DEADLINE_PREFIX), pool_id);
+    env.storage().persistent().set(&deadline_key, &deadline);
+
+    // Advance the ledger so `current_ledger > deadline`;
+    // `deadline + REFUND_GRACE_PERIOD_LEDGERS` still overflows `u32`.
+    env.ledger().set_sequence_number(u32::MAX);
+
+    // The refund must not panic from arithmetic overflow.
+    client.refund_donation(&pool_id, &donor, &token);
+}
+
 /// Test 3: Refund fails when the deadline is set but has not passed yet.
 #[test]
 #[should_panic(expected = "Error(Contract, #12)")]

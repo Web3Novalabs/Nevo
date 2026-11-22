@@ -179,11 +179,21 @@ export class PoolsService {
     };
   }
 
-  async markCompleted(contractPoolId: string): Promise<Pool | null> {
+  /**
+   * Set the DB status for a pool; a no-op when the pool is unknown or
+   * already has the requested status.
+   */
+  async markStatus(
+    contractPoolId: string,
+    status: PoolStatus,
+  ): Promise<Pool | null> {
     const pool = await this.poolRepo.findOne({ where: { contractPoolId } });
     if (!pool) return null;
-    pool.status = PoolStatus.Completed;
-    return this.poolRepo.save(pool);
+    if (pool.status !== status) {
+      pool.status = status;
+      return this.poolRepo.save(pool);
+    }
+    return pool;
   }
 
   async incrementRaised(

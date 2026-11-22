@@ -13,7 +13,10 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { ContractService } from '../contract/contract.service.js';
+import {
+  ContractService,
+  ContractSubmissionResult,
+} from '../contract/contract.service.js';
 import { SubmitXdrDto } from '../contract/contract.controller.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 
@@ -43,14 +46,19 @@ export class TransactionsController {
   @ApiOperation({
     summary: 'Submit a signed transaction',
     description:
-      'Submits a signed XDR to the Stellar network and returns the transaction hash.',
+      'Submits a signed XDR to the Stellar network and returns the transaction hash plus its terminal status (completed, failed or pending).',
   })
   @ApiBearerAuth('bearer')
   @ApiOkResponse({
-    description: 'Transaction hash of the submitted XDR.',
+    description: 'Transaction hash and status of the submitted transaction.',
     schema: {
       type: 'object',
-      properties: { txHash: { type: 'string' } },
+      properties: {
+        txHash: { type: 'string' },
+        status: { type: 'string', enum: ['completed', 'failed', 'pending'] },
+        returnValue: { type: 'object' },
+      },
+      required: ['txHash', 'status'],
     },
   })
   @UseGuards(JwtAuthGuard)
@@ -58,18 +66,19 @@ export class TransactionsController {
   async submit(
     @Body() dto: SubmitXdrDto,
     @Req() req: { user: { publicKey: string } },
-  ): Promise<{ txHash: string }> {
+  ): Promise<ContractSubmissionResult> {
     const entry = this.contractService.describeSubmission(
       dto.xdr,
       req.user.publicKey,
     );
-    const txHash = await this.contractService.submitSignedXdr(dto.xdr);
-    if (entry)
+    const result = await this.contractService.submitSignedXdr(dto.xdr);
+    if (entry) {
       await this.history.record(req.user.publicKey, {
         ...entry,
-        txHash,
-        status: 'pending',
+        txHash: result.txHash,
+        status: result.status,
       });
-    return { txHash };
+    }
+    return result;
   }
 }

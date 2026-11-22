@@ -102,7 +102,7 @@ describe('SyncService Integration Tests', () => {
           provide: getRepositoryToken(SyncState),
           useValue: mockSyncStateRepo,
         },
-        { provide: ConfigService, useValue: { getOrThrow: jest.fn() } },
+        { provide: ConfigService, useValue: { getOrThrow: jest.fn(), get: jest.fn() } },
         StellarConfig,
         {
           provide: AdvisoryLockService,
@@ -294,7 +294,7 @@ describe('SyncService Integration Tests', () => {
         where: { contractPoolId: 'pool-closed-1' },
       });
 
-      expect(pool?.status).toBe(PoolStatus.Completed);
+      expect(pool?.status).toBe(PoolStatus.Closed);
     });
   });
 
@@ -394,7 +394,7 @@ describe('SyncService Integration Tests', () => {
       const poolAfterFirst = await poolRepo.findOne({
         where: { contractPoolId: 'pool-idem-3' },
       });
-      expect(poolAfterFirst?.status).toBe(PoolStatus.Completed);
+      expect(poolAfterFirst?.status).toBe(PoolStatus.Closed);
 
       // Mark as processed to simulate the idempotency check
       await donationsService.recordDonation({
@@ -408,11 +408,11 @@ describe('SyncService Integration Tests', () => {
       // Second close attempt should be skipped
       await service.processPoolClosedEvent(closeEvent);
 
-      // Status should still be Completed (not changed)
+      // Status should still be Closed (not changed)
       const poolAfterSecond = await poolRepo.findOne({
         where: { contractPoolId: 'pool-idem-3' },
       });
-      expect(poolAfterSecond?.status).toBe(PoolStatus.Completed);
+      expect(poolAfterSecond?.status).toBe(PoolStatus.Closed);
     });
 
     it('detects duplicate txHash within the same run', async () => {
@@ -500,7 +500,7 @@ describe('SyncService Integration Tests', () => {
       pool = await poolRepo.findOne({
         where: { contractPoolId: 'pool-lifecycle' },
       });
-      expect(pool?.status).toBe(PoolStatus.Completed);
+      expect(pool?.status).toBe(PoolStatus.Closed);
       expect(pool?.raised).toBe('60000'); // Raised amount preserved
     });
   });
