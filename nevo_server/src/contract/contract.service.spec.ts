@@ -254,13 +254,13 @@ describe('ContractService', () => {
       expect(args[1].switch().name).toBe('scvAddress');
     });
 
-    it('buildClosePoolTransaction encodes poolId as u32 and caller as address', () => {
+    it('buildClosePoolTransaction encodes poolId as u32 and passes no extra address argument', () => {
       const xdrStr = service.buildClosePoolTransaction(SOURCE, 11);
       const op = decodeFirstOp(xdrStr);
       const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
+      expect(args).toHaveLength(1);
       expect(args[0].switch().name).toBe('scvU32');
       expect(args[0].u32()).toBe(11);
-      expect(args[1].switch().name).toBe('scvAddress');
     });
   });
 
@@ -269,7 +269,6 @@ describe('ContractService', () => {
       const operation = service['contract'].call(
         'close_pool',
         nativeToScVal(1, { type: 'u32' }),
-        nativeToScVal(SOURCE, { type: 'address' }),
       );
 
       const xdr = service['buildTransaction'](SOURCE, operation);
@@ -396,21 +395,42 @@ describe('ContractService', () => {
   // =========================================================================
 
   describe('Timeout and error handling policy', () => {
-    it('getContributionOnChain returns 0n when getAccount throws (network timeout)', async () => {
-      mockRpcServer.getAccount.mockRejectedValueOnce(new Error('timeout'));
+    it('getContributionOnChain does not call getAccount (simulates from in-memory account)', async () => {
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(BigInt(500), { type: 'i128' })),
+      );
       const result = await service.getContributionOnChain(1, DONOR);
-      expect(result).toBe(0n);
+      expect(result).toBe(500n);
+      expect(mockRpcServer.getAccount).not.toHaveBeenCalled();
     });
 
-    it('getContributionOnChain returns 0n when simulateTransaction returns error shape', async () => {
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+    it('getContributionOnChain simulates with an in-memory Account', async () => {
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(BigInt(1), { type: 'i128' })),
+      );
+      await service.getContributionOnChain(1, DONOR);
+      const tx = mockRpcServer.simulateTransaction.mock.calls[0][0];
+      expect(tx.source).toBeInstanceOf(Account);
+      expect(tx.source.sequenceNumber()).toBe('0');
+    });
+
+    it('getContributionOnChain throws StellarError on RPC failure (not 0n)', async () => {
+      mockRpcServer.simulateTransaction.mockRejectedValueOnce(
+        new Error('timeout'),
+      );
+      await expect(
+        service.getContributionOnChain(1, DONOR),
+      ).rejects.toBeInstanceOf(StellarError);
+    });
+
+    it('getContributionOnChain throws StellarError when simulateTransaction returns error shape', async () => {
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(fakeSimError());
-      const result = await service.getContributionOnChain(1, DONOR);
-      expect(result).toBe(0n);
+      await expect(
+        service.getContributionOnChain(1, DONOR),
+      ).rejects.toBeInstanceOf(StellarError);
     });
 
     it('getContributionOnChain returns 0n when retval is missing', async () => {
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
       mockRpcServer.simulateTransaction.mockResolvedValueOnce({
         result: { retval: null, auth: [] },
         latestLedger: 1,
@@ -419,83 +439,88 @@ describe('ContractService', () => {
       expect(result).toBe(0n);
     });
 
-    it('getTotalRaisedOnChain returns 0n when getAccount throws', async () => {
-      mockRpcServer.getAccount.mockRejectedValueOnce(
-        new Error('connection refused'),
+    it('getTotalRaisedOnChain does not call getAccount', async () => {
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(BigInt(12345), { type: 'i128' })),
       );
       const result = await service.getTotalRaisedOnChain(1);
-      expect(result).toBe(0n);
+      expect(result).toBe(12345n);
+      expect(mockRpcServer.getAccount).not.toHaveBeenCalled();
     });
 
-    it('getTotalRaisedOnChain returns 0n when simulate returns error shape', async () => {
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+    it('getTotalRaisedOnChain throws StellarError on RPC failure (not 0n)', async () => {
+      mockRpcServer.simulateTransaction.mockRejectedValueOnce(
+        new Error('connection refused'),
+      );
+      await expect(service.getTotalRaisedOnChain(1)).rejects.toBeInstanceOf(
+        StellarError,
+      );
+    });
+
+    it('getTotalRaisedOnChain throws StellarError when simulate returns error shape', async () => {
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(fakeSimError());
-      const result = await service.getTotalRaisedOnChain(1);
-      expect(result).toBe(0n);
+      await expect(service.getTotalRaisedOnChain(1)).rejects.toBeInstanceOf(
+        StellarError,
+      );
     });
 
     it('decodes scvI128 return value correctly', async () => {
-      // Mock RPC getAccount to return a valid Account
-      const mockAccount = new Account(Keypair.random().publicKey(), '0');
-      jest
-        .spyOn(service['rpcServer'], 'getAccount')
-        .mockResolvedValue(mockAccount);
-
-      // Mock simulateTransaction to return a result with retval
-      const mockResult = {
-        result: {
-          retval: {
-            toXDR: () => Buffer.from([0]),
-          },
-        },
-      };
-      jest
-        .spyOn(service['rpcServer'], 'simulateTransaction')
-        .mockResolvedValue(mockResult as any);
-
-      // Mock xdr.ScVal.fromXDR to return an object indicating scvI128 with parts
-      const fromXdrSpy = jest.spyOn(xdr.ScVal, 'fromXDR').mockReturnValue({
-        switch: () => ({ name: 'scvI128' }),
-        i128: () => ({
-          hi: () => ({ toString: () => '0' }),
-          lo: () => ({ toString: () => '123' }),
-        }),
-        u128: undefined,
-      } as any);
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(BigInt(123), { type: 'i128' })),
+      );
 
       const donor = Keypair.random().publicKey();
-      try {
-        const contribution = await service.getContributionOnChain(1, donor);
-        expect(contribution).toBe(123n);
-      } finally {
-        fromXdrSpy.mockRestore();
-      }
+      const contribution = await service.getContributionOnChain(1, donor);
+      expect(contribution).toBe(123n);
     });
 
-    it('getDonorCountOnChain returns 0 when getAccount throws', async () => {
-      mockRpcServer.getAccount.mockRejectedValueOnce(new Error('timeout'));
+    it('getDonorCountOnChain does not call getAccount', async () => {
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(7, { type: 'u32' })),
+      );
       const result = await service.getDonorCountOnChain(1);
-      expect(result).toBe(0);
+      expect(result).toBe(7);
+      expect(mockRpcServer.getAccount).not.toHaveBeenCalled();
     });
 
-    it('getDonorCountOnChain returns 0 when simulate returns error shape', async () => {
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+    it('getDonorCountOnChain throws StellarError on RPC failure (not 0)', async () => {
+      mockRpcServer.simulateTransaction.mockRejectedValueOnce(
+        new Error('timeout'),
+      );
+      await expect(service.getDonorCountOnChain(1)).rejects.toBeInstanceOf(
+        StellarError,
+      );
+    });
+
+    it('getDonorCountOnChain throws StellarError when simulate returns error shape', async () => {
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(fakeSimError());
-      const result = await service.getDonorCountOnChain(1);
-      expect(result).toBe(0);
+      await expect(service.getDonorCountOnChain(1)).rejects.toBeInstanceOf(
+        StellarError,
+      );
     });
 
-    it('getPoolOnChain returns null when getAccount throws', async () => {
-      mockRpcServer.getAccount.mockRejectedValueOnce(new Error('timeout'));
-      const result = await service.getPoolOnChain(1);
-      expect(result).toBeNull();
+    it('getPoolOnChain does not call getAccount', async () => {
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal({ id: 1 }, { type: 'map' })),
+      );
+      await service.getPoolOnChain(1);
+      expect(mockRpcServer.getAccount).not.toHaveBeenCalled();
     });
 
-    it('getPoolOnChain returns null when simulate returns error shape', async () => {
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+    it('getPoolOnChain throws StellarError on RPC failure (not null)', async () => {
+      mockRpcServer.simulateTransaction.mockRejectedValueOnce(
+        new Error('timeout'),
+      );
+      await expect(service.getPoolOnChain(1)).rejects.toBeInstanceOf(
+        StellarError,
+      );
+    });
+
+    it('getPoolOnChain throws StellarError when simulate returns error shape', async () => {
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(fakeSimError());
-      const result = await service.getPoolOnChain(1);
-      expect(result).toBeNull();
+      await expect(service.getPoolOnChain(1)).rejects.toBeInstanceOf(
+        StellarError,
+      );
     });
   });
 
@@ -506,7 +531,6 @@ describe('ContractService', () => {
   describe('getContributionOnChain — mocked RPC', () => {
     it('decodes a non-zero i128 return value', async () => {
       const scVal = nativeToScVal(BigInt(500), { type: 'i128' });
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(
         fakeSimResult(scVal),
       );
@@ -516,7 +540,6 @@ describe('ContractService', () => {
 
     it('returns 0n when retval switch is neither i128 nor u128', async () => {
       const scVal = nativeToScVal(42, { type: 'u32' });
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(
         fakeSimResult(scVal),
       );
@@ -525,15 +548,9 @@ describe('ContractService', () => {
     });
 
     it('returns the total raised from the simulation result', async () => {
-      const mockAccount = new Account(Keypair.random().publicKey(), '0');
-      jest
-        .spyOn(service['rpcServer'], 'getAccount')
-        .mockResolvedValue(mockAccount);
-      jest
-        .spyOn(service['rpcServer'], 'simulateTransaction')
-        .mockResolvedValue({
-          result: { retval: nativeToScVal(5000n, { type: 'i128' }) },
-        } as any);
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(5000n, { type: 'i128' })),
+      );
 
       const result = await service.getTotalRaisedOnChain(1);
       expect(result).toBe(5000n);
@@ -543,7 +560,6 @@ describe('ContractService', () => {
   describe('getTotalRaisedOnChain — mocked RPC', () => {
     it('returns a bigint from a simulate response', async () => {
       const scVal = nativeToScVal(BigInt(12345), { type: 'i128' });
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(
         fakeSimResult(scVal),
       );
@@ -555,7 +571,6 @@ describe('ContractService', () => {
   describe('getDonorCountOnChain — mocked RPC', () => {
     it('returns a number from a simulate response', async () => {
       const scVal = nativeToScVal(7, { type: 'u32' });
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(
         fakeSimResult(scVal),
       );
@@ -564,15 +579,9 @@ describe('ContractService', () => {
     });
 
     it('returns the donor count from the simulation result', async () => {
-      const mockAccount = new Account(Keypair.random().publicKey(), '0');
-      jest
-        .spyOn(service['rpcServer'], 'getAccount')
-        .mockResolvedValue(mockAccount);
-      jest
-        .spyOn(service['rpcServer'], 'simulateTransaction')
-        .mockResolvedValue({
-          result: { retval: nativeToScVal(7, { type: 'u32' }) },
-        } as any);
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(7, { type: 'u32' })),
+      );
 
       const result = await service.getDonorCountOnChain(1);
       expect(result).toBe(7);
@@ -581,7 +590,6 @@ describe('ContractService', () => {
 
   describe('getPoolOnChain — mocked RPC', () => {
     it('returns null when retval is missing', async () => {
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
       mockRpcServer.simulateTransaction.mockResolvedValueOnce({
         result: { retval: null, auth: [] },
         latestLedger: 1,
