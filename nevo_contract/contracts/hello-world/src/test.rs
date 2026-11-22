@@ -1325,3 +1325,148 @@ fn test_close_pool_twice_panics() {
 
     client.close_pool(&pool_id);
 }
+
+// ============= READ GETTER TESTS (#1679) =============
+
+#[test]
+fn test_get_pool_token_returns_set_token() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Token Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let token = Address::generate(&env);
+    client.set_pool_token(&pool_id, &token);
+    assert_eq!(client.get_pool_token(&pool_id), token);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_get_pool_token_missing_pool_panics() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let _ = client.get_pool_token(&999u32);
+}
+
+#[test]
+fn test_get_pool_state_returns_current_state() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "State Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    assert_eq!(client.get_pool_state(&pool_id), PoolState::Active);
+    client.set_pool_state(&pool_id, &PoolState::Disbursed);
+    assert_eq!(client.get_pool_state(&pool_id), PoolState::Disbursed);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_get_pool_state_missing_pool_panics() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let _ = client.get_pool_state(&999u32);
+}
+
+#[test]
+fn test_get_unclaimed_fees_defaults_to_zero_and_tracks_accrual() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let claim_amount: i128 = 100_000_000;
+    let token = create_token(&env, claim_amount, &contract_id);
+
+    let pool_id = create_pool_with_school(
+        &env,
+        &client,
+        &creator,
+        &admin,
+        &creator,
+        "Fees Pool",
+        "Test",
+        1_000_000_000u128,
+        100_000u64,
+    );
+
+    assert_eq!(client.get_unclaimed_fees(&token), 0i128);
+
+    client.donate(&pool_id, &creator, &500_000_000u128);
+    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.claim_funds(&student, &pool_id, &claim_amount, &token);
+
+    assert_eq!(client.get_unclaimed_fees(&token), 1_000_000i128);
+}
+
+#[test]
+fn test_get_emergency_withdrawal_returns_stored_request() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Emergency Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let token = create_token(&env, 500_000_000i128, &contract_id);
+    client.request_emergency_withdraw(&admin, &pool_id, &token, &500_000_000i128);
+
+    let request = client.get_emergency_withdrawal(&pool_id);
+    assert_eq!(request.token, token);
+    assert_eq!(request.amount, 500_000_000i128);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #22)")]
+fn test_get_emergency_withdrawal_missing_request_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Emergency Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let _ = client.get_emergency_withdrawal(&pool_id);
+}

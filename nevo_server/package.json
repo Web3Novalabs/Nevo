@@ -8,6 +8,8 @@
   "scripts": {
     "build": "nest build",
     "generate:openapi": "ts-node -r tsconfig-paths/register ./scripts/generate-openapi.ts",
+    "generate:contract-bindings": "npm --prefix ../packages/nevo-contract-client run generate",
+    "check:contract-bindings": "npm --prefix ../packages/nevo-contract-client run check",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -26,6 +28,7 @@
     "export:openapi": "ts-node -r tsconfig-paths/register ./scripts/generate-openapi.ts"
   },
   "dependencies": {
+    "@nevo/contract-client": "file:../packages/nevo-contract-client",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.28",

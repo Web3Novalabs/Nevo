@@ -12,6 +12,7 @@ import {
   scValToNative,
 } from '@stellar/stellar-sdk';
 import { rpc as StellarRpc } from '@stellar/stellar-sdk';
+import { Client as NevoContractClient } from '@nevo/contract-client';
 import type { HistoryEntry } from '../transactions/history.service.js';
 import { StellarError } from './stellar.error.js';
 import { StellarConfig } from './stellar.config.js';
@@ -43,11 +44,17 @@ export class ContractService {
   private readonly logger = new Logger(ContractService.name);
   private readonly rpcServer: StellarRpc.Server;
   private readonly contract: Contract;
+  private readonly client: NevoContractClient;
 
   constructor(private readonly stellar: StellarConfig) {
     const { rpcUrl, contractId, network } = this.stellar;
     this.rpcServer = new StellarRpc.Server(rpcUrl);
     this.contract = new Contract(contractId);
+    this.client = new NevoContractClient({
+      contractId,
+      networkPassphrase: this.stellar.networkPassphrase,
+      rpcUrl,
+    });
     this.logger.log(`Stellar RPC connected: ${rpcUrl} (${network})`);
   }
 
@@ -66,14 +73,13 @@ export class ContractService {
     const { creator, goal, token, title, description } = params;
     return this.buildTransaction(
       creator,
-      this.contract.call(
-        'create_pool',
-        nativeToScVal(creator, { type: 'address' }),
-        nativeToScVal(BigInt(goal), { type: 'i128' }),
-        nativeToScVal(token, { type: 'address' }),
-        nativeToScVal(title, { type: 'string' }),
-        nativeToScVal(description, { type: 'string' }),
-      ),
+      this.client.create_pool({
+        creator,
+        goal: BigInt(goal),
+        token,
+        title,
+        description,
+      }),
     );
   }
 
@@ -84,11 +90,28 @@ export class ContractService {
   ): string {
     return this.buildTransaction(
       sourcePublicKey,
-      this.contract.call(
-        'donate',
-        nativeToScVal(poolId, { type: 'u32' }),
-        nativeToScVal(BigInt(amount), { type: 'i128' }),
-      ),
+      this.client.donate({
+        donor: sourcePublicKey,
+        pool_id: poolId,
+        amount: BigInt(amount),
+      }),
+    );
+  }
+
+  buildDonateWithTokenTransaction(
+    sourcePublicKey: string,
+    poolId: number,
+    tokenAddress: string,
+    amount: string,
+  ): string {
+    return this.buildTransaction(
+      sourcePublicKey,
+      this.client.donate_with_token({
+        donor: sourcePublicKey,
+        pool_id: poolId,
+        token: tokenAddress,
+        amount: BigInt(amount),
+      }),
     );
   }
 
@@ -99,22 +122,20 @@ export class ContractService {
   ): string {
     return this.buildTransaction(
       sourcePublicKey,
-      this.contract.call(
-        'withdraw',
-        nativeToScVal(poolId, { type: 'u32' }),
-        nativeToScVal(tokenAddress, { type: 'address' }),
-      ),
+      this.client.withdraw_unallocated_funds({
+        pool_id: poolId,
+        token: tokenAddress,
+      }),
     );
   }
 
   buildClosePoolTransaction(sourcePublicKey: string, poolId: number): string {
     return this.buildTransaction(
       sourcePublicKey,
-      this.contract.call(
-        'close_pool',
-        nativeToScVal(poolId, { type: 'u32' }),
-        nativeToScVal(sourcePublicKey, { type: 'address' }),
-      ),
+      this.client.close_pool({
+        pool_id: poolId,
+        caller: sourcePublicKey,
+      }),
     );
   }
 
@@ -132,6 +153,22 @@ export class ContractService {
         .setTimeout(30)
         .build();
       return tx.toXDR();
+    } catch (err: unknown) {
+      throw this.mapError(err);
+    }
+  }
+
+  /**
+   * Builds a transaction from a generated-client call. The generated
+   * `Client` returns an assembled `Transaction` (via `AssembledTransaction`),
+   * so we only need to re-serialize it to XDR here.
+   */
+  private buildTransactionFromClient(
+    call: { build: () => Promise<Transaction> } | Transaction,
+  ): string {
+    try {
+      if (call instanceof Transaction) return call.toXDR();
+      throw new StellarError('tx_build_failed');
     } catch (err: unknown) {
       throw this.mapError(err);
     }
