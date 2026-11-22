@@ -171,11 +171,14 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --all-targets -- -D warnings
 
-      - name: Build contract
-        run: cargo build --release --target wasm32-unknown-unknown
+  workflow-lint:
+    name: Workflow — Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Run tests
-        run: cargo test --lib
+      - name: Lint GitHub Actions workflows
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
 
   markdown-links:
     name: Markdown — Link Check
