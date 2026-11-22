@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -18,6 +17,7 @@ import {
   ApiOperation,
   ApiQuery,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -25,6 +25,7 @@ import { AuthService } from './auth.service';
 import { NonceService } from './nonce.service';
 import type { AuthResult } from './auth.service';
 import { VerifyAuthDto } from './dto/verify-auth.dto';
+import { ChallengeQueryDto } from './dto/challenge-query.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 interface AuthenticatedRequest {
@@ -57,16 +58,17 @@ export class AuthController {
       properties: { nonce: { type: 'string' } },
     },
   })
-  @ApiBadRequestResponse({ description: 'publicKey was not supplied.' })
+  @ApiBadRequestResponse({
+    description: 'publicKey is missing or not a valid Stellar public key.',
+  })
+  @ApiTooManyRequestsResponse({
+    description: 'The key already has too many unexpired challenges.',
+  })
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Get('challenge')
   async challenge(
-    @Query('publicKey') publicKey?: string,
+    @Query() { publicKey }: ChallengeQueryDto,
   ): Promise<{ nonce: string }> {
-    if (!publicKey) {
-      throw new BadRequestException('publicKey is required');
-    }
-
     const nonce = await this.nonceService.generateNonce(publicKey);
     return { nonce };
   }

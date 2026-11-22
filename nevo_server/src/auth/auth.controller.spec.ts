@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   ExecutionContext,
+  HttpException,
+  HttpStatus,
   INestApplication,
   UnauthorizedException,
   ValidationPipe,
@@ -270,6 +272,42 @@ describe('AuthController (challenge/verify)', () => {
 
   it('GET /auth/challenge without publicKey returns 400', async () => {
     await request(app.getHttpServer()).get('/auth/challenge').expect(400);
+  });
+
+  describe('GET /auth/challenge publicKey validation', () => {
+    const badChecksum =
+      publicKey.slice(0, -1) + (publicKey.endsWith('A') ? 'B' : 'A');
+
+    it.each([
+      ['too short', 'GABC123'],
+      ['lowercase', publicKey.toLowerCase()],
+      ['oversized', 'G' + 'A'.repeat(5000)],
+      ['not a G key', 'S' + publicKey.slice(1)],
+      ['bad checksum', badChecksum],
+    ])(
+      'rejects a %s key with 400 and stores no nonce',
+      async (_label, invalidKey) => {
+        await request(app.getHttpServer())
+          .get('/auth/challenge')
+          .query({ publicKey: invalidKey })
+          .expect(400);
+
+        expect(nonceService.generateNonce).not.toHaveBeenCalled();
+      },
+    );
+
+    it('returns 429 when the key has too many outstanding challenges', async () => {
+      jest
+        .spyOn(nonceService, 'generateNonce')
+        .mockRejectedValue(
+          new HttpException('Too many', HttpStatus.TOO_MANY_REQUESTS),
+        );
+
+      await request(app.getHttpServer())
+        .get('/auth/challenge')
+        .query({ publicKey })
+        .expect(429);
+    });
   });
 
   it('POST /auth/verify with valid signature returns accessToken', async () => {

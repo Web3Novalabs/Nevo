@@ -11,6 +11,7 @@ import {
 } from '@stellar/stellar-sdk';
 import { ContractService } from './contract.service.js';
 import { StellarError } from './stellar.error.js';
+import { StellarConfig } from './stellar.config.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,6 +107,7 @@ describe('ContractService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ContractService,
+        StellarConfig,
         { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();

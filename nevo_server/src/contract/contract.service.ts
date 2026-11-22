@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import {
   Keypair,
-  Networks,
   Transaction,
   FeeBumpTransaction,
   TransactionBuilder,
@@ -16,12 +14,7 @@ import {
 import { rpc as StellarRpc } from '@stellar/stellar-sdk';
 import type { HistoryEntry } from '../transactions/history.service.js';
 import { StellarError } from './stellar.error.js';
-
-const NETWORK_PASSPHRASE =
-  process.env.STELLAR_NETWORK === 'mainnet'
-    ? Networks.PUBLIC
-    : Networks.TESTNET;
-const SOURCE_SECRET = process.env.SOURCE_SECRET_KEY ?? '';
+import { StellarConfig } from './stellar.config.js';
 
 @Injectable()
 export class ContractService {
@@ -29,18 +22,16 @@ export class ContractService {
   private readonly rpcServer: StellarRpc.Server;
   private readonly contract: Contract;
 
-  constructor(private readonly config: ConfigService) {
-    const rpcUrl =
-      this.config.get<string>('STELLAR_RPC_URL') ??
-      'https://soroban-testnet.stellar.org';
-    const contractId =
-      this.config.get<string>('CONTRACT_ID') ??
-      'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM';
+  constructor(private readonly stellar: StellarConfig) {
+    const { rpcUrl, contractId, network } = this.stellar;
     this.rpcServer = new StellarRpc.Server(rpcUrl);
     this.contract = new Contract(contractId);
-    const network =
-      NETWORK_PASSPHRASE === Networks.PUBLIC ? 'mainnet' : 'testnet';
     this.logger.log(`Stellar RPC connected: ${rpcUrl} (${network})`);
+  }
+
+  /** Passphrase of the configured network. */
+  get networkPassphrase(): string {
+    return this.stellar.networkPassphrase;
   }
 
   buildCreatePoolTransaction(params: {
@@ -113,7 +104,7 @@ export class ContractService {
       const source = new Account(sourcePublicKey, '0');
       const tx = new TransactionBuilder(source, {
         fee: BASE_FEE,
-        networkPassphrase: NETWORK_PASSPHRASE,
+        networkPassphrase: this.stellar.networkPassphrase,
       })
         .addOperation(operation)
         .setTimeout(30)
@@ -130,7 +121,10 @@ export class ContractService {
   ): Omit<HistoryEntry, 'txHash' | 'status'> | undefined {
     let parsed: Transaction | FeeBumpTransaction;
     try {
-      parsed = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+      parsed = TransactionBuilder.fromXDR(
+        signedXdr,
+        this.stellar.networkPassphrase,
+      );
     } catch {
       throw new StellarError('invalid_xdr');
     }
@@ -179,7 +173,10 @@ export class ContractService {
   async submitSignedXdr(signedXdr: string): Promise<string> {
     let tx: Transaction | FeeBumpTransaction;
     try {
-      tx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+      tx = TransactionBuilder.fromXDR(
+        signedXdr,
+        this.stellar.networkPassphrase,
+      );
     } catch {
       throw new StellarError('invalid_xdr');
     }
@@ -203,13 +200,13 @@ export class ContractService {
 
   async getContributionOnChain(poolId: number, donor: string): Promise<bigint> {
     try {
-      const keypair = SOURCE_SECRET
-        ? Keypair.fromSecret(SOURCE_SECRET)
+      const keypair = this.stellar.sourceSecret
+        ? Keypair.fromSecret(this.stellar.sourceSecret)
         : Keypair.random();
       const account = await this.rpcServer.getAccount(keypair.publicKey());
       const tx = new TransactionBuilder(account, {
         fee: BASE_FEE,
-        networkPassphrase: NETWORK_PASSPHRASE,
+        networkPassphrase: this.stellar.networkPassphrase,
       })
         .addOperation(
           this.contract.call(
@@ -254,13 +251,13 @@ export class ContractService {
     closed: boolean;
   } | null> {
     try {
-      const keypair = SOURCE_SECRET
-        ? Keypair.fromSecret(SOURCE_SECRET)
+      const keypair = this.stellar.sourceSecret
+        ? Keypair.fromSecret(this.stellar.sourceSecret)
         : Keypair.random();
       const account = await this.rpcServer.getAccount(keypair.publicKey());
       const tx = new TransactionBuilder(account, {
         fee: BASE_FEE,
-        networkPassphrase: NETWORK_PASSPHRASE,
+        networkPassphrase: this.stellar.networkPassphrase,
       })
         .addOperation(
           this.contract.call(
@@ -303,13 +300,13 @@ export class ContractService {
    * callers that persist the result never mistake an outage for a zero total.
    */
   async fetchTotalRaisedOnChain(poolId: number): Promise<bigint> {
-    const keypair = SOURCE_SECRET
-      ? Keypair.fromSecret(SOURCE_SECRET)
+    const keypair = this.stellar.sourceSecret
+      ? Keypair.fromSecret(this.stellar.sourceSecret)
       : Keypair.random();
     const account = await this.rpcServer.getAccount(keypair.publicKey());
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,
-      networkPassphrase: NETWORK_PASSPHRASE,
+      networkPassphrase: this.stellar.networkPassphrase,
     })
       .addOperation(
         this.contract.call(
@@ -352,13 +349,13 @@ export class ContractService {
 
   async getDonorCountOnChain(poolId: number): Promise<number> {
     try {
-      const keypair = SOURCE_SECRET
-        ? Keypair.fromSecret(SOURCE_SECRET)
+      const keypair = this.stellar.sourceSecret
+        ? Keypair.fromSecret(this.stellar.sourceSecret)
         : Keypair.random();
       const account = await this.rpcServer.getAccount(keypair.publicKey());
       const tx = new TransactionBuilder(account, {
         fee: BASE_FEE,
-        networkPassphrase: NETWORK_PASSPHRASE,
+        networkPassphrase: this.stellar.networkPassphrase,
       })
         .addOperation(
           this.contract.call(
