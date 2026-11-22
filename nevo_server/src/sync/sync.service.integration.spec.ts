@@ -7,6 +7,7 @@ import { SyncService, HorizonContractEvent } from './sync.service';
 import { PoolsService } from '../pools/pools.service';
 import { DonationsService } from '../donations/donations.service';
 import { ContractService } from '../contract/contract.service';
+import { StellarConfig } from '../contract/stellar.config';
 import { SyncState } from './sync-state.entity';
 import { Pool, PoolStatus } from '../pools/pool.entity';
 import { Donation } from '../donations/donation.entity';
@@ -102,6 +103,7 @@ describe('SyncService Integration Tests', () => {
           useValue: mockSyncStateRepo,
         },
         { provide: ConfigService, useValue: { getOrThrow: jest.fn() } },
+        StellarConfig,
         {
           provide: AdvisoryLockService,
           useValue: {

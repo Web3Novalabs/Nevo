@@ -9,6 +9,7 @@ import {
 import { PoolsService, ChainPoolData } from './pools.service';
 import { Pool, PoolStatus } from './pool.entity';
 import { ContractService } from '../contract/contract.service';
+import { StellarConfig } from '../contract/stellar.config';
 import { CreatePoolsTable1782396384461 as CreatePoolsTable } from '../migrations/1782396384461-CreatePoolsTable';
 
 // ---------------------------------------------------------------------------
@@ -77,6 +78,7 @@ async function buildService(
       { provide: getRepositoryToken(Pool), useValue: repo },
       { provide: ContractService, useValue: mockContractService },
       { provide: ConfigService, useValue: mockConfigService },
+      StellarConfig,
     ],
   }).compile();
 
