@@ -20,6 +20,8 @@ import { StellarConfig } from './stellar.config.js';
 const CONFIRMATION_TIMEOUT_MS = 15_000;
 /** Polling interval between `getTransaction` calls during confirmation. */
 const CONFIRMATION_POLL_INTERVAL_MS = 500;
+/** Largest value representable by the contract's `i128` amount type. */
+const I128_MAX = (1n << 127n) - 1n;
 
 /**
  * Result of `submitSignedXdr`: the transaction plus its terminal state when
@@ -69,7 +71,7 @@ export class ContractService {
       this.contract.call(
         'create_pool',
         nativeToScVal(creator, { type: 'address' }),
-        nativeToScVal(BigInt(goal), { type: 'i128' }),
+        nativeToScVal(this.parseAmount(goal), { type: 'i128' }),
         nativeToScVal(token, { type: 'address' }),
         nativeToScVal(title, { type: 'string' }),
         nativeToScVal(description, { type: 'string' }),
@@ -87,9 +89,27 @@ export class ContractService {
       this.contract.call(
         'donate',
         nativeToScVal(poolId, { type: 'u32' }),
-        nativeToScVal(BigInt(amount), { type: 'i128' }),
+        nativeToScVal(this.parseAmount(amount), { type: 'i128' }),
       ),
     );
+  }
+
+  /**
+   * Parses a decimal amount string into a non-negative `bigint` that fits in
+   * the contract's `i128` representation. Throws a typed `StellarError`
+   * (`invalid_amount`) instead of silently wrapping on lossy casts.
+   */
+  private parseAmount(value: string | bigint): bigint {
+    let amount: bigint;
+    try {
+      amount = typeof value === 'bigint' ? value : BigInt(value);
+    } catch {
+      throw new StellarError('invalid_amount');
+    }
+    if (amount < 0n || amount > I128_MAX) {
+      throw new StellarError('invalid_amount');
+    }
+    return amount;
   }
 
   buildWithdrawTransaction(
@@ -304,8 +324,15 @@ export class ContractService {
       if (!retVal) return 0n;
 
       const val = xdr.ScVal.fromXDR(retVal.toXDR());
-      if (val.switch().name === 'scvI128' || val.switch().name === 'scvU128') {
-        const parts = val.i128?.() ?? val.u128?.();
+      if (val.switch().name === 'scvI128') {
+        const parts = val.i128();
+        if (!parts) return 0n;
+        return (
+          (BigInt(parts.hi().toString()) << 64n) | BigInt(parts.lo().toString())
+        );
+      }
+      if (val.switch().name === 'scvU128') {
+        const parts = val.u128();
         if (!parts) return 0n;
         return (
           (BigInt(parts.hi().toString()) << 64n) | BigInt(parts.lo().toString())
@@ -358,8 +385,8 @@ export class ContractService {
         return {
           id: poolId,
           creator: String(fields[1]),
-          goal: BigInt(fields[2]),
-          collected: BigInt(fields[3]),
+          goal: this.parseAmount(fields[2] as bigint | string),
+          collected: this.parseAmount(fields[3] as bigint | string),
           closed: Boolean(fields[4]),
         };
       }
@@ -408,7 +435,9 @@ export class ContractService {
     }
 
     const native: unknown = scValToNative(retVal);
-    return typeof native === 'bigint' ? native : BigInt(String(native));
+    return this.parseAmount(
+      typeof native === 'bigint' ? native : String(native),
+    );
   }
 
   async getTotalRaisedOnChain(poolId: number): Promise<bigint> {

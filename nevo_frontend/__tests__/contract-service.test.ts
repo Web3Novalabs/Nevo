@@ -119,6 +119,29 @@ describe('ContractService.getPoolCount', () => {
   });
 });
 
+describe('ContractService.buildCreatePoolTransaction', () => {
+  it('encodes the goal as an i128 scVal', async () => {
+    const goal = BigInt(50_000_000);
+
+    const xdr = await contractService.buildCreatePoolTransaction(
+      TEST_PUBKEY,
+      'Test Pool',
+      goal,
+      30
+    );
+
+    expect(typeof xdr).toBe('string');
+    expect(xdr.length).toBeGreaterThan(0);
+
+    const [method, , , goalArg] = callSpy.mock.calls[0];
+    expect(method).toBe('create_pool');
+    expect(goalArg.switch().name).toBe('scvI128');
+    expect(goalArg.toXDR('base64')).toBe(
+      nativeToScVal(goal, { type: 'i128' }).toXDR('base64')
+    );
+  });
+});
+
 describe('ContractService.buildDonateTransaction', () => {
   it('builds a token-backed donation with the native XLM SAC token', async () => {
     const amount = BigInt(5_000_000);
