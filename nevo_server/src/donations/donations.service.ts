@@ -96,6 +96,33 @@ export class DonationsService {
     return count > 0;
   }
 
+  /**
+   * Finds the donation a refund event refers to.
+   * @param txHash The hash of the original donation transaction.
+   * @returns The matching donation, or `null` when none is recorded.
+   */
+  async findByTxHash(txHash: string): Promise<Donation | null> {
+    return this.donationRepo.findOneBy({ txHash });
+  }
+
+  /**
+   * Marks a donation as refunded. Idempotent: refunding an already refunded
+   * donation is a no-op and returns the existing record.
+   * @param txHash The hash of the original donation transaction.
+   * @returns The updated donation, or `null` when no donation is recorded.
+   */
+  async markRefunded(txHash: string): Promise<Donation | null> {
+    const donation = await this.findByTxHash(txHash);
+    if (!donation) {
+      return null;
+    }
+    if (donation.refunded) {
+      return donation;
+    }
+    donation.refunded = true;
+    return this.donationRepo.save(donation);
+  }
+
   async recordDonation(data: {
     poolId: string;
     donorWallet: string;

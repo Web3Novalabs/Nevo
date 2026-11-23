@@ -74,6 +74,7 @@ const mockRpcServer = {
   getTransaction: jest.fn(),
   getAccount: jest.fn(),
   simulateTransaction: jest.fn(),
+  prepareTransaction: jest.fn(),
 };
 
 // Patch the constructor so every `new StellarRpc.Server(...)` returns our mock
@@ -107,6 +108,11 @@ describe('ContractService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    // Default RPC behaviour: a funded account and a pass-through prepare
+    mockRpcServer.getAccount.mockImplementation(async (publicKey: string) =>
+      fakeAccount(publicKey),
+    );
+    mockRpcServer.prepareTransaction.mockImplementation(async (tx: any) => tx);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ContractService,
@@ -122,13 +128,14 @@ describe('ContractService', () => {
   // =========================================================================
 
   describe('Transaction envelope construction', () => {
-    it('buildCreatePoolTransaction — source account matches the creator', () => {
-      const xdrStr = service.buildCreatePoolTransaction({
+    it('buildCreatePoolTransaction — source account matches the creator', async () => {
+      const xdrStr = await service.buildCreatePoolTransaction({
         creator: SOURCE,
         goal: '1000',
         token: TOKEN,
         title: 'My Pool',
         description: 'desc',
+        applicationDeadline: '2000000000',
       });
 
       expect(typeof xdrStr).toBe('string');
@@ -137,44 +144,45 @@ describe('ContractService', () => {
       expect(() => TransactionBuilder.fromXDR(xdrStr, NETWORK)).not.toThrow();
     });
 
-    it('buildCreatePoolTransaction — sequence number is 1 (Account seeded with 0)', () => {
-      const xdrStr = service.buildCreatePoolTransaction({
+    it('buildCreatePoolTransaction — sequence number comes from the loaded account', async () => {
+      const xdrStr = await service.buildCreatePoolTransaction({
         creator: SOURCE,
         goal: '1000',
         token: TOKEN,
         title: 'My Pool',
         description: 'desc',
+        applicationDeadline: '2000000000',
       });
       const tx = TransactionBuilder.fromXDR(xdrStr, NETWORK) as any;
-      // TransactionBuilder increments from 0 → 1 on build()
-      expect(tx.sequence).toBe('1');
+      // Account seeded with sequence 100 → builder increments to 101
+      expect(tx.sequence).toBe('101');
     });
 
-    it('buildDonateTransaction — source account matches the caller', () => {
-      const xdrStr = service.buildDonateTransaction(SOURCE, 5, '250');
+    it('buildDonateTransaction — source account matches the caller', async () => {
+      const xdrStr = await service.buildDonateTransaction(SOURCE, 5, '250');
       const tx = TransactionBuilder.fromXDR(xdrStr, NETWORK) as any;
       expect(tx.source).toBe(SOURCE);
     });
 
-    it('buildDonateTransaction — sequence number is 1', () => {
-      const xdrStr = service.buildDonateTransaction(SOURCE, 5, '250');
+    it('buildDonateTransaction — sequence number comes from the loaded account', async () => {
+      const xdrStr = await service.buildDonateTransaction(SOURCE, 5, '250');
       const tx = TransactionBuilder.fromXDR(xdrStr, NETWORK) as any;
-      expect(tx.sequence).toBe('1');
+      expect(tx.sequence).toBe('101');
     });
 
-    it('buildWithdrawTransaction — source account matches the caller', () => {
-      const xdrStr = service.buildWithdrawTransaction(SOURCE, 3, TOKEN);
-      const tx = TransactionBuilder.fromXDR(xdrStr, NETWORK) as any;
-      expect(tx.source).toBe(SOURCE);
-    });
-
-    it('buildClosePoolTransaction — source account matches the caller', () => {
-      const xdrStr = service.buildClosePoolTransaction(SOURCE, 7);
+    it('buildWithdrawTransaction — source account matches the caller', async () => {
+      const xdrStr = await service.buildWithdrawTransaction(SOURCE, 3, TOKEN);
       const tx = TransactionBuilder.fromXDR(xdrStr, NETWORK) as any;
       expect(tx.source).toBe(SOURCE);
     });
 
-    it('all build methods produce parseable XDR', () => {
+    it('buildClosePoolTransaction — source account matches the caller', async () => {
+      const xdrStr = await service.buildClosePoolTransaction(SOURCE, 7);
+      const tx = TransactionBuilder.fromXDR(xdrStr, NETWORK) as any;
+      expect(tx.source).toBe(SOURCE);
+    });
+
+    it('all build methods produce parseable XDR', async () => {
       const cases = [
         () =>
           service.buildCreatePoolTransaction({
@@ -183,6 +191,7 @@ describe('ContractService', () => {
             token: TOKEN,
             title: 'T',
             description: 'D',
+            applicationDeadline: '2000000000',
           }),
         () => service.buildDonateTransaction(SOURCE, 1, '100'),
         () => service.buildWithdrawTransaction(SOURCE, 1, TOKEN),
@@ -190,7 +199,7 @@ describe('ContractService', () => {
       ];
       for (const build of cases) {
         expect(() =>
-          TransactionBuilder.fromXDR(build(), NETWORK),
+          TransactionBuilder.fromXDR(await build(), NETWORK),
         ).not.toThrow();
       }
     });
@@ -201,15 +210,39 @@ describe('ContractService', () => {
   // =========================================================================
 
   describe('Contract invocation parameter encoding', () => {
-    it('buildCreatePoolTransaction encodes goal as i128', () => {
-      const xdrStr = service.buildCreatePoolTransaction({
+    it('buildCreatePoolTransaction invokes create_pool with (creator, title, description, goal, application_deadline)', async () => {
+      const xdrStr = await service.buildCreatePoolTransaction({
         creator: SOURCE,
         goal: '9999',
         token: TOKEN,
         title: 'Pool',
         description: 'desc',
+        applicationDeadline: '2000000000',
       });
       const op = decodeFirstOp(xdrStr);
+      const invoke = op.func?.invokeContract?.();
+      expect(invoke?.functionName?.().toString()).toBe('create_pool');
+      const args: xdr.ScVal[] = invoke?.args?.() ?? [];
+      expect(args).toHaveLength(5);
+      // arg[0] creator: Address
+      expect(args[0].switch().name).toBe('scvAddress');
+      expect(scValToNative(args[0])).toBe(SOURCE);
+      // arg[1] title: String
+      expect(args[1].switch().name).toBe('scvString');
+      expect(args[1].str().toString()).toBe('Pool');
+      // arg[2] description: String
+      expect(args[2].switch().name).toBe('scvString');
+      expect(args[2].str().toString()).toBe('desc');
+      // arg[3] goal: u128
+      expect(args[3].switch().name).toBe('scvU128');
+      expect(scValToNative(args[3])).toBe(9999n);
+      // arg[4] application_deadline: u64
+      expect(args[4].switch().name).toBe('scvU64');
+      expect(scValToNative(args[4])).toBe(2000000000n);
+    });
+
+    it('buildDonateTransaction invokes donate_with_token with (pool_id, donor, token, amount)', async () => {
+      const xdrStr = await service.buildDonateTransaction(SOURCE, 42, '777');
       const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
       // arg[1] is the goal
       expect(args[1].switch().name).toBe('scvI128');
@@ -260,11 +293,25 @@ describe('ContractService', () => {
     it('buildDonateTransaction encodes poolId as u32', () => {
       const xdrStr = service.buildDonateTransaction(SOURCE, 42, '100');
       const op = decodeFirstOp(xdrStr);
-      const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
+      const invoke = op.func?.invokeContract?.();
+      expect(invoke?.functionName?.().toString()).toBe('donate_with_token');
+      const args: xdr.ScVal[] = invoke?.args?.() ?? [];
+      expect(args).toHaveLength(4);
+      // arg[0] pool_id: u32
       expect(args[0].switch().name).toBe('scvU32');
       expect(args[0].u32()).toBe(42);
+      // arg[1] donor: Address
+      expect(args[1].switch().name).toBe('scvAddress');
+      expect(scValToNative(args[1])).toBe(SOURCE);
+      // arg[2] token: Address
+      expect(args[2].switch().name).toBe('scvAddress');
+      // arg[3] amount: i128
+      expect(args[3].switch().name).toBe('scvI128');
+      expect(scValToNative(args[3])).toBe(777n);
     });
 
+    it('buildWithdrawTransaction encodes poolId as u32 and token as address', async () => {
+      const xdrStr = await service.buildWithdrawTransaction(SOURCE, 9, TOKEN);
     it('buildDonateTransaction encodes amount as i128', () => {
       const xdrStr = service.buildDonateTransaction(SOURCE, 1, '777');
       const op = decodeFirstOp(xdrStr);
@@ -295,8 +342,8 @@ describe('ContractService', () => {
       expect(args[1].switch().name).toBe('scvAddress');
     });
 
-    it('buildClosePoolTransaction encodes poolId as u32 and caller as address', () => {
-      const xdrStr = service.buildClosePoolTransaction(SOURCE, 11);
+    it('buildClosePoolTransaction encodes poolId as u32 and caller as address', async () => {
+      const xdrStr = await service.buildClosePoolTransaction(SOURCE, 11);
       const op = decodeFirstOp(xdrStr);
       const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
       expect(args[0].switch().name).toBe('scvU32');
@@ -306,15 +353,65 @@ describe('ContractService', () => {
   });
 
   describe('buildTransaction', () => {
-    it('builds a valid transaction from a contract operation', () => {
+    it('loads the source account and returns the prepared transaction XDR', async () => {
       const operation = service['contract'].call(
         'close_pool',
         nativeToScVal(1, { type: 'u32' }),
         nativeToScVal(SOURCE, { type: 'address' }),
       );
 
-      const xdr = service['buildTransaction'](SOURCE, operation);
+      const xdr = await service['buildTransaction'](SOURCE, operation);
+      expect(mockRpcServer.getAccount).toHaveBeenCalledWith(SOURCE);
+      expect(mockRpcServer.prepareTransaction).toHaveBeenCalledTimes(1);
       expect(() => TransactionBuilder.fromXDR(xdr, NETWORK)).not.toThrow();
+    });
+
+    it('returns exactly the XDR produced by prepareTransaction', async () => {
+      const operation = service['contract'].call(
+        'close_pool',
+        nativeToScVal(1, { type: 'u32' }),
+        nativeToScVal(SOURCE, { type: 'address' }),
+      );
+      const prepared = new TransactionBuilder(fakeAccount(SOURCE) as any, {
+        fee: '100',
+        networkPassphrase: NETWORK,
+      })
+        .addOperation(operation)
+        .setTimeout(30)
+        .build();
+      mockRpcServer.prepareTransaction.mockResolvedValueOnce(prepared);
+
+      const xdr = await service['buildTransaction'](SOURCE, operation);
+      expect(xdr).toBe(prepared.toXDR());
+    });
+
+    it('maps a getAccount rejection to a StellarError', async () => {
+      mockRpcServer.getAccount.mockRejectedValueOnce(
+        new Error('op_no_source_account'),
+      );
+      const operation = service['contract'].call(
+        'close_pool',
+        nativeToScVal(1, { type: 'u32' }),
+        nativeToScVal(SOURCE, { type: 'address' }),
+      );
+      await expect(
+        service['buildTransaction'](SOURCE, operation),
+      ).rejects.toBeInstanceOf(StellarError);
+      expect(mockRpcServer.prepareTransaction).not.toHaveBeenCalled();
+    });
+
+    it('maps a prepareTransaction rejection to a StellarError', async () => {
+      mockRpcServer.prepareTransaction.mockRejectedValueOnce(
+        new Error('simulation failed'),
+      );
+      const operation = service['contract'].call(
+        'close_pool',
+        nativeToScVal(1, { type: 'u32' }),
+        nativeToScVal(SOURCE, { type: 'address' }),
+      );
+      await expect(
+        service['buildTransaction'](SOURCE, operation),
+      ).rejects.toBeInstanceOf(StellarError);
     });
   });
 
@@ -346,7 +443,7 @@ describe('ContractService', () => {
         events: { transactionEventsXdr: [], contractEventsXdr: [] },
       } as StellarRpc.Api.GetSuccessfulTransactionResponse);
 
-      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      const validXdr = await service.buildDonateTransaction(SOURCE, 1, '100');
       const result = await service.submitSignedXdr(validXdr);
 
       expect(result.txHash).toBe('abc123txhash');
@@ -374,7 +471,7 @@ describe('ContractService', () => {
         events: { transactionEventsXdr: [], contractEventsXdr: [] },
       });
 
-      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      const validXdr = await service.buildDonateTransaction(SOURCE, 1, '100');
       const result = await service.submitSignedXdr(validXdr);
       expect(result).toEqual({ txHash: 'failtx', status: 'failed' });
     });
@@ -387,7 +484,7 @@ describe('ContractService', () => {
         latestLedgerCloseTime: 0,
       });
 
-      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      const validXdr = await service.buildDonateTransaction(SOURCE, 1, '100');
       await expect(service.submitSignedXdr(validXdr)).rejects.toBeInstanceOf(
         StellarError,
       );
@@ -402,7 +499,7 @@ describe('ContractService', () => {
         latestLedgerCloseTime: 0,
       });
 
-      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      const validXdr = await service.buildDonateTransaction(SOURCE, 1, '100');
       await expect(service.submitSignedXdr(validXdr)).rejects.toBeInstanceOf(
         StellarError,
       );
@@ -426,7 +523,7 @@ describe('ContractService', () => {
         oldestLedgerCloseTime: 0,
       });
 
-      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      const validXdr = await service.buildDonateTransaction(SOURCE, 1, '100');
       const result = await service.submitSignedXdr(validXdr);
       expect(result).toEqual({ txHash: 'pendtx', status: 'pending' });
     });

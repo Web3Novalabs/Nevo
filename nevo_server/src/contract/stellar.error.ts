@@ -32,6 +32,18 @@ const STELLAR_CODE_MAP: Record<
     status: HttpStatus.TOO_MANY_REQUESTS,
     message: 'Transaction could not be processed yet — retry later',
   },
+  account_not_found: {
+    status: HttpStatus.NOT_FOUND,
+    message: 'Source account does not exist on the network',
+  },
+  simulation_failed: {
+    status: HttpStatus.BAD_REQUEST,
+    message: 'Soroban transaction simulation failed',
+  },
+  prepare_failed: {
+    status: HttpStatus.BAD_GATEWAY,
+    message: 'Failed to prepare Soroban transaction',
+  },
 };
 
 const CONTRACT_CODE_MAP: Record<
