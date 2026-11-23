@@ -128,6 +128,7 @@ export class DonationsService {
     donorWallet: string;
     amount: string;
     asset: string;
+    tokenContract?: string | null;
     txHash: string;
     memo?: string | null;
   }): Promise<Donation> {
@@ -138,6 +139,7 @@ export class DonationsService {
           donorWallet: data.donorWallet,
           amount: data.amount,
           asset: data.asset,
+          tokenContract: data.tokenContract ?? null,
           txHash: data.txHash,
           memo: data.memo ?? null,
         }),

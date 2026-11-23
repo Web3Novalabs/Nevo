@@ -2,7 +2,16 @@ import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { scValToNative, rpc as StellarRpc } from '@stellar/stellar-sdk';
+import {
+  Address,
+  Asset,
+  FeeBumpTransaction,
+  StrKey,
+  TransactionBuilder,
+  scValToNative,
+  rpc as StellarRpc,
+  type xdr,
+} from '@stellar/stellar-sdk';
 import {
   ADVISORY_LOCK_KEYS,
   AdvisoryLockService,
@@ -11,7 +20,7 @@ import { PoolsService } from '../pools/pools.service.js';
 import { DonationsService } from '../donations/donations.service.js';
 import { HistoryService } from '../transactions/history.service.js';
 import { StellarConfig } from '../contract/stellar.config.js';
-import { PoolStatus } from '../pools/pool.entity.js';
+import { Pool, PoolStatus } from '../pools/pool.entity.js';
 import { SyncState } from './sync-state.entity.js';
 
 /** Minimal shape of a Stellar Horizon Soroban contract event. */
@@ -353,6 +362,76 @@ export class SyncService implements OnModuleInit {
     );
   }
 
+  /** Short display code; the exact token is stored in `tokenContract`. */
+  private assetCode(
+    tokenContract: string | null,
+    poolToken?: string | null,
+  ): string {
+    const native = Asset.native().contractId(this.stellar.networkPassphrase);
+    if (tokenContract === native) return 'XLM';
+    if (poolToken && poolToken.length <= 12) return poolToken;
+    return tokenContract ? 'TOKEN' : 'XLM';
+  }
+
+  /**
+   * Reads the `token` argument of the matching `donate_with_token` call from
+   * the transaction, including calls made through another contract.
+   */
+  private async resolveDonationToken(
+    txHash: string,
+    poolId: string,
+    donor: string,
+  ): Promise<string | null> {
+    try {
+      const response = await this.rpcServer.getTransaction(txHash);
+      if (response.status !== StellarRpc.Api.GetTransactionStatus.SUCCESS) {
+        return null;
+      }
+      const parsed = TransactionBuilder.fromXDR(
+        response.envelopeXdr,
+        this.stellar.networkPassphrase,
+      );
+      const tx =
+        parsed instanceof FeeBumpTransaction
+          ? parsed.innerTransaction
+          : parsed;
+      const op = tx.operations[0];
+      if (op?.type !== 'invokeHostFunction') return null;
+
+      const calls: xdr.InvokeContractArgs[] = [];
+      if (op.func.switch().name === 'hostFunctionTypeInvokeContract') {
+        calls.push(op.func.invokeContract());
+      }
+      const walk = (node: xdr.SorobanAuthorizedInvocation): void => {
+        const fn = node.function();
+        if (fn.switch().name === 'sorobanAuthorizedFunctionTypeContractFn') {
+          calls.push(fn.contractFn());
+        }
+        node.subInvocations().forEach(walk);
+      };
+      (op.auth ?? []).forEach((entry) => walk(entry.rootInvocation()));
+
+      for (const call of calls) {
+        const args = call.args();
+        if (
+          call.functionName().toString() === 'donate_with_token' &&
+          Address.fromScAddress(call.contractAddress()).toString() ===
+            this.stellar.contractId &&
+          args.length >= 3 &&
+          String(scValToNative(args[0])) === poolId &&
+          String(scValToNative(args[1])) === donor
+        ) {
+          return String(scValToNative(args[2]));
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Could not read token for tx ${txHash}: ${String(error)}`,
+      );
+    }
+    return null;
+  }
+
   /**
    * Processes a `contrib` (contribution) event emitted by the contract's
    * `donate` / `donate_with_token` functions.
@@ -366,8 +445,8 @@ export class SyncService implements OnModuleInit {
    *   (`newTotal`), **not** an asset code.
    * - `txHash` — **Required** for contribution events. If missing, the event is skipped with a warning.
    *
-   * The asset is resolved from the pool's token (not from the event), the
-   * donation is recorded via `DonationsService.recordDonation()`, and the
+   * The exact token contract is read from the transaction, the display asset
+   * code is derived from it, the donation is recorded via `DonationsService.recordDonation()`, and the
    * pool's raised amount is set to the running total from the event.
    *
    * @param event - The Horizon contract event to process.
@@ -387,9 +466,19 @@ export class SyncService implements OnModuleInit {
     const amount = event.value[1];
     const newTotal = event.value[2];
 
-    // Resolve the asset from the pool's token rather than the event payload.
+    // The event carries no token, so read it from the donation transaction.
     const pool = await this.poolsService.findByContractId(contractPoolId);
-    const asset = pool?.token || 'XLM';
+    const poolToken = (pool as (Pool & { token?: string | null }) | null)?.token;
+    const tokenContract =
+      (await this.resolveDonationToken(
+        event.txHash,
+        contractPoolId,
+        donorWallet,
+      )) ?? (poolToken && StrKey.isValidContract(poolToken) ? poolToken : null);
+    if (!tokenContract) {
+      this.logger.warn(`No token contract resolved for tx ${event.txHash}`);
+    }
+    const asset = this.assetCode(tokenContract, poolToken);
 
     try {
       await this.donationsService.recordDonation({
@@ -397,6 +486,7 @@ export class SyncService implements OnModuleInit {
         donorWallet,
         amount,
         asset,
+        tokenContract,
         txHash: event.txHash,
       });
     } catch (error) {

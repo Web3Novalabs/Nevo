@@ -25,6 +25,9 @@ export class Donation {
   @Column({ type: 'varchar', length: 12 })
   asset: string;
 
+  @Column({ name: 'token_contract', type: 'varchar', length: 56, nullable: true })
+  tokenContract: string | null;
+
   @Index({ unique: true })
   @Column({ name: 'tx_hash', type: 'varchar', length: 64 })
   txHash: string;
