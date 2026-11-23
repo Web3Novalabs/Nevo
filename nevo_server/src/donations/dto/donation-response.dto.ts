@@ -16,6 +16,13 @@ export class DonationResponseDto {
   @ApiProperty({ description: 'Display asset code.', example: 'XLM' })
   asset: string;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Soroban token contract id (C...). Null for legacy rows.',
+  })
+  tokenContract: string | null;
+
   @ApiProperty()
   txHash: string;
 
