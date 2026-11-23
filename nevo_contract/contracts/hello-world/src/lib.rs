@@ -2713,6 +2713,7 @@ mod test_issue_1459;
 mod test_issue_1355_pool_state_completeness;
 mod test_issue_1368_repeat_donor_aggregation;
 mod test_issue_1358_donate_close_claim_ordering;
+mod test_issue_1357_emergency_withdrawal_request_lifecycle;
 mod test_issue_1371_emergency_withdraw_duplicate_requests;
 mod test_issue_1352_set_pool_state_transitions;
 mod test_issue_1351_close_pool_pending_claims;
