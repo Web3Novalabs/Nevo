@@ -676,6 +676,106 @@ impl Contract {
         env.storage().persistent().set(&token_key, &token_address);
     }
 
+    /// Get the token address configured for a pool via [`Contract::set_pool_token`].
+    ///
+    /// # Arguments
+    /// * `env`     - The contract environment
+    /// * `pool_id` - The ID of the pool to query
+    ///
+    /// # Returns
+    /// The `Address` of the token accepted by token-backed donations for the pool.
+    ///
+    /// # Panics
+    /// - `ContractError::PoolNotFound` if no pool with `pool_id` exists
+    /// - `ContractError::PoolNotFound` if the pool exists but no token has been
+    ///   configured for it
+    pub fn get_pool_token(env: Env, pool_id: u32) -> Address {
+        if !env.storage().persistent().has(&pool_id) {
+            env.panic_with_error(ContractError::PoolNotFound);
+        }
+
+        let token_key = (Symbol::new(&env, POOL_TOKEN_PREFIX), pool_id);
+        env.storage()
+            .persistent()
+            .get::<_, Address>(&token_key)
+            .unwrap_or_else(|| env.panic_with_error(ContractError::PoolNotFound))
+    }
+
+    /// Get the current lifecycle state of a pool.
+    ///
+    /// Unlike [`Contract::get_pool`], which omits the state, this getter exposes
+    /// the pool's [`PoolState`] (Active, Paused, Completed, Cancelled, Disbursed
+    /// or Closed) directly.
+    ///
+    /// # Arguments
+    /// * `env`     - The contract environment
+    /// * `pool_id` - The ID of the pool to query
+    ///
+    /// # Returns
+    /// The pool's current [`PoolState`].
+    ///
+    /// # Panics
+    /// - `ContractError::PoolNotFound` if no pool with `pool_id` exists
+    pub fn get_pool_state(env: Env, pool_id: u32) -> PoolState {
+        let pool: Pool = env
+            .storage()
+            .persistent()
+            .get::<_, Pool>(&pool_id)
+            .unwrap_or_else(|| env.panic_with_error(ContractError::PoolNotFound));
+
+        pool.state
+    }
+
+    /// Get the total amount of accumulated, unclaimed protocol fees.
+    ///
+    /// Fees accrue from operations such as `claim_funds` and
+    /// `create_pool_with_fee`, and are paid out via
+    /// [`Contract::claim_protocol_fees`].
+    ///
+    /// # Arguments
+    /// * `env` - The contract environment
+    ///
+    /// # Returns
+    /// The accumulated fee amount in the token's smallest unit, or `0` if no
+    /// fees have accrued yet.
+    pub fn get_unclaimed_fees(env: Env) -> i128 {
+        let unclaimed_fees_key = Symbol::new(&env, UNCLAIMED_FEES);
+        env.storage()
+            .persistent()
+            .get::<_, i128>(&unclaimed_fees_key)
+            .unwrap_or(0)
+    }
+
+    /// Get the pending emergency withdrawal request for a pool, if any.
+    ///
+    /// Requests are created by [`Contract::request_emergency_withdraw`] and
+    /// removed by [`Contract::execute_emergency_withdraw`].
+    ///
+    /// # Arguments
+    /// * `env`     - The contract environment
+    /// * `pool_id` - The ID of the pool to query
+    ///
+    /// # Returns
+    /// The stored [`EmergencyWithdrawalRequest`] for the pool.
+    ///
+    /// # Panics
+    /// - `ContractError::PoolNotFound` if no pool with `pool_id` exists
+    /// - `ContractError::EmergencyWithdrawalNotRequested` if the pool exists but
+    ///   has no pending emergency withdrawal request
+    pub fn get_emergency_withdrawal(env: Env, pool_id: u32) -> EmergencyWithdrawalRequest {
+        if !env.storage().persistent().has(&pool_id) {
+            env.panic_with_error(ContractError::PoolNotFound);
+        }
+
+        let withdrawal_key = (Symbol::new(&env, EMERGENCY_WITHDRAWAL_PREFIX), pool_id);
+        env.storage()
+            .persistent()
+            .get::<_, EmergencyWithdrawalRequest>(&withdrawal_key)
+            .unwrap_or_else(|| {
+                env.panic_with_error(ContractError::EmergencyWithdrawalNotRequested)
+            })
+    }
+
     /// Get the school linked to a pool.
     pub fn get_pool_school(env: Env, pool_id: u32) -> Address {
         let pool_school_key = (Symbol::new(&env, POOL_SCHOOL_PREFIX), pool_id);

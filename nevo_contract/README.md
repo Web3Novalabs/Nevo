@@ -176,7 +176,35 @@ Returns the total number of pools created.
 #### `get_total_raised(env, pool_id) -> u128`
 Returns the total amount donated to a pool.
 
+#### Read Getters
+
+The following read-only getters expose pool and protocol state so clients can
+render it without guessing or reconstructing values from events.
+
+##### `get_pool_token(env, pool_id) -> Address`
+Returns the token address configured for a pool via `set_pool_token`.
+- **Returns**: The pool's token `Address`
+- **Errors**: `PoolNotFound` if the pool does not exist
+
+##### `get_pool_state(env, pool_id) -> PoolState`
+Returns the current `PoolState` of a pool (`Active`, `Paused`, `Completed`,
+`Cancelled`, `Disbursed`, or `Closed`). This value is not included in
+`get_pool`.
+- **Returns**: The pool's `PoolState`
+- **Errors**: `PoolNotFound` if the pool does not exist
+
+##### `get_unclaimed_fees(env) -> i128`
+Returns the accumulated protocol fees that have not yet been claimed.
+- **Returns**: The unclaimed fee balance as `i128` (0 when none accrued)
+
+##### `get_emergency_withdrawal(env, pool_id) -> EmergencyWithdrawalRequest`
+Returns the pending emergency withdrawal request for a pool.
+- **Returns**: The `EmergencyWithdrawalRequest` for the pool
+- **Errors**: `PoolNotFound` if the pool does not exist;
+  `EmergencyWithdrawalNotRequested` if no emergency withdrawal is pending
+
 ---
+=======
 
 ### Donation Operations
 
