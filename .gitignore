@@ -75,3 +75,7 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# AI assistant and IDE tool files
+.kiro/
+*.kiro
