@@ -1,24 +1,26 @@
 import {
+  Account,
   Address,
   Asset,
   Contract,
-  Keypair,
   TransactionBuilder,
+  nativeToScVal,
   scValToNative,
+  type xdr,
 } from '@stellar/stellar-sdk';
 import { Server } from '@stellar/stellar-sdk/rpc';
-import { Client as NevoContractClient } from '@nevo/contract-client';
 import { env } from './env';
 
 export type DonationAsset = 'XLM' | 'USDC';
 
 /** Mirrors the on-chain `ApplicationStatus` contracttype enum. */
-export type ApplicationStatus = 'Pending' | 'Approved' | 'Rejected';
+export type ApplicationStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revoked';
 
 const APPLICATION_STATUS_VARIANTS: readonly ApplicationStatus[] = [
   'Pending',
   'Approved',
   'Rejected',
+  'Revoked',
 ];
 
 /**
@@ -68,19 +70,29 @@ function getContractId(): string {
   return id;
 }
 
-/**
- * Builds the generated contract client used to encode contract calls.
- *
- * The generated bindings are the single source of truth for argument order
- * and types, so any contract signature change breaks this build.
- */
-function getGeneratedClient(publicKey: string): NevoContractClient {
-  return new NevoContractClient({
-    contractId: getContractId(),
-    networkPassphrase: NETWORK_PASSPHRASE,
-    rpcUrl: RPC_URL,
-    publicKey,
-  });
+// Simulation never loads the source account, so reads need no funded wallet.
+const READ_ONLY_SOURCE =
+  'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+
+export type ContractReadErrorCode =
+  | 'RPC_ERROR'
+  | 'SIMULATION_FAILED'
+  | 'EMPTY_RESULT';
+
+export class ContractReadError extends Error {
+  constructor(
+    readonly code: ContractReadErrorCode,
+    readonly method: string,
+    message: string,
+    readonly cause?: unknown
+  ) {
+    super(`${method}: ${message}`);
+    this.name = 'ContractReadError';
+  }
+}
+
+function addressScVal(address: string): xdr.ScVal {
+  return new Address(address).toScVal();
 }
 
 const I128_MIN = -(2n ** 127n);
@@ -103,27 +115,49 @@ function toI128(value: bigint, field: string): bigint {
 class ContractService {
   private readonly server = new Server(RPC_URL);
 
-  async getPoolCount(): Promise<number> {
-    try {
-      const contract = new Contract(getContractId());
-      const source = Keypair.random();
-      const account = await this.server.getAccount(source.publicKey());
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: NETWORK_PASSPHRASE,
-      })
-        .addOperation(contract.call('get_pool_count'))
-        .setTimeout(TX_TIMEOUT)
-        .build();
+  /** Runs a read-only contract call through RPC simulation. */
+  private async simulateRead<T>(
+    method: string,
+    ...args: xdr.ScVal[]
+  ): Promise<T> {
+    const contract = new Contract(getContractId());
+    const tx = new TransactionBuilder(new Account(READ_ONLY_SOURCE, '0'), {
+      fee: BASE_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(contract.call(method, ...args))
+      .setTimeout(TX_TIMEOUT)
+      .build();
 
-      const result = await this.server.simulateTransaction(tx);
-      if ('error' in result) return -1;
-      const retVal = result.result?.retval;
-      if (!retVal) return -1;
-      return Number(scValToNative(retVal));
-    } catch {
-      return -1;
+    let result: Awaited<ReturnType<Server['simulateTransaction']>>;
+    try {
+      result = await this.server.simulateTransaction(tx);
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      throw new ContractReadError('RPC_ERROR', method, detail, cause);
     }
+
+    if ('error' in result) {
+      throw new ContractReadError(
+        'SIMULATION_FAILED',
+        method,
+        String(result.error)
+      );
+    }
+    const retVal = result.result?.retval;
+    if (!retVal) {
+      throw new ContractReadError(
+        'EMPTY_RESULT',
+        method,
+        'simulation returned no value'
+      );
+    }
+    return scValToNative(retVal) as T;
+  }
+
+  /** @throws {ContractReadError} when the count cannot be read. */
+  async getPoolCount(): Promise<number> {
+    return Number(await this.simulateRead<number>('get_pool_count'));
   }
 
   /**
@@ -143,13 +177,7 @@ class ContractService {
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(
-        getGeneratedClient(creator).createPool({
-          creator,
-          title,
-          description,
-          goal,
-        })
-        contract.call(
+        new Contract(getContractId()).call(
           'create_pool',
           addressScVal(creator),
           nativeToScVal(title, { type: 'string' }),
@@ -182,13 +210,7 @@ class ContractService {
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(
-        getGeneratedClient(donor).donateWithToken({
-          poolId,
-          donor,
-          token: tokenAddress,
-          amount,
-        })
-        contract.call(
+        new Contract(getContractId()).call(
           'donate_with_token',
           nativeToScVal(poolId, { type: 'u32' }),
           addressScVal(donor),
@@ -215,10 +237,11 @@ class ContractService {
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(
-        getGeneratedClient(creator).withdrawUnallocatedFunds({
-          poolId,
-          token: tokenAddress,
-        })
+        new Contract(getContractId()).call(
+          'withdraw_unallocated_funds',
+          nativeToScVal(poolId, { type: 'u32' }),
+          addressScVal(tokenAddress)
+        )
       )
       .setTimeout(TX_TIMEOUT)
       .build();
@@ -233,30 +256,16 @@ class ContractService {
    * The contract returns an `ApplicationStatus` enum, which is decoded into a
    * typed `ApplicationStatus` value.
    */
-  async getApplicationStatus(applicationId: number): Promise<ApplicationStatus> {
-    const contract = new Contract(getContractId());
-    const source = Keypair.random();
-    const account = await this.server.getAccount(source.publicKey());
-    const tx = new TransactionBuilder(account, {
-      fee: BASE_FEE,
-      networkPassphrase: NETWORK_PASSPHRASE,
-    })
-      .addOperation(
-        contract.call(
-          'get_application_status',
-          nativeToScVal(applicationId, { type: 'u32' })
-        )
-      )
-      .setTimeout(TX_TIMEOUT)
-      .build();
-
-    const result = await this.server.simulateTransaction(tx);
-    if ('error' in result) {
-      throw new Error(`Failed to read application status: ${result.error}`);
-    }
-    const retVal = result.result?.retval;
-    if (!retVal) throw new Error('No application status returned');
-    return parseApplicationStatus(scValToNative(retVal));
+  async getApplicationStatus(
+    poolId: number,
+    student: string
+  ): Promise<ApplicationStatus> {
+    const value = await this.simulateRead<unknown>(
+      'get_application_status',
+      nativeToScVal(poolId, { type: 'u32' }),
+      addressScVal(student)
+    );
+    return parseApplicationStatus(value);
   }
 
   /** Builds an XDR-encoded transaction to close a pool permanently. */
@@ -270,9 +279,10 @@ class ContractService {
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(
-        getGeneratedClient(creator).closePool({
-          poolId,
-        })
+        new Contract(getContractId()).call(
+          'close_pool',
+          nativeToScVal(poolId, { type: 'u32' })
+        )
       )
       .setTimeout(TX_TIMEOUT)
       .build();
