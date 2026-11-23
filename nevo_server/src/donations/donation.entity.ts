@@ -33,6 +33,10 @@ export class Donation {
   memo: string | null;
 
   @Index()
+  @Column({ name: 'refunded', type: 'boolean', default: false })
+  refunded: boolean;
+
+  @Index()
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

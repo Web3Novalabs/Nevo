@@ -20,7 +20,7 @@ fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
 /// a balance of (must be reused by callers when invoking `claim_funds`).
 fn setup_claimable_pool(
     env: &Env,
-    collected: u128,
+    collected: i128,
 ) -> (ContractClient<'_>, u32, Address, Address) {
     let contract_id = env.register(Contract, ());
     let client = ContractClient::new(env, &contract_id);
@@ -44,7 +44,7 @@ fn setup_claimable_pool(
 
     let sponsor = Address::generate(env);
     client.donate(&pool_id, &sponsor, &collected);
-    let token = create_token(env, collected as i128, &contract_id);
+    let token = create_token(env, collected, &contract_id);
 
     let student = Address::generate(env);
     client.apply_to_pool(&pool_id, &student, &String::from_str(env, "application"));
@@ -53,12 +53,35 @@ fn setup_claimable_pool(
     (client, pool_id, student, token)
 }
 
+/// Configures a single milestone summing to the student's approved amount
+/// and releases it, so the released-total gate permits claims up to that
+/// amount.
+fn release_full_milestone(
+    env: &Env,
+    client: &ContractClient<'_>,
+    pool_id: &u32,
+    school: &Address,
+    student: &Address,
+    amount: i128,
+) {
+    let milestones = soroban_sdk::vec![
+        env,
+        Milestone {
+            description: String::from_str(env, "Full award"),
+            amount,
+            released: false,
+        },
+    ];
+    client.setup_application_milestones(pool_id, student, &milestones);
+    client.release_milestone(pool_id, school, student, &0u32);
+}
+
 /// `get_claimed_amount` returns 0 before any `claim_funds` call.
 #[test]
 fn test_claimed_amount_zero_before_any_claim() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, pool_id, student, _) = setup_claimable_pool(&env, 1_000_000u128);
+    let (client, pool_id, student, _) = setup_claimable_pool(&env, 1_000_000i128);
 
     assert_eq!(client.get_claimed_amount(&pool_id, &student), 0i128);
 }
@@ -69,7 +92,9 @@ fn test_claimed_amount_zero_before_any_claim() {
 fn test_claimed_amount_increments_after_each_claim() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, pool_id, student, token) = setup_claimable_pool(&env, 1_000_000u128);
+    let (client, pool_id, student, token) = setup_claimable_pool(&env, 1_000_000i128);
+    let school = client.get_pool_school(&pool_id);
+    release_full_milestone(&env, &client, &pool_id, &school, &student, 1_000_000i128);
 
     client.claim_funds(&student, &pool_id, &100_000i128, &token);
     assert_eq!(client.get_claimed_amount(&pool_id, &student), 100_000i128);
@@ -85,7 +110,9 @@ fn test_claimed_amount_increments_after_each_claim() {
 fn test_claimed_amount_never_exceeds_collected() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, pool_id, student, token) = setup_claimable_pool(&env, 1_000_000u128);
+    let (client, pool_id, student, token) = setup_claimable_pool(&env, 1_000_000i128);
+    let school = client.get_pool_school(&pool_id);
+    release_full_milestone(&env, &client, &pool_id, &school, &student, 1_000_000i128);
 
     client.claim_funds(&student, &pool_id, &900_000i128, &token);
     assert_eq!(client.get_claimed_amount(&pool_id, &student), 900_000i128);
@@ -104,10 +131,14 @@ fn test_claimed_amount_never_exceeds_collected() {
 fn test_claimed_amount_isolated_per_pool_and_student() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, pool_id_a, student_a, token_a) = setup_claimable_pool(&env, 1_000_000u128);
+    let (client, pool_id_a, student_a, token_a) = setup_claimable_pool(&env, 1_000_000i128);
+    let school_a = client.get_pool_school(&pool_id_a);
+    release_full_milestone(&env, &client, &pool_id_a, &school_a, &student_a, 1_000_000i128);
     client.claim_funds(&student_a, &pool_id_a, &100_000i128, &token_a);
 
-    let (client_b, pool_id_b, student_b, token_b) = setup_claimable_pool(&env, 2_000_000u128);
+    let (client_b, pool_id_b, student_b, token_b) = setup_claimable_pool(&env, 2_000_000i128);
+    let school_b = client_b.get_pool_school(&pool_id_b);
+    release_full_milestone(&env, &client_b, &pool_id_b, &school_b, &student_b, 2_000_000i128);
     client_b.claim_funds(&student_b, &pool_id_b, &300_000i128, &token_b);
 
     assert_eq!(client.get_claimed_amount(&pool_id_a, &student_a), 100_000i128);
@@ -125,11 +156,46 @@ fn test_claimed_amount_isolated_per_pool_and_student() {
 fn test_claimed_amount_precision_for_large_amounts() {
     let env = Env::default();
     env.mock_all_auths();
-    let large_collected: u128 = 90_000_000_000_000_000u128;
+    let large_collected: i128 = 90_000_000_000_000_000i128;
     let (client, pool_id, student, token) = setup_claimable_pool(&env, large_collected);
+    let school = client.get_pool_school(&pool_id);
+    release_full_milestone(&env, &client, &pool_id, &school, &student, large_collected);
 
     let claim_amount: i128 = 70_000_000_000_000_000i128;
     client.claim_funds(&student, &pool_id, &claim_amount, &token);
 
     assert_eq!(client.get_claimed_amount(&pool_id, &student), claim_amount);
+}
+
+/// A claim exceeding the released milestone total is rejected, and the
+/// running total is left unchanged.
+#[test]
+fn test_claim_above_released_total_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, pool_id, student, token) = setup_claimable_pool(&env, 1_000_000i128);
+    let school = client.get_pool_school(&pool_id);
+
+    // Only half of the approved amount is released.
+    let milestones = soroban_sdk::vec![
+        &env,
+        Milestone {
+            description: String::from_str(&env, "Half award"),
+            amount: 500_000i128,
+            released: false,
+        },
+    ];
+    client.setup_application_milestones(&pool_id, &student, &milestones);
+    client.release_milestone(&pool_id, &school, &student, &0u32);
+
+    let res = client.try_claim_funds(&student, &pool_id, &600_000i128, &token);
+    assert!(res.is_err(), "Claim above released total must fail");
+    assert_eq!(
+        client.get_claimed_amount(&pool_id, &student),
+        0i128,
+        "Running total must be unchanged after a rejected claim"
+    );
+
+    client.claim_funds(&student, &pool_id, &500_000i128, &token);
+    assert_eq!(client.get_claimed_amount(&pool_id, &student), 500_000i128);
 }

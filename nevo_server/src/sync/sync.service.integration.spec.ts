@@ -194,10 +194,11 @@ describe('SyncService Integration Tests', () => {
       await service.processPoolCreatedEvent(poolEvent);
     });
 
-    it('creates a Donation record in DB when processing donation event', async () => {
+    it('creates a Donation record in DB when processing contrib event', async () => {
+      // Contract shape: topic = [contrib, pool_id, donor], value = [amount, running_total, asset]
       const donationEvent: HorizonContractEvent = {
-        topic: ['donation', 'pool-789'],
-        value: ['GDONOR001', '5000', 'XLM'],
+        topic: ['contrib', 'pool-789', 'GDONOR001'],
+        value: ['5000', '5000', 'XLM'],
         txHash: 'tx-donation-001',
       };
 
@@ -215,12 +216,13 @@ describe('SyncService Integration Tests', () => {
       expect(donation.amount).toBe('5000');
       expect(donation.asset).toBe('XLM');
       expect(donation.txHash).toBe('tx-donation-001');
+      expect(donation.refunded).toBe(false);
     });
 
-    it('updates pool.raised when processing donation event', async () => {
+    it('updates pool.raised when processing contrib event', async () => {
       const donationEvent: HorizonContractEvent = {
-        topic: ['donation', 'pool-789'],
-        value: ['GDONOR002', '10000', 'XLM'],
+        topic: ['contrib', 'pool-789', 'GDONOR002'],
+        value: ['10000', '10000', 'XLM'],
         txHash: 'tx-donation-002',
       };
 
@@ -233,16 +235,16 @@ describe('SyncService Integration Tests', () => {
       expect(pool?.raised).toBe('10000');
     });
 
-    it('correctly accumulates multiple donations to pool.raised', async () => {
+    it('correctly accumulates multiple contrib events to pool.raised', async () => {
       const donation1: HorizonContractEvent = {
-        topic: ['donation', 'pool-789'],
-        value: ['GDONOR003', '3000', 'XLM'],
+        topic: ['contrib', 'pool-789', 'GDONOR003'],
+        value: ['3000', '3000', 'XLM'],
         txHash: 'tx-donation-003',
       };
 
       const donation2: HorizonContractEvent = {
-        topic: ['donation', 'pool-789'],
-        value: ['GDONOR004', '7000', 'XLM'],
+        topic: ['contrib', 'pool-789', 'GDONOR004'],
+        value: ['7000', '10000', 'XLM'],
         txHash: 'tx-donation-004',
       };
 
@@ -258,8 +260,8 @@ describe('SyncService Integration Tests', () => {
 
     it('skips donation event when txHash is missing', async () => {
       const donationEvent: HorizonContractEvent = {
-        topic: ['donation', 'pool-789'],
-        value: ['GDONOR005', '1000', 'XLM'],
+        topic: ['contrib', 'pool-789', 'GDONOR005'],
+        value: ['1000', '1000', 'XLM'],
         // No txHash
       };
 
@@ -267,6 +269,62 @@ describe('SyncService Integration Tests', () => {
 
       const donations = await donationRepo.find();
       expect(donations.length).toBe(0);
+    });
+  });
+
+  describe('processDonationRefundedEvent', () => {
+    beforeEach(async () => {
+      const poolEvent: HorizonContractEvent = {
+        topic: ['pool_crtd', 'pool-refund-1'],
+        value: ['GCREATORREF', '100000', 'Refund Pool', 'Refund test'],
+        txHash: 'tx-pool-refund-1',
+      };
+      await service.processPoolCreatedEvent(poolEvent);
+
+      const donationEvent: HorizonContractEvent = {
+        topic: ['contrib', 'pool-refund-1', 'GDONORREF'],
+        value: ['4000', '4000', 'XLM'],
+        txHash: 'tx-refund-donation-1',
+      };
+      await service.processDonationEvent(donationEvent);
+    });
+
+    it('decrements pool.raised and marks the donation refunded on don_refnd', async () => {
+      // Contract shape: topic = [don_refnd, pool_id, donor], value = [amount, running_total, asset]
+      const refundEvent: HorizonContractEvent = {
+        topic: ['don_refnd', 'pool-refund-1', 'GDONORREF'],
+        value: ['4000', '0', 'XLM'],
+        txHash: 'tx-refund-1',
+      };
+
+      await service.processDonationRefundedEvent(refundEvent);
+
+      const pool = await poolRepo.findOne({
+        where: { contractPoolId: 'pool-refund-1' },
+      });
+      expect(pool?.raised).toBe('0');
+
+      const donations = await donationRepo.find();
+      const donation = donations.find(
+        (d) => d.txHash === 'tx-refund-donation-1',
+      );
+      expect(donation).toBeDefined();
+      expect(donation?.refunded).toBe(true);
+    });
+
+    it('does not go below zero when refunding an unknown donation', async () => {
+      const refundEvent: HorizonContractEvent = {
+        topic: ['don_refnd', 'pool-refund-1', 'GUNKNOWN'],
+        value: ['9999', '0', 'XLM'],
+        txHash: 'tx-refund-unknown',
+      };
+
+      await service.processDonationRefundedEvent(refundEvent);
+
+      const pool = await poolRepo.findOne({
+        where: { contractPoolId: 'pool-refund-1' },
+      });
+      expect(pool?.raised).toBe('4000');
     });
   });
 
@@ -309,8 +367,8 @@ describe('SyncService Integration Tests', () => {
       await service.processPoolCreatedEvent(poolEvent);
 
       const donationEvent: HorizonContractEvent = {
-        topic: ['donation', 'pool-idem-1'],
-        value: ['GDONOR111', '5000', 'XLM'],
+        topic: ['contrib', 'pool-idem-1', 'GDONOR111'],
+        value: ['5000', '5000', 'XLM'],
         txHash: 'tx-duplicate-donation',
       };
 
@@ -353,8 +411,8 @@ describe('SyncService Integration Tests', () => {
 
       // Add a donation to track if pool state changes
       const donationEvent: HorizonContractEvent = {
-        topic: ['donation', 'pool-idem-2'],
-        value: ['GDONOR222', '1000', 'XLM'],
+        topic: ['contrib', 'pool-idem-2', 'GDONOR222'],
+        value: ['1000', '1000', 'XLM'],
         txHash: 'tx-donation-unique',
       };
       await service.processDonationEvent(donationEvent);
@@ -429,8 +487,8 @@ describe('SyncService Integration Tests', () => {
       await service.processPoolCreatedEvent(poolEvent);
 
       const donationEvent: HorizonContractEvent = {
-        topic: ['donation', 'pool-same-run'],
-        value: ['GDONOR444', '2000', 'XLM'],
+        topic: ['contrib', 'pool-same-run', 'GDONOR444'],
+        value: ['2000', '2000', 'XLM'],
         txHash: 'tx-same-run-dup',
       };
 
@@ -465,15 +523,15 @@ describe('SyncService Integration Tests', () => {
 
       // 2. Multiple donations
       const donation1: HorizonContractEvent = {
-        topic: ['donation', 'pool-lifecycle'],
-        value: ['GDONOR555A', '25000', 'XLM'],
+        topic: ['contrib', 'pool-lifecycle', 'GDONOR555A'],
+        value: ['25000', '25000', 'XLM'],
         txHash: 'tx-lifecycle-don-1',
       };
       await service.processDonationEvent(donation1);
 
       const donation2: HorizonContractEvent = {
-        topic: ['donation', 'pool-lifecycle'],
-        value: ['GDONOR555B', '35000', 'XLM'],
+        topic: ['contrib', 'pool-lifecycle', 'GDONOR555B'],
+        value: ['35000', '60000', 'XLM'],
         txHash: 'tx-lifecycle-don-2',
       };
       await service.processDonationEvent(donation2);
@@ -502,6 +560,40 @@ describe('SyncService Integration Tests', () => {
       });
       expect(pool?.status).toBe(PoolStatus.Closed);
       expect(pool?.raised).toBe('60000'); // Raised amount preserved
+    });
+
+    it('handles a refund within the lifecycle and keeps totals consistent', async () => {
+      const poolCreatedEvent: HorizonContractEvent = {
+        topic: ['pool_crtd', 'pool-lifecycle-refund'],
+        value: ['GCREATOR666', '100000', 'Refund Lifecycle', 'Full test'],
+        txHash: 'tx-lifecycle-refund-created',
+      };
+      await service.processPoolCreatedEvent(poolCreatedEvent);
+
+      const donation: HorizonContractEvent = {
+        topic: ['contrib', 'pool-lifecycle-refund', 'GDONOR666'],
+        value: ['20000', '20000', 'XLM'],
+        txHash: 'tx-lifecycle-refund-don',
+      };
+      await service.processDonationEvent(donation);
+
+      const refund: HorizonContractEvent = {
+        topic: ['don_refnd', 'pool-lifecycle-refund', 'GDONOR666'],
+        value: ['20000', '0', 'XLM'],
+        txHash: 'tx-lifecycle-refund',
+      };
+      await service.processDonationRefundedEvent(refund);
+
+      const pool = await poolRepo.findOne({
+        where: { contractPoolId: 'pool-lifecycle-refund' },
+      });
+      expect(pool?.raised).toBe('0');
+
+      const donations = await donationRepo.find();
+      const refunded = donations.find(
+        (d) => d.txHash === 'tx-lifecycle-refund-don',
+      );
+      expect(refunded?.refunded).toBe(true);
     });
   });
 });
