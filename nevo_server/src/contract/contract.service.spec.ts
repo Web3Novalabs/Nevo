@@ -243,6 +243,55 @@ describe('ContractService', () => {
 
     it('buildDonateTransaction invokes donate_with_token with (pool_id, donor, token, amount)', async () => {
       const xdrStr = await service.buildDonateTransaction(SOURCE, 42, '777');
+      const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
+      // arg[1] is the goal
+      expect(args[1].switch().name).toBe('scvI128');
+      expect(args[1].switch().name).not.toBe('scvU128');
+      expect(scValToNative(args[1])).toBe(9999n);
+    });
+
+    it('buildCreatePoolTransaction rejects a goal above i128::MAX with a typed error', () => {
+      const tooLarge = (BigInt('1') << BigInt(127)).toString();
+      expect(() =>
+        service.buildCreatePoolTransaction({
+          creator: SOURCE,
+          goal: tooLarge,
+          token: TOKEN,
+          title: 'Pool',
+          description: 'desc',
+        }),
+      ).toThrow(StellarError);
+    });
+
+    it('buildCreatePoolTransaction rejects a negative goal with a typed error', () => {
+      expect(() =>
+        service.buildCreatePoolTransaction({
+          creator: SOURCE,
+          goal: '-1',
+          token: TOKEN,
+          title: 'Pool',
+          description: 'desc',
+        }),
+      ).toThrow(StellarError);
+    });
+
+    it('buildCreatePoolTransaction encodes title as string', () => {
+      const xdrStr = service.buildCreatePoolTransaction({
+        creator: SOURCE,
+        goal: '100',
+        token: TOKEN,
+        title: 'Hello',
+        description: 'desc',
+      });
+      const op = decodeFirstOp(xdrStr);
+      const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
+      // arg[3] is the title
+      expect(args[3].switch().name).toBe('scvString');
+      expect(args[3].str().toString()).toBe('Hello');
+    });
+
+    it('buildDonateTransaction encodes poolId as u32', () => {
+      const xdrStr = service.buildDonateTransaction(SOURCE, 42, '100');
       const op = decodeFirstOp(xdrStr);
       const invoke = op.func?.invokeContract?.();
       expect(invoke?.functionName?.().toString()).toBe('donate_with_token');
@@ -263,6 +312,29 @@ describe('ContractService', () => {
 
     it('buildWithdrawTransaction encodes poolId as u32 and token as address', async () => {
       const xdrStr = await service.buildWithdrawTransaction(SOURCE, 9, TOKEN);
+    it('buildDonateTransaction encodes amount as i128', () => {
+      const xdrStr = service.buildDonateTransaction(SOURCE, 1, '777');
+      const op = decodeFirstOp(xdrStr);
+      const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
+      expect(args[1].switch().name).toBe('scvI128');
+      expect(scValToNative(args[1])).toBe(777n);
+    });
+
+    it('buildDonateTransaction rejects an amount above i128::MAX with a typed error', () => {
+      const tooLarge = (BigInt('1') << BigInt(127)).toString();
+      expect(() =>
+        service.buildDonateTransaction(SOURCE, 1, tooLarge),
+      ).toThrow(StellarError);
+    });
+
+    it('buildDonateTransaction rejects a negative amount with a typed error', () => {
+      expect(() => service.buildDonateTransaction(SOURCE, 1, '-5')).toThrow(
+        StellarError,
+      );
+    });
+
+    it('buildWithdrawTransaction encodes poolId as u32 and token as address', () => {
+      const xdrStr = service.buildWithdrawTransaction(SOURCE, 9, TOKEN);
       const op = decodeFirstOp(xdrStr);
       const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
       expect(args[0].switch().name).toBe('scvU32');

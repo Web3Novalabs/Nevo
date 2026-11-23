@@ -22,7 +22,7 @@ mod tests {
         // Create a pool
         let title = String::from_str(env, "Test Pool");
         let description = String::from_str(env, "Test Description");
-        let goal = 1000u128;
+        let goal = 1000i128;
         let deadline = 200000u64;
 
         let pool_id = client.create_pool(&sponsor, &title, &description, &goal, &deadline);
@@ -119,7 +119,31 @@ mod tests {
 
         // Verify pool collected amount increased
         let (_, _, _, collected, _, _) = client.get_pool(&pool_id);
-        assert_eq!(collected, 500u128, "Pool collected amount should be 500");
+        assert_eq!(collected, 500i128, "Pool collected amount should be 500");
+    }
+
+    #[test]
+    fn test_donate_with_token_amount_above_i128_max_rejected() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, token) = setup_pool_with_token(&env, &client);
+        let donor = Address::generate(&env);
+
+        // Create token for donor
+        create_token(&env, 10000, &donor);
+
+        // Attempt to donate an amount above i128::MAX - should be rejected with
+        // the typed AmountOverflow error instead of silently wrapping.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.donate_with_token(&pool_id, &donor, &token, &(i128::MAX + 1));
+        }));
+
+        assert!(
+            result.is_err(),
+            "Expected panic with AmountOverflow for amount above i128::MAX"
+        );
     }
 
     #[test]
@@ -134,7 +158,7 @@ mod tests {
 
         let title = String::from_str(&env, "Test Pool");
         let description = String::from_str(&env, "Test Description");
-        let goal = 1000u128;
+        let goal = 1000i128;
         let deadline = 200000u64;
 
         let pool_id = client.create_pool(&sponsor, &title, &description, &goal, &deadline);
@@ -169,7 +193,7 @@ mod tests {
 
         let title = String::from_str(&env, "Test Pool");
         let description = String::from_str(&env, "Test Description");
-        let goal = 1000u128;
+        let goal = 1000i128;
         let deadline = 200000u64;
 
         let pool_id = client.create_pool(&sponsor, &title, &description, &goal, &deadline);

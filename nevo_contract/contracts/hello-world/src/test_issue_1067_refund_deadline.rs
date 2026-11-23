@@ -84,7 +84,7 @@ fn test_refund_before_deadline_fails() {
         &creator,
         &String::from_str(&env, "Refund Test Pool"),
         &String::from_str(&env, "Testing deadline logic"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &2_000_000u64,
     );
     client.donate_with_token(&pool_id, &donor, &token, &donation);
@@ -124,7 +124,7 @@ fn test_refund_at_deadline_fails() {
         &creator,
         &String::from_str(&env, "Refund Test Pool"),
         &String::from_str(&env, "Testing at-deadline behaviour"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &2_000_000u64,
     );
     client.donate_with_token(&pool_id, &donor, &token, &donation);
@@ -166,7 +166,7 @@ fn test_refund_after_deadline_before_grace_period_fails() {
         &creator,
         &String::from_str(&env, "Refund Test Pool"),
         &String::from_str(&env, "Testing pre-grace behaviour"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &2_000_000u64,
     );
     client.donate_with_token(&pool_id, &donor, &token, &donation);
@@ -208,7 +208,7 @@ fn test_refund_after_grace_period_succeeds() {
         &creator,
         &String::from_str(&env, "Refund Test Pool"),
         &String::from_str(&env, "Testing post-grace behaviour"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &2_000_000u64,
     );
 
@@ -221,8 +221,7 @@ fn test_refund_after_grace_period_succeeds() {
     // Verify contribution is recorded before refund
     let contrib_before = client.get_contribution(&pool_id, &donor);
     assert_eq!(
-        contrib_before,
-        donation as u128,
+        contrib_before, donation,
         "Contribution must be recorded before refund"
     );
 
@@ -236,14 +235,77 @@ fn test_refund_after_grace_period_succeeds() {
     // Contribution record must be cleared
     let contrib_after = client.get_contribution(&pool_id, &donor);
     assert_eq!(
-        contrib_after, 0u128,
+        contrib_after, 0i128,
         "Contribution must be zeroed after a successful refund"
     );
 
     // Pool collected must be zero (the only donation was refunded)
     let pool_collected = client.get_total_raised(&pool_id);
     assert_eq!(
-        pool_collected, 0u128,
+        pool_collected, 0i128,
         "Pool collected must decrease by the refunded donation"
     );
+}
+
+// ── Test 5: cancelled pool refunds are always available (issue #1678) ─────
+
+/// A Cancelled pool must never strand donor funds: `refund_donation` must
+/// succeed for a cancelled pool even when no deadline has been set (or the
+/// deadline/grace period has not elapsed). Closing such a pool while
+/// `collected > 0` must be rejected so funds stay recoverable.
+#[test]
+fn test_cancelled_pool_refund_without_deadline_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    set_ledger_sequence(&env, 100);
+
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let donation: i128 = 500_000_000;
+
+    let token = create_token(&env, donation, &donor);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Cancelled Refund Pool"),
+        &String::from_str(&env, "Testing cancelled refunds"),
+        &5_000_000_000i128,
+        &2_000_000u64,
+    );
+    client.donate_with_token(&pool_id, &donor, &token, &donation);
+
+    // Cancel the pool without ever setting a deadline.
+    client.cancel_pool(&pool_id);
+
+    // Closing while funds are still held must not be allowed.
+    let close_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        client.close_pool(&pool_id);
+    }));
+    assert!(
+        close_result.is_err(),
+        "close_pool must be rejected while collected > 0"
+    );
+
+    // Refund must succeed immediately for a cancelled pool, regardless of
+    // the (unset) deadline and grace period.
+    client.refund_donation(&pool_id, &donor, &token);
+
+    let contrib_after = client.get_contribution(&pool_id, &donor);
+    assert_eq!(
+        contrib_after, 0i128,
+        "Contribution must be zeroed after a cancelled-pool refund"
+    );
+
+    let pool_collected = client.get_total_raised(&pool_id);
+    assert_eq!(
+        pool_collected, 0i128,
+        "Pool collected must be zero after refunding a cancelled pool"
+    );
+
+    // With everything refunded, closing the pool is now safe.
+    client.close_pool(&pool_id);
 }
