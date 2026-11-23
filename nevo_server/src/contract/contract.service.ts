@@ -180,6 +180,7 @@ export class ContractService {
   ): Promise<string> {
     return this.buildTransaction(
       sourcePublicKey,
+      this.contract.call('close_pool', nativeToScVal(poolId, { type: 'u32' })),
       this.client.close_pool({
         pool_id: poolId,
         caller: sourcePublicKey,
@@ -374,33 +375,48 @@ export class ContractService {
       return 'failed';
   }
 
+  /**
+   * Simulates a read-only contract call from an in-memory source account.
+   * Simulation does not require a funded account or a real sequence number,
+   * so no `getAccount` round-trip is needed. Throws on RPC/simulation
+   * failure so callers can distinguish an outage from a genuine result.
+   */
+  private async simulateRead<T>(
+    method: string,
+    ...args: xdr.ScVal[]
+  ): Promise<T> {
+    const source = new Account(
+      this.stellar.sourceSecret
+        ? Keypair.fromSecret(this.stellar.sourceSecret).publicKey()
+        : Keypair.random().publicKey(),
+      '0',
+    );
+    const tx = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: this.stellar.networkPassphrase,
+    })
+      .addOperation(this.contract.call(method, ...args))
+      .setTimeout(30)
+      .build();
+
+    const result = await this.rpcServer.simulateTransaction(tx);
+    if ('error' in result) {
+      throw new Error(`${method} simulation failed: ${String(result.error)}`);
+    }
+    const retVal = result.result?.retval;
+    if (!retVal) {
+      throw new Error(`${method} simulation returned no value`);
+    }
+    return scValToNative(retVal) as T;
+  }
+
   async getContributionOnChain(poolId: number, donor: string): Promise<bigint> {
     try {
-      const keypair = this.stellar.sourceSecret
-        ? Keypair.fromSecret(this.stellar.sourceSecret)
-        : Keypair.random();
-      const account = await this.rpcServer.getAccount(keypair.publicKey());
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: this.stellar.networkPassphrase,
-      })
-        .addOperation(
-          this.contract.call(
-            'get_contribution',
-            nativeToScVal(poolId, { type: 'u32' }),
-            nativeToScVal(donor, { type: 'address' }),
-          ),
-        )
-        .setTimeout(30)
-        .build();
-
-      const result = await this.rpcServer.simulateTransaction(tx);
-      if ('error' in result) return 0n;
-
-      const simResult = result;
-      const retVal = simResult.result?.retval;
-      if (!retVal) return 0n;
-
+      const native = await this.simulateRead<unknown>('get_contribution', [
+        nativeToScVal(poolId, { type: 'u32' }),
+        nativeToScVal(donor, { type: 'address' }),
+      ]);
+      return typeof native === 'bigint' ? native : BigInt(String(native));
       const val = xdr.ScVal.fromXDR(retVal.toXDR());
       if (val.switch().name === 'scvI128') {
         const parts = val.i128();
@@ -434,30 +450,10 @@ export class ContractService {
     closed: boolean;
   } | null> {
     try {
-      const keypair = this.stellar.sourceSecret
-        ? Keypair.fromSecret(this.stellar.sourceSecret)
-        : Keypair.random();
-      const account = await this.rpcServer.getAccount(keypair.publicKey());
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: this.stellar.networkPassphrase,
-      })
-        .addOperation(
-          this.contract.call(
-            'get_pool',
-            nativeToScVal(poolId, { type: 'u32' }),
-          ),
-        )
-        .setTimeout(30)
-        .build();
-
-      const result = await this.rpcServer.simulateTransaction(tx);
-      if ('error' in result) return null;
-
-      const retVal = result.result?.retval;
-      if (!retVal) return null;
-
-      const native: unknown = scValToNative(retVal);
+      const native = await this.simulateRead<unknown>(
+        'get_pool',
+        nativeToScVal(poolId, { type: 'u32' }),
+      );
       if (Array.isArray(native) && native.length >= 5) {
         const fields = native as Array<bigint | number | string | boolean>;
         return {
@@ -483,6 +479,11 @@ export class ContractService {
    * callers that persist the result never mistake an outage for a zero total.
    */
   async fetchTotalRaisedOnChain(poolId: number): Promise<bigint> {
+    const native = await this.simulateRead<unknown>(
+      'get_total_raised',
+      nativeToScVal(poolId, { type: 'u32' }),
+    );
+    return typeof native === 'bigint' ? native : BigInt(String(native));
     const keypair = this.stellar.sourceSecret
       ? Keypair.fromSecret(this.stellar.sourceSecret)
       : Keypair.random();
@@ -532,30 +533,11 @@ export class ContractService {
 
   async getDonorCountOnChain(poolId: number): Promise<number> {
     try {
-      const keypair = this.stellar.sourceSecret
-        ? Keypair.fromSecret(this.stellar.sourceSecret)
-        : Keypair.random();
-      const account = await this.rpcServer.getAccount(keypair.publicKey());
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: this.stellar.networkPassphrase,
-      })
-        .addOperation(
-          this.contract.call(
-            'get_donor_count',
-            nativeToScVal(poolId, { type: 'u32' }),
-          ),
-        )
-        .setTimeout(30)
-        .build();
-
-      const result = await this.rpcServer.simulateTransaction(tx);
-      if ('error' in result) return 0;
-
-      const retVal = result.result?.retval;
-      if (!retVal) return 0;
-
-      return Number(scValToNative(retVal));
+      const native = await this.simulateRead<unknown>(
+        'get_donor_count',
+        nativeToScVal(poolId, { type: 'u32' }),
+      );
+      return Number(native);
     } catch (err: unknown) {
       this.logger.error(
         `Failed to fetch donor count on-chain for poolId ${poolId}`,
