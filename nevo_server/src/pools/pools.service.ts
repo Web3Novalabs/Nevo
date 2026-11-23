@@ -210,9 +210,11 @@ export class PoolsService {
     return this.poolRepo.save(pool);
   }
 
-  buildWithdrawTx(pool: Pool): { unsignedXdr: string; poolId: string } {
+  async buildWithdrawTx(
+    pool: Pool,
+  ): Promise<{ unsignedXdr: string; poolId: string }> {
     const { tokenAddress } = this.stellar;
-    const unsignedXdr = this.contractService.buildWithdrawTransaction(
+    const unsignedXdr = await this.contractService.buildWithdrawTransaction(
       pool.creatorWallet,
       parseInt(pool.contractPoolId, 10),
       tokenAddress,
@@ -220,12 +222,40 @@ export class PoolsService {
     return { unsignedXdr, poolId: pool.contractPoolId };
   }
 
-  buildClosePoolTx(pool: Pool): { unsignedXdr: string } {
+  async buildClosePoolTx(pool: Pool): Promise<{ unsignedXdr: string }> {
     const poolIdNum = parseInt(pool.contractPoolId, 10);
-    const unsignedXdr = this.contractService.buildClosePoolTransaction(
+    const unsignedXdr = await this.contractService.buildClosePoolTransaction(
       pool.creatorWallet,
       poolIdNum,
     );
     return { unsignedXdr };
+  }
+
+  /**
+   * Builds an unsigned `donate_with_token` invocation for a pool.
+   *
+   * The token is taken from the pool when it carries one, otherwise the
+   * configured `TOKEN_ADDRESS` is used. The donor is the authenticated wallet
+   * that will sign the returned XDR.
+   * @param pool The pool being donated to.
+   * @param donor The authenticated donor's wallet address.
+   * @param amount The donation amount as a string (i128).
+   * @returns The prepared unsigned XDR and the pool's on-chain id.
+   */
+  async buildDonateTx(
+    pool: Pool,
+    donor: string,
+    amount: string,
+  ): Promise<{ unsignedXdr: string; poolId: string }> {
+    const tokenAddress =
+      (pool as Pool & { tokenAddress?: string | null }).tokenAddress ??
+      this.stellar.tokenAddress;
+    const unsignedXdr = await this.contractService.buildDonateTransaction(
+      parseInt(pool.contractPoolId, 10),
+      donor,
+      tokenAddress,
+      amount,
+    );
+    return { unsignedXdr, poolId: pool.contractPoolId };
   }
 }

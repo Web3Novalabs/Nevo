@@ -20,7 +20,7 @@ export interface HorizonContractEvent {
   topic: string[];
   /**
    * Event data value; entries are `scValToNative`-decoded and stringified
-   * (e.g. `['GDONOR123', '500']` for a donation).
+   * (e.g. `['GDONOR123', '500', '500']` for a contribution).
    */
   value: string[];
   /** Transaction hash for idempotency — may be undefined for non-donation events. */
@@ -37,6 +37,17 @@ const POOL_STATE_TO_STATUS: Record<string, PoolStatus> = {
   Closed: PoolStatus.Closed,
 };
 
+/**
+ * Exact event symbols emitted by the contract, per `EVENTS_REFERENCE.md`:
+ * - `pool_crtd` — pool created
+ * - `contrib`   — contribution made via `donate` / `donate_with_token`
+ * - `pool_cls`  — pool closed
+ * - `don_refnd` — donation refunded
+ * - `app_sub`   — application submitted
+ * - `pool_stat` — pool state changed
+ */
+type EventHandler = (event: HorizonContractEvent) => Promise<void>;
+
 @Injectable()
 export class SyncService implements OnModuleInit {
   private readonly logger = new Logger(SyncService.name);
@@ -45,6 +56,9 @@ export class SyncService implements OnModuleInit {
   private seenInRun = new Set<string>();
 
   private readonly rpcServer: StellarRpc.Server;
+
+  /** Topic-symbol → handler map, keyed by the exact symbols from EVENTS_REFERENCE.md. */
+  private readonly handlers: Record<string, EventHandler>;
 
   constructor(
     private readonly poolsService: PoolsService,
@@ -56,6 +70,14 @@ export class SyncService implements OnModuleInit {
     @Optional() private readonly history?: HistoryService,
   ) {
     this.rpcServer = new StellarRpc.Server(stellar.rpcUrl);
+    this.handlers = {
+      pool_crtd: (e) => this.processPoolCreatedEvent(e),
+      contrib: (e) => this.processContributionEvent(e),
+      pool_cls: (e) => this.processPoolClosedEvent(e),
+      don_refnd: (e) => this.processDonationRefundedEvent(e),
+      app_sub: (e) => this.processApplicationSubmittedEvent(e),
+      pool_stat: (e) => this.processPoolStateEvent(e),
+    };
   }
 
   async onModuleInit() {
@@ -78,8 +100,8 @@ export class SyncService implements OnModuleInit {
 
   /**
    * Fetches contract events via Soroban RPC `getEvents` and dispatches them
-   * to the `process*Event` handlers. Runs under the advisory lock so
-   * multiple instances can't poll the same cursor concurrently.
+   * to the handlers registered in {@link handlers}. Runs under the advisory
+   * lock so multiple instances can't poll the same cursor concurrently.
    *
    * The cursor is persisted after each processed page (`saveCursor`), so a
    * restart resumes where the last run stopped. On first start or when the
@@ -154,7 +176,7 @@ export class SyncService implements OnModuleInit {
 
   /**
    * Decodes a Soroban RPC contract event into the flat
-   * {@link HorizonContractEvent} shape used by the `process*Event` handlers:
+   * {@link HorizonContractEvent} shape used by the event handlers:
    * topic/value entries are `scValToNative`-decoded and stringified.
    */
   private decodeEvent(
@@ -173,25 +195,18 @@ export class SyncService implements OnModuleInit {
     return { topic, value, txHash: event.txHash || undefined };
   }
 
-  /** Dispatches a decoded contract event to the matching `process*Event` handler. */
+  /** Dispatches a decoded contract event to the matching handler via the topic map. */
   private async dispatchEvent(
     event: StellarRpc.Api.EventResponse,
   ): Promise<void> {
     const decoded = this.decodeEvent(event);
-    switch (decoded.topic[0]) {
-      case 'pool_crtd':
-        await this.processPoolCreatedEvent(decoded);
-        break;
-      case 'pool_cls':
-        await this.processPoolClosedEvent(decoded);
-        break;
-      case 'pool_stat':
-        await this.processPoolStateEvent(decoded);
-        break;
-      case 'donation':
-        await this.processDonationEvent(decoded);
-        break;
+    const symbol = decoded.topic[0];
+    const handler = symbol ? this.handlers[symbol] : undefined;
+    if (!handler) {
+      this.logger.debug(`No handler for event topic "${symbol}" — skipping`);
+      return;
     }
+    await handler(decoded);
   }
 
   /**
@@ -228,7 +243,7 @@ export class SyncService implements OnModuleInit {
    * Processes a `pool_crtd` (pool created) event emitted by the Stellar smart contract.
    *
    * Expected event shape:
-   * - `topic[0]` — Event symbol (e.g. `"pool_crtd"`).
+   * - `topic[0]` — Event symbol `"pool_crtd"`.
    * - `topic[1]` — The on-chain pool identifier (`contractPoolId`).
    * - `value[0]` — Wallet address of the pool creator (`creatorWallet`).
    * - `value[1]` — Fundraising goal amount in base units (`goal`).
@@ -264,10 +279,10 @@ export class SyncService implements OnModuleInit {
   }
 
   /**
-   * Processes a `pool_clos` (pool closed) event emitted by the Stellar smart contract.
+   * Processes a `pool_cls` (pool closed) event emitted by the Stellar smart contract.
    *
    * Expected event shape:
-   * - `topic[0]` — Event symbol (e.g. `"pool_clos"`).
+   * - `topic[0]` — Event symbol `"pool_cls"`.
    * - `topic[1]` — The on-chain pool identifier (`contractPoolId`).
    * - `value` — Not used for this event type (empty array).
    *
@@ -318,25 +333,48 @@ export class SyncService implements OnModuleInit {
   }
 
   /**
-   * Processes a `donation` event emitted by the Stellar smart contract.
+   * Processes an `app_sub` (application submitted) event emitted by the contract.
    *
    * Expected event shape:
-   * - `topic[0]` — Event symbol (e.g. `"donation"`).
+   * - `topic[0]` — Event symbol `"app_sub"`.
    * - `topic[1]` — The on-chain pool identifier (`contractPoolId`).
-   * - `value[0]` — Wallet address of the donor (`donorWallet`).
-   * - `value[1]` — Donation amount in base units (`amount`).
-   * - `value[2]` — Asset code; defaults to `"XLM"` if omitted (`asset`).
-   * - `txHash` — **Required** for donation events. If missing, the event is skipped with a warning.
+   * - `value[0]` — Wallet address of the applicant (`applicantWallet`).
    *
-   * The method checks for duplicate transactions, records the donation via
-   * `DonationsService.recordDonation()`, and increments the pool's raised amount
-   * via `PoolsService.incrementRaised()`.
+   * Application records are managed by the applications module; this handler
+   * exists so the event is acknowledged rather than silently dropped.
    *
    * @param event - The Horizon contract event to process.
    */
-  async processDonationEvent(event: HorizonContractEvent): Promise<void> {
+  async processApplicationSubmittedEvent(
+    event: HorizonContractEvent,
+  ): Promise<void> {
+    this.logger.debug(
+      `Application submitted for pool ${event.topic[1]} by ${event.value[0]}`,
+    );
+  }
+
+  /**
+   * Processes a `contrib` (contribution) event emitted by the contract's
+   * `donate` / `donate_with_token` functions.
+   *
+   * Expected event shape:
+   * - `topic[0]` — Event symbol `"contrib"`.
+   * - `topic[1]` — The on-chain pool identifier (`contractPoolId`).
+   * - `value[0]` — Wallet address of the donor (`donorWallet`).
+   * - `value[1]` — Contribution amount in base units (`amount`).
+   * - `value[2]` — The pool's running total after this contribution
+   *   (`newTotal`), **not** an asset code.
+   * - `txHash` — **Required** for contribution events. If missing, the event is skipped with a warning.
+   *
+   * The asset is resolved from the pool's token (not from the event), the
+   * donation is recorded via `DonationsService.recordDonation()`, and the
+   * pool's raised amount is set to the running total from the event.
+   *
+   * @param event - The Horizon contract event to process.
+   */
+  async processContributionEvent(event: HorizonContractEvent): Promise<void> {
     if (!event.txHash) {
-      this.logger.warn('Donation event missing txHash — skipping');
+      this.logger.warn('Contribution event missing txHash — skipping');
       return;
     }
 
@@ -347,7 +385,11 @@ export class SyncService implements OnModuleInit {
     const contractPoolId = event.topic[1];
     const donorWallet = event.value[0];
     const amount = event.value[1];
-    const asset = event.value[2] || 'XLM';
+    const newTotal = event.value[2];
+
+    // Resolve the asset from the pool's token rather than the event payload.
+    const pool = await this.poolsService.findByContractId(contractPoolId);
+    const asset = pool?.token || 'XLM';
 
     try {
       await this.donationsService.recordDonation({
@@ -370,13 +412,64 @@ export class SyncService implements OnModuleInit {
       throw error;
     }
 
-    await this.poolsService.incrementRaised(contractPoolId, amount);
+    // The contract publishes the running total as `value[2]`; prefer it over
+    // incrementing so the stored total stays in sync with on-chain state.
+    if (newTotal !== undefined && newTotal !== '') {
+      await this.poolsService.setRaised(contractPoolId, newTotal);
+    } else {
+      await this.poolsService.incrementRaised(contractPoolId, amount);
+    }
 
-    // Mirror the contract: a donation that reaches the goal moves the pool
-    // to Completed (`donate` sets `PoolState::Completed` when `collected >= goal`).
-    const pool = await this.poolsService.findByContractId(contractPoolId);
-    if (pool && BigInt(pool.raised || '0') >= BigInt(pool.goal || '0')) {
+    // Mirror the contract: a contribution that reaches the goal moves the
+    // pool to Completed (`donate` sets `PoolState::Completed` when
+    // `collected >= goal`).
+    const updated = await this.poolsService.findByContractId(contractPoolId);
+    if (
+      updated &&
+      BigInt(updated.raised || '0') >= BigInt(updated.goal || '0')
+    ) {
       await this.poolsService.markStatus(contractPoolId, PoolStatus.Completed);
     }
+  }
+
+  /**
+   * Processes a `don_refnd` (donation refunded) event emitted by the contract.
+   *
+   * Expected event shape:
+   * - `topic[0]` — Event symbol `"don_refnd"`.
+   * - `topic[1]` — The on-chain pool identifier (`contractPoolId`).
+   * - `value[0]` — Wallet address of the donor (`donorWallet`).
+   * - `value[1]` — Refunded amount in base units (`amount`).
+   * - `txHash` — **Required** for refund events. If missing, the event is skipped with a warning.
+   *
+   * Decrements the pool's raised amount by the refunded amount and marks the
+   * corresponding donation as refunded.
+   *
+   * @param event - The Horizon contract event to process.
+   */
+  async processDonationRefundedEvent(
+    event: HorizonContractEvent,
+  ): Promise<void> {
+    if (!event.txHash) {
+      this.logger.warn('Refund event missing txHash — skipping');
+      return;
+    }
+
+    if (await this.isTxDuplicate(event.txHash)) {
+      return;
+    }
+
+    const contractPoolId = event.topic[1];
+    const donorWallet = event.value[0];
+    const amount = event.value[1];
+
+    await this.poolsService.decrementRaised(contractPoolId, amount);
+
+    await this.donationsService.markRefunded({
+      poolId: contractPoolId,
+      donorWallet,
+      amount,
+      txHash: event.txHash,
+    });
   }
 }

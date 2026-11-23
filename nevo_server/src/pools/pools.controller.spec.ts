@@ -192,7 +192,7 @@ describe('PoolsController (withdraw auth)', () => {
       contractPoolId: '1',
       creatorWallet: 'GCREATOR',
     });
-    poolsService.buildWithdrawTx.mockReturnValue({
+    poolsService.buildWithdrawTx.mockResolvedValue({
       unsignedXdr: 'xdr',
       poolId: '1',
     });
@@ -291,7 +291,7 @@ describe('PoolsController (close auth)', () => {
       contractPoolId: '1',
       creatorWallet: 'GCREATOR',
     });
-    poolsService.buildClosePoolTx.mockReturnValue({
+    poolsService.buildClosePoolTx.mockResolvedValue({
       unsignedXdr: 'xdr',
     });
     const token = signToken('GCREATOR');
@@ -391,8 +391,9 @@ describe('PoolsController (donate auth)', () => {
     poolsService.findByContractId.mockResolvedValue({
       contractPoolId: '1',
       creatorWallet: 'GCREATOR',
+      tokenAddress: 'GTOKEN',
     });
-    contractService.buildDonateTransaction.mockReturnValue('unsigned_xdr');
+    contractService.buildDonateTransaction.mockResolvedValue('unsigned_xdr');
     const token = signToken('GDONOR');
     const dto: DonatePoolDto = { amount: '10000000' };
 
@@ -406,6 +407,7 @@ describe('PoolsController (donate auth)', () => {
     expect(contractService.buildDonateTransaction).toHaveBeenCalledWith(
       'GDONOR',
       1,
+      'GTOKEN',
       '10000000',
     );
   });

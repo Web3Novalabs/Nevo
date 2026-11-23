@@ -54,6 +54,23 @@ function getGeneratedClient(publicKey: string): NevoContractClient {
   });
 }
 
+const I128_MIN = -(2n ** 127n);
+const I128_MAX = 2n ** 127n - 1n;
+
+/**
+ * Validates that a monetary amount fits in the contract's i128 representation.
+ * Throws instead of silently wrapping, so lossy conversions never reach the chain.
+ */
+function toI128(value: bigint, field: string): bigint {
+  if (value < I128_MIN || value > I128_MAX) {
+    throw new Error(
+      `${field} ${value.toString()} is out of range for i128 ` +
+        `[${I128_MIN.toString()}, ${I128_MAX.toString()}]`
+    );
+  }
+  return value;
+}
+
 class ContractService {
   private readonly server = new Server(RPC_URL);
 
@@ -103,6 +120,13 @@ class ContractService {
           description,
           goal,
         })
+        contract.call(
+          'create_pool',
+          addressScVal(creator),
+          nativeToScVal(title, { type: 'string' }),
+          nativeToScVal(description, { type: 'string' }),
+          nativeToScVal(toI128(goal, 'goal'), { type: 'i128' })
+        )
       )
       .setTimeout(TX_TIMEOUT)
       .build();
@@ -135,6 +159,13 @@ class ContractService {
           token: tokenAddress,
           amount,
         })
+        contract.call(
+          'donate_with_token',
+          nativeToScVal(poolId, { type: 'u32' }),
+          addressScVal(donor),
+          new Address(tokenAddress).toScVal(),
+          nativeToScVal(toI128(amount, 'amount'), { type: 'i128' })
+        )
       )
       .setTimeout(TX_TIMEOUT)
       .build();
