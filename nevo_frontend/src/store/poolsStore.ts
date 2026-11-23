@@ -169,6 +169,7 @@ export const usePoolsStore = create<PoolsState>()(
 
       clearFilters: () => set({ filters: DEFAULT_FILTERS }),
 
+      // TODO(#1747): send filters/sort to the server and sync them to the URL
       filteredPools: () => {
         const { pools, filters, sortBy } = get();
         const filtered = pools.filter((pool) => {
