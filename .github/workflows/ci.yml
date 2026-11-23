@@ -1,6 +1,7 @@
 name: CI
 on: [push, pull_request]
 jobs:
+  # TODO(#1739): Run Jest and Playwright here with mocked API and wallet.
   build:
     name: Frontend — Build
     runs-on: ubuntu-latest
