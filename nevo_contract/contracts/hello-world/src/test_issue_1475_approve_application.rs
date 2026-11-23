@@ -25,7 +25,7 @@ mod tests {
         // Create pool for school
         let title = String::from_str(env, "Test Pool");
         let description = String::from_str(env, "Test Description");
-        let goal = 1000u128;
+        let goal = 1000i128;
         let deadline = 200000u64;
 
         let pool_id = client.create_pool_for_school(
@@ -55,7 +55,7 @@ mod tests {
 
         school.require_auth();
         // Should succeed
-        client.approve_application(&pool_id, &school, &student, &true);
+        client.approve_application(&pool_id, &school, &student, &true, &500i128);
 
         // Verify application status is Approved
         let status = client.get_application_status(&pool_id, &student);
@@ -72,7 +72,7 @@ mod tests {
 
         school.require_auth();
         // Should succeed
-        client.approve_application(&pool_id, &school, &student, &false);
+        client.approve_application(&pool_id, &school, &student, &false, &0i128);
 
         // Verify application status is Rejected
         let status = client.get_application_status(&pool_id, &student);
@@ -95,7 +95,7 @@ mod tests {
         school.require_auth();
         // Should panic with PoolIsClosed
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            client.approve_application(&pool_id, &school, &student, &true);
+            client.approve_application(&pool_id, &school, &student, &true, &500i128);
         }));
 
         assert!(result.is_err(), "Expected panic when approving on closed pool");
@@ -115,7 +115,7 @@ mod tests {
         school.require_auth();
         // Should panic with InvalidPoolState
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            client.approve_application(&pool_id, &school, &student, &true);
+            client.approve_application(&pool_id, &school, &student, &true, &500i128);
         }));
 
         assert!(result.is_err(), "Expected panic when approving on cancelled pool");
@@ -133,7 +133,7 @@ mod tests {
         wrong_school.require_auth();
         // Should panic with OnlyLinkedSchoolCanApprove
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            client.approve_application(&pool_id, &wrong_school, &student, &true);
+            client.approve_application(&pool_id, &wrong_school, &student, &true, &500i128);
         }));
 
         assert!(result.is_err(), "Expected panic when non-linked school tries to approve");
@@ -152,7 +152,7 @@ mod tests {
         school.require_auth();
         // Should panic with StudentHasNotApplied
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            client.approve_application(&pool_id, &school, &student_who_did_not_apply, &true);
+            client.approve_application(&pool_id, &school, &student_who_did_not_apply, &true, &500i128);
         }));
 
         assert!(result.is_err(), "Expected panic when student has not applied");
@@ -170,7 +170,7 @@ mod tests {
         school.require_auth();
         // Should panic with PoolNotFound
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            client.approve_application(&999u32, &school, &student, &true);
+            client.approve_application(&999u32, &school, &student, &true, &500i128);
         }));
 
         assert!(result.is_err(), "Expected panic for nonexistent pool");
@@ -189,7 +189,7 @@ mod tests {
 
         school.require_auth();
         // Should succeed - Paused is not Cancelled
-        client.approve_application(&pool_id, &school, &student, &true);
+        client.approve_application(&pool_id, &school, &student, &true, &500i128);
 
         let status = client.get_application_status(&pool_id, &student);
         assert_eq!(status, String::from_str(&env, "Approved"));
@@ -208,7 +208,7 @@ mod tests {
 
         school.require_auth();
         // Should succeed - Completed is not Cancelled
-        client.approve_application(&pool_id, &school, &student, &true);
+        client.approve_application(&pool_id, &school, &student, &true, &500i128);
 
         let status = client.get_application_status(&pool_id, &student);
         assert_eq!(status, String::from_str(&env, "Approved"));
@@ -227,7 +227,7 @@ mod tests {
 
         school.require_auth();
         // Should succeed - Disbursed is not Cancelled
-        client.approve_application(&pool_id, &school, &student, &true);
+        client.approve_application(&pool_id, &school, &student, &true, &500i128);
 
         let status = client.get_application_status(&pool_id, &student);
         assert_eq!(status, String::from_str(&env, "Approved"));
@@ -254,7 +254,7 @@ mod tests {
 
         let title = String::from_str(&env, "Test Pool");
         let description = String::from_str(&env, "Test Description");
-        let goal = 3000u128;
+        let goal = 3000i128;
         let deadline = 200000u64;
 
         let pool_id = client.create_pool_for_school(
@@ -282,11 +282,13 @@ mod tests {
         student3.require_auth();
         client.apply_to_pool(&pool_id, &student3, &application_data.clone());
 
-        // School approves all students
+        // School approves students with independent amounts that together fit the pool goal
+        let amount1 = 1000i128;
+        let amount2 = 1500i128;
         school.require_auth();
-        client.approve_application(&pool_id, &school, &student1, &true);
-        client.approve_application(&pool_id, &school, &student2, &true);
-        client.approve_application(&pool_id, &school, &student3, &false); // Reject one
+        client.approve_application(&pool_id, &school, &student1, &true, &amount1);
+        client.approve_application(&pool_id, &school, &student2, &true, &amount2);
+        client.approve_application(&pool_id, &school, &student3, &false, &0i128); // Reject one
 
         // Verify statuses
         let status1 = client.get_application_status(&pool_id, &student1);
@@ -296,5 +298,14 @@ mod tests {
         assert_eq!(status1, String::from_str(&env, "Approved"));
         assert_eq!(status2, String::from_str(&env, "Approved"));
         assert_eq!(status3, String::from_str(&env, "Rejected"));
+
+        // Verify independent approved amounts per student
+        let approved1 = client.get_approved_amount(&pool_id, &student1);
+        let approved2 = client.get_approved_amount(&pool_id, &student2);
+        assert_eq!(approved1, amount1);
+        assert_eq!(approved2, amount2);
+
+        // Several students share one pool; combined approvals must not exceed the goal
+        assert!(approved1 + approved2 <= goal);
     }
 }

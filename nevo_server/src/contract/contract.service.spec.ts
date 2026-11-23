@@ -213,6 +213,33 @@ describe('ContractService', () => {
       const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
       // arg[1] is the goal
       expect(args[1].switch().name).toBe('scvI128');
+      expect(args[1].switch().name).not.toBe('scvU128');
+      expect(scValToNative(args[1])).toBe(9999n);
+    });
+
+    it('buildCreatePoolTransaction rejects a goal above i128::MAX with a typed error', () => {
+      const tooLarge = (BigInt('1') << BigInt(127)).toString();
+      expect(() =>
+        service.buildCreatePoolTransaction({
+          creator: SOURCE,
+          goal: tooLarge,
+          token: TOKEN,
+          title: 'Pool',
+          description: 'desc',
+        }),
+      ).toThrow(StellarError);
+    });
+
+    it('buildCreatePoolTransaction rejects a negative goal with a typed error', () => {
+      expect(() =>
+        service.buildCreatePoolTransaction({
+          creator: SOURCE,
+          goal: '-1',
+          token: TOKEN,
+          title: 'Pool',
+          description: 'desc',
+        }),
+      ).toThrow(StellarError);
     });
 
     it('buildCreatePoolTransaction encodes title as string', () => {
@@ -243,6 +270,20 @@ describe('ContractService', () => {
       const op = decodeFirstOp(xdrStr);
       const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
       expect(args[1].switch().name).toBe('scvI128');
+      expect(scValToNative(args[1])).toBe(777n);
+    });
+
+    it('buildDonateTransaction rejects an amount above i128::MAX with a typed error', () => {
+      const tooLarge = (BigInt('1') << BigInt(127)).toString();
+      expect(() =>
+        service.buildDonateTransaction(SOURCE, 1, tooLarge),
+      ).toThrow(StellarError);
+    });
+
+    it('buildDonateTransaction rejects a negative amount with a typed error', () => {
+      expect(() => service.buildDonateTransaction(SOURCE, 1, '-5')).toThrow(
+        StellarError,
+      );
     });
 
     it('buildWithdrawTransaction encodes poolId as u32 and token as address', () => {
