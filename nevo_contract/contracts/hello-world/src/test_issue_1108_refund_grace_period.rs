@@ -50,6 +50,8 @@ fn test_derived_refund_window_without_explicit_pool_deadline() {
         .expect("derived refund deadline must not overflow");
     assert!(derived_refund_deadline > funding_deadline);
     assert_eq!(derived_refund_deadline, funding_deadline + 17_280u32);
+}
+
 // ============= ISSUE #1678: CANCELLED POOL REFUNDS ALWAYS AVAILABLE =============
 
 /// Helper: set up a token, a pool, and a donor who has donated.
