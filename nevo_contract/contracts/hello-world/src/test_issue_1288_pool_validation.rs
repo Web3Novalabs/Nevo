@@ -58,6 +58,57 @@ fn test_save_pool_past_deadline_fails_with_invalid_pool_deadline() {
 }
 
 #[test]
+#[should_panic(expected = "Error(Contract, #18)")]
+fn test_save_pool_deadline_equal_to_now_fails_with_invalid_pool_deadline() {
+    let env = Env::default();
+    env.ledger().set_timestamp(50_000);
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    client.create_pool(
+        &Address::generate(&env),
+        &String::from_str(&env, "Named Pool"),
+        &String::from_str(&env, "A real description"),
+        &1_000_000u128,
+        &50_000u64,
+    );
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #18)")]
+fn test_save_pool_deadline_zero_fails_with_invalid_pool_deadline() {
+    let env = Env::default();
+    env.ledger().set_timestamp(50_000);
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    client.create_pool(
+        &Address::generate(&env),
+        &String::from_str(&env, "Named Pool"),
+        &String::from_str(&env, "A real description"),
+        &1_000_000u128,
+        &0u64,
+    );
+}
+
+#[test]
+fn test_save_pool_deadline_one_second_in_future_succeeds() {
+    let env = Env::default();
+    env.ledger().set_timestamp(50_000);
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = client.create_pool(
+        &Address::generate(&env),
+        &String::from_str(&env, "Named Pool"),
+        &String::from_str(&env, "A real description"),
+        &1_000_000u128,
+        &50_001u64,
+    );
+    assert_eq!(client.get_pool(&pool_id).5, 50_001u64);
+}
+
+#[test]
 fn test_save_pool_valid_parameters_succeed_and_are_retrievable() {
     let env = Env::default();
     env.ledger().set_timestamp(10_000);
