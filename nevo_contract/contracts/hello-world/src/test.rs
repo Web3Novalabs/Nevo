@@ -302,7 +302,7 @@ fn test_claim_funds_rejected_application() {
         100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Rejected"));
+    client.set_application_status(&creator, &pool_id, &student, &ApplicationStatus::Rejected);
     let token = Address::generate(&env);
     client.claim_funds(&student, &pool_id, &100_000_000i128, &token);
 }
@@ -329,7 +329,7 @@ fn test_claim_funds_overdraw() {
         100_000u64,
     );
     client.donate(&pool_id, &creator, &100_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student, &ApplicationStatus::Approved);
     let token = Address::generate(&env);
     client.claim_funds(&student, &pool_id, &500_000_000i128, &token);
 }
@@ -356,7 +356,7 @@ fn test_claim_funds_negative_amount() {
         100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student, &ApplicationStatus::Approved);
     let token = Address::generate(&env);
     client.claim_funds(&student, &pool_id, &-100_000_000i128, &token);
 }
@@ -402,12 +402,14 @@ fn test_get_application_status() {
 
     assert_eq!(
         client.get_application_status(&pool_id, &student),
-        String::from_str(&env, "")
+        ApplicationStatus::Pending
     );
 
-    let approved = String::from_str(&env, "Approved");
-    client.set_application_status(&creator, &pool_id, &student, &approved);
-    assert_eq!(client.get_application_status(&pool_id, &student), approved);
+    client.set_application_status(&creator, &pool_id, &student, &ApplicationStatus::Approved);
+    assert_eq!(
+        client.get_application_status(&pool_id, &student),
+        ApplicationStatus::Approved
+    );
 }
 
 #[test]
@@ -435,7 +437,7 @@ fn test_unauthorized_address_cannot_set_application_status() {
         100_000u64,
     );
 
-    client.set_application_status(&attacker, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&attacker, &pool_id, &student, &ApplicationStatus::Approved);
 }
 
 #[test]
@@ -514,22 +516,22 @@ fn test_get_application_tracks_submission_approval_and_pool_student_isolation() 
     assert_eq!(submitted.pool_id, pool_id);
     assert_eq!(submitted.student, student);
     assert_eq!(submitted.application_data, submitted_data);
-    assert_eq!(submitted.status, String::from_str(&env, "Pending"));
+    assert_eq!(submitted.status, ApplicationStatus::Pending);
     assert_eq!(submitted.approved_amount, 0);
     assert_eq!(submitted.amount_claimed, 0);
 
     approve_application_for_test(&env, &contract_id, &client, pool_id, &school, &student, true);
 
     let approved = client.get_application(&pool_id, &student).unwrap();
-    assert_eq!(approved.status, String::from_str(&env, "Approved"));
+    assert_eq!(approved.status, ApplicationStatus::Approved);
     assert_eq!(approved.application_data, submitted_data);
     assert_eq!(
         client.get_application(&pool_id, &other_student).unwrap().status,
-        String::from_str(&env, "Pending")
+        ApplicationStatus::Pending
     );
     assert_eq!(
         client.get_application(&second_pool_id, &student).unwrap().status,
-        String::from_str(&env, "Pending")
+        ApplicationStatus::Pending
     );
 }
 
@@ -560,7 +562,7 @@ fn test_protocol_fees_accumulation_on_claim() {
         100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student, &ApplicationStatus::Approved);
     client.claim_funds(&student, &pool_id, &claim_amount, &token);
 
     let app = client.get_application(&pool_id, &student);
@@ -623,8 +625,8 @@ fn test_claim_protocol_fees_multiple_claims_accumulate() {
         100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student1, &String::from_str(&env, "Approved"));
-    client.set_application_status(&creator, &pool_id, &student2, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student1, &ApplicationStatus::Approved);
+    client.set_application_status(&creator, &pool_id, &student2, &ApplicationStatus::Approved);
     client.claim_funds(&student1, &pool_id, &claim1, &token);
     client.claim_funds(&student2, &pool_id, &claim2, &token);
 
@@ -658,7 +660,7 @@ fn test_protocol_fees_reset_after_claim() {
         100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student, &ApplicationStatus::Approved);
     client.claim_funds(&student, &pool_id, &claim_amount, &token);
     client.claim_protocol_fees(&admin, &token);
     // Second claim should panic
@@ -746,7 +748,7 @@ fn test_withdraw_unallocated_funds_respects_locked_funds_regression_949() {
     let application_status = client.get_application_status(&pool_id, &student);
     assert_eq!(
         application_status,
-        String::from_str(&env, "Approved"),
+        ApplicationStatus::Approved,
         "Student should be approved"
     );
 
@@ -997,6 +999,70 @@ fn test_refund_before_deadline_fails_with_pool_not_expired() {
     client.refund_donation(&pool_id, &donor, &token_address);
 }
 
+// (1b) A pool without an explicit refund deadline is refundable once the
+// funding deadline (ledger sequence) plus the grace period has elapsed.
+#[test]
+fn test_refund_without_explicit_deadline_after_funding_deadline_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().with_mut(|li| {
+        li.min_persistent_entry_ttl = 20_000;
+    });
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+
+    let funding_deadline = env.ledger().sequence() + 100;
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Refund Test Pool"),
+        &String::from_str(&env, "No explicit refund deadline"),
+        &1_000_000_000,
+        &(funding_deadline as u64),
+    );
+
+    let donation_amount: i128 = 500_000_000;
+    let token_address = create_token(&env, donation_amount, &contract_id);
+    client.donate(&pool_id, &donor, &(donation_amount as u128));
+
+    // Advance past the funding deadline and the full grace period.
+    advance_ledger(&env, 100 + 17_280 + 1);
+
+    // Refund should succeed without ever calling set_pool_deadline.
+    client.refund_donation(&pool_id, &donor, &token_address);
+    assert_eq!(client.get_contribution(&pool_id, &donor), 0u128);
+}
+
+// (1c) A pool without an explicit refund deadline cannot be refunded before
+// the funding deadline plus the grace period has elapsed.
+#[test]
+#[should_panic(expected = "Error(Contract, #12)")]
+fn test_refund_without_explicit_deadline_before_funding_deadline_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+
+    let funding_deadline = env.ledger().sequence() + 1_000;
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Refund Test Pool"),
+        &String::from_str(&env, "No explicit refund deadline"),
+        &1_000_000_000,
+        &(funding_deadline as u64),
+    );
+
+    let token_address = create_token(&env, 500_000_000, &donor);
+    client.donate_with_token(&pool_id, &donor, &token_address, &500_000_000);
+
+    client.refund_donation(&pool_id, &donor, &token_address);
+}
+
 // (2) Refund exactly at deadline fails (grace period required).
 #[test]
 #[should_panic(expected = "Error(Contract, #12)")]
@@ -1160,6 +1226,53 @@ fn test_setup_application_milestones_without_application_panics() {
 }
 
 #[test]
+#[should_panic(expected = "Error(Contract, #3)")]
+fn test_setup_application_milestones_requires_school_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let school = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    let pool_id = create_pool_with_school(
+        &env,
+        &client,
+        &creator,
+        &admin,
+        &school,
+        "Milestone Pool",
+        "Test",
+        1_000_000_000u128,
+        100_000u64,
+    );
+
+    client.apply_to_pool(
+        &pool_id,
+        &student,
+        &String::from_str(&env, "Application data"),
+    );
+    approve_application_for_test(&env, &contract_id, &client, pool_id, &school, &student, true);
+
+    // The student alone must not be able to configure their own milestones.
+    let milestones = Vec::from_array(&env, [Milestone { amount: 1_000_000_000u128 }]);
+    client
+        .mock_auths(&[MockAuth {
+            address: &student,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "setup_application_milestones",
+                args: (&pool_id, &student, &milestones).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .setup_application_milestones(&pool_id, &student, &milestones);
+}
+
+#[test]
 #[should_panic(expected = "Error(Contract, #2)")]
 fn test_claim_funds_cancelled_pool_panics() {
     let env = Env::default();
@@ -1181,7 +1294,7 @@ fn test_claim_funds_cancelled_pool_panics() {
         100_000u64,
     );
     client.donate(&pool_id, &creator, &500_000_000u128);
-    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.set_application_status(&creator, &pool_id, &student, &ApplicationStatus::Approved);
     client.set_pool_state(&pool_id, &PoolState::Cancelled);
 
     let token = create_token(&env, 500_000_000i128, &contract_id);

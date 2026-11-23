@@ -29,7 +29,7 @@ fn seed_application(
     pool_id: u32,
     index: u32,
     student: &Address,
-    status: &str,
+    status: ApplicationStatus,
     approved_amount: i128,
     amount_claimed: i128,
 ) {
@@ -39,15 +39,6 @@ fn seed_application(
             &app_key,
             &(index, student.clone(), String::from_str(env, "application")),
         );
-
-        let status_key = (
-            Symbol::new(env, APPLICATION_STATUS_PREFIX),
-            pool_id,
-            student.clone(),
-        );
-        env.storage()
-            .persistent()
-            .set(&status_key, &String::from_str(env, status));
 
         let claim_key = (
             Symbol::new(env, CLAIMED_AMOUNT_PREFIX),
@@ -60,7 +51,7 @@ fn seed_application(
                 pool_id,
                 student: student.clone(),
                 application_data: String::from_str(env, "application"),
-                status: String::from_str(env, status),
+                status,
                 approved_amount,
                 amount_claimed,
             },
@@ -168,11 +159,11 @@ fn test_withdraws_only_unallocated_portion_and_transfers_it_to_sponsor() {
     let (client, contract_id, pool_id, sponsor, token) = funded_pool(&env, 100_000_000);
 
     // Approved: 80M approved, 20M already claimed -> 60M still allocated.
-    seed_application(&env, &contract_id, pool_id, 1, &Address::generate(&env), "Approved", 80_000_000, 20_000_000);
+    seed_application(&env, &contract_id, pool_id, 1, &Address::generate(&env), ApplicationStatus::Approved, 80_000_000, 20_000_000);
     // Pending: 10M reserved for a pending decision.
-    seed_application(&env, &contract_id, pool_id, 2, &Address::generate(&env), "Pending", 10_000_000, 0);
+    seed_application(&env, &contract_id, pool_id, 2, &Address::generate(&env), ApplicationStatus::Pending, 10_000_000, 0);
     // Rejected: never locks funds.
-    seed_application(&env, &contract_id, pool_id, 3, &Address::generate(&env), "Rejected", 50_000_000, 0);
+    seed_application(&env, &contract_id, pool_id, 3, &Address::generate(&env), ApplicationStatus::Rejected, 50_000_000, 0);
 
     let token_client = TokenClient::new(&env, &token);
     assert_eq!(token_client.balance(&sponsor), 0);
@@ -193,7 +184,7 @@ fn test_fails_when_all_funds_are_allocated() {
     let env = Env::default();
     let (client, contract_id, pool_id, _sponsor, token) = funded_pool(&env, 60_000_000);
 
-    seed_application(&env, &contract_id, pool_id, 1, &Address::generate(&env), "Approved", 60_000_000, 0);
+    seed_application(&env, &contract_id, pool_id, 1, &Address::generate(&env), ApplicationStatus::Approved, 60_000_000, 0);
 
     client.withdraw_unallocated_funds(&pool_id, &token);
 }

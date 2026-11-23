@@ -33,6 +33,14 @@ export type ApiPaths = paths;
 /** The path item for a given route. */
 export type PathItem<P extends keyof paths> = paths[P];
 
+/**
+ * Application status as stored on-chain.
+ *
+ * Mirrors the contract's `ApplicationStatus` enum. Using a union rather than
+ * `string` ensures invalid statuses (e.g. "approved") can't be represented.
+ */
+export type ApplicationStatus = "Pending" | "Approved" | "Rejected";
+
 export interface ApiTransaction {
   id: string;
   txHash: string;
@@ -117,6 +125,22 @@ export type ApiPool = "Pool" extends keyof Schemas
       imageUrl: string | null;
       raisedOnChain: string;
       donorCount: number;
+      createdAt: string;
+    };
+
+/**
+ * An application as returned by the server.
+ *
+ * `status` is constrained to the contract's `ApplicationStatus` union so
+ * consumers can't compare against arbitrary strings.
+ */
+export type ApiApplication = "Application" extends keyof Schemas
+  ? Omit<Schemas["Application"], "status"> & { status: ApplicationStatus }
+  : {
+      id: string;
+      poolId: string;
+      applicantWallet: string;
+      status: ApplicationStatus;
       createdAt: string;
     };
 

@@ -21,7 +21,7 @@ fn seed_application(
     pool_id: u32,
     index: u32,
     student: &Address,
-    status: &str,
+    status: ApplicationStatus,
     approved_amount: i128,
     amount_claimed: i128,
 ) {
@@ -31,15 +31,6 @@ fn seed_application(
             &app_key,
             &(index, student.clone(), String::from_str(env, "application")),
         );
-
-        let status_key = (
-            Symbol::new(env, APPLICATION_STATUS_PREFIX),
-            pool_id,
-            student.clone(),
-        );
-        env.storage()
-            .persistent()
-            .set(&status_key, &String::from_str(env, status));
 
         let claim_key = (
             Symbol::new(env, CLAIMED_AMOUNT_PREFIX),
@@ -52,7 +43,7 @@ fn seed_application(
                 pool_id,
                 student: student.clone(),
                 application_data: String::from_str(env, "application"),
-                status: String::from_str(env, status),
+                status,
                 approved_amount,
                 amount_claimed,
             },
@@ -111,7 +102,7 @@ fn test_withdraw_unallocated_funds_excludes_locked_approved_application_funds() 
         pool_id,
         1,
         &student,
-        "Approved",
+        ApplicationStatus::Approved,
         80_000_000i128,
         20_000_000i128,
     );
@@ -151,7 +142,7 @@ fn test_withdraw_unallocated_funds_panics_when_locked_funds_exceed_collected() {
         pool_id,
         1,
         &student,
-        "Approved",
+        ApplicationStatus::Approved,
         60_000_000i128,
         0i128,
     );

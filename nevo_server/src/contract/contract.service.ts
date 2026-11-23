@@ -25,6 +25,29 @@ const CONFIRMATION_POLL_INTERVAL_MS = 500;
 const I128_MAX = (1n << 127n) - 1n;
 
 /**
+ * Application status as represented by the contract's `ApplicationStatus`
+ * enum. Mirrors the `#[contracttype] enum ApplicationStatus` variants.
+ */
+export type ApplicationStatus = 'Pending' | 'Approved' | 'Rejected';
+
+const APPLICATION_STATUS_VARIANTS: readonly ApplicationStatus[] = [
+  'Pending',
+  'Approved',
+  'Rejected',
+];
+
+/**
+ * Decodes a `get_application_status` return value into an `ApplicationStatus`.
+ * The contract returns the enum as a `#[contracttype]` unit variant, which
+ * `scValToNative` surfaces as the variant name string. Returns `undefined`
+ * for any value that is not a known variant.
+ */
+export function decodeApplicationStatus(value: unknown): ApplicationStatus | undefined {
+  if (typeof value !== 'string') return undefined;
+  return APPLICATION_STATUS_VARIANTS.find((variant) => variant === value);
+}
+
+/**
  * Result of `submitSignedXdr`: the transaction plus its terminal state when
  * the network reports one.
  */
@@ -529,6 +552,45 @@ export class ContractService {
       );
       return 0n;
     }
+  }
+
+  /**
+   * Reads `get_application_status` for the given applicant and maps the
+   * contract's `ApplicationStatus` enum to the server representation.
+   * Throws on RPC/simulation failure so callers can distinguish an outage
+   * from a genuinely missing application.
+   */
+  async getApplicationStatusOnChain(
+    applicant: string,
+  ): Promise<ApplicationStatus | undefined> {
+    const keypair = this.stellar.sourceSecret
+      ? Keypair.fromSecret(this.stellar.sourceSecret)
+      : Keypair.random();
+    const account = await this.rpcServer.getAccount(keypair.publicKey());
+    const tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: this.stellar.networkPassphrase,
+    })
+      .addOperation(
+        this.contract.call(
+          'get_application_status',
+          nativeToScVal(applicant, { type: 'address' }),
+        ),
+      )
+      .setTimeout(30)
+      .build();
+
+    const result = await this.rpcServer.simulateTransaction(tx);
+    if ('error' in result) {
+      throw new Error(
+        `get_application_status simulation failed: ${String(result.error)}`,
+      );
+    }
+
+    const retVal = result.result?.retval;
+    if (!retVal) return undefined;
+
+    return decodeApplicationStatus(scValToNative(retVal));
   }
 
   async getDonorCountOnChain(poolId: number): Promise<number> {

@@ -41,6 +41,7 @@ jest.mock('@stellar/stellar-sdk', () => {
 });
 
 import { contractService } from '../lib/contract-service';
+import { ApplicationStatus } from '../lib/contract-types';
 
 let callSpy: jest.SpyInstance;
 
@@ -203,5 +204,57 @@ describe('ContractService.buildDonateTransaction', () => {
     await expect(
       contractService.buildDonateTransaction(1, TEST_PUBKEY, largeAmount)
     ).resolves.toBeDefined();
+  });
+});
+
+describe('ContractService.getApplicationStatus', () => {
+  it('decodes the enum-based status returned by the contract', async () => {
+    mockSimulateTransaction.mockResolvedValue({
+      result: { retval: 'mock-sc-val' },
+    });
+
+    (scValToNative as jest.Mock).mockReturnValue(ApplicationStatus.Approved);
+
+    const status = await contractService.getApplicationStatus(1, TEST_PUBKEY);
+
+    expect(status).toBe(ApplicationStatus.Approved);
+    expect(mockSimulateTransaction).toHaveBeenCalledTimes(1);
+    expect(scValToNative).toHaveBeenCalledWith('mock-sc-val');
+  });
+
+  it('decodes every enum variant without string conversion', async () => {
+    mockSimulateTransaction.mockResolvedValue({
+      result: { retval: 'mock-sc-val' },
+    });
+
+    for (const variant of [
+      ApplicationStatus.Pending,
+      ApplicationStatus.Approved,
+      ApplicationStatus.Rejected,
+    ]) {
+      (scValToNative as jest.Mock).mockReturnValue(variant);
+      const status = await contractService.getApplicationStatus(1, TEST_PUBKEY);
+      expect(status).toBe(variant);
+      expect(typeof status).not.toBe('string');
+    }
+  });
+
+  it('returns Pending when the simulation has an error', async () => {
+    mockSimulateTransaction.mockResolvedValue({
+      error: 'Contract execution error',
+    });
+
+    const status = await contractService.getApplicationStatus(1, TEST_PUBKEY);
+
+    expect(status).toBe(ApplicationStatus.Pending);
+    expect(scValToNative).not.toHaveBeenCalled();
+  });
+
+  it('returns Pending when the RPC server throws', async () => {
+    mockSimulateTransaction.mockRejectedValue(new Error('RPC timeout'));
+
+    const status = await contractService.getApplicationStatus(1, TEST_PUBKEY);
+
+    expect(status).toBe(ApplicationStatus.Pending);
   });
 });

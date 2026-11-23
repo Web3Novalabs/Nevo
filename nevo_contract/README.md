@@ -82,14 +82,46 @@ require reconciliation from on-chain claim events before an upgrade.
 
 #### Application
 
-Tracks a student's approved funding and disbursement progress.
+Tracks a student's approved funding, disbursement progress and approval status.
 
 ```rust
 pub struct Application {
-    pub approved_amount: i128,    // Total amount approved for the student
-    pub amount_claimed: i128,     // Amount already withdrawn by the student
+    pub approved_amount: i128,        // Total amount approved for the student
+    pub amount_claimed: i128,         // Amount already withdrawn by the student
+    pub status: ApplicationStatus,    // Pending | Approved | Rejected
 }
 ```
+
+#### ApplicationStatus
+
+```rust
+#[contracttype]
+pub enum ApplicationStatus {
+    Pending,
+    Approved,
+    Rejected,
+}
+```
+
+The status is a typed enum, so invalid values (e.g. `"approved"`) cannot be
+represented. It is stored only inside `Application`; there is no separate
+status storage key.
+
+**State machine:**
+
+| From | To | Allowed when |
+|------|----|--------------|
+| `Pending` | `Approved` | Linked school (or admin) approves |
+| `Pending` | `Rejected` | Linked school (or admin) rejects |
+| `Approved` | `Rejected` | `amount_claimed == 0` (revocation) |
+| `Rejected` | `Approved` | Linked school (or admin) re-approves |
+| `Approved` | `Approved` | No-op / idempotent re-approval |
+| `Rejected` | `Rejected` | No-op / idempotent re-rejection |
+
+Any other transition fails with a typed error. In particular, an application
+with `amount_claimed > 0` can never be rejected or revoked, so a partially
+claimed student's remaining allocation stays locked. Approve, reject and
+revoke each emit a distinct event.
 
 #### Milestone
 
@@ -114,10 +146,9 @@ The contract uses a hierarchical key system to organize persistent storage:
 | `a_count_*` | Application count for a pool | `("a_count_", pool_id)` |
 | `a_*` | Individual applications | `("a_", pool_id, app_id)` |
 | `ap_*` | Application tracking by student | `("ap_", pool_id, student)` |
-| `app_status` | Application approval status | `("app_status", pool_id, student)` |
 | `claimed_amount` | Claimed funds tracking | `("claimed_amount", pool_id, student)` |
 | `milestones` | Student milestones | `("milestones", pool_id, student)` |
-| `pool_deadline` | Pool deadline | `("pool_deadline", pool_id)` |
+| `pool_deadline` | Refund deadline (ledger sequence) | `("pool_deadline", pool_id)` |
 | `school_reg` | Registered school mapping | `("school_reg", school_address)` |
 | `admin` | Platform admin address | "admin" |
 | `unclaimed_fees` | Accumulated protocol fees | "unclaimed_fees" |
@@ -211,7 +242,7 @@ Checks if a school is registered in the system.
 #### `create_pool(env, creator, title, description, goal, application_deadline) -> u32`
 Creates a new donation pool.
 - **Returns**: Pool ID
-- **Constraints**: Description must be ≤ 500 characters
+- **Constraints**: Description must be ≤ 500 characters; `application_deadline` is a ledger sequence
 - **Events**: Emits `POOL_CREATED` event with creator, goal, title, and description
 
 #### `create_pool_for_school(env, creator, title, description, goal, school, application_deadline) -> u32`
@@ -219,6 +250,12 @@ Creates a pool linked to a registered school.
 - **Authorization**: Requires creator to sign
 - **Errors**: `SchoolNotRegistered`
 - **Events**: Emits `POOL_CREATED` event and links school
+
+#### `set_pool_deadline(env, pool_id, deadline)`
+Sets the explicit refund deadline for a pool.
+- **Authorization**: Requires pool sponsor to sign
+- **Constraints**: `deadline >= application_deadline` (ledger sequences); contradictory deadlines are rejected
+- **Events**: Emits `ddln_set` event
 
 #### `get_pool(env, pool_id) -> (u32, Address, u128, u128, bool, u64)`
 Retrieves pool information as a tuple.
@@ -289,18 +326,20 @@ Returns the total contribution amount for a specific donor in a pool.
 Allows a student to apply to a pool.
 - **Authorization**: Requires student to sign
 - **Constraints**: Student can only apply once per pool
-- **Status**: Sets initial status to "Pending"
+- **Status**: Sets initial status to `ApplicationStatus::Pending`
 - **Errors**: `PoolNotFound`, `DuplicateApplication`
 - **Events**: Emits `APPLICATION_SUBMITTED` event with student and app count
 
 #### `approve_application(env, pool_id, school, student, approved)`
-Allows linked school to approve or reject an application.
-- **Authorization**: Requires school to sign
-- **Errors**: `OnlyLinkedSchoolCanApprove`, `StudentHasNotApplied`
-- **Events**: Emits `APP_APPROVED` event with student and approval status
+Allows the linked school (or the platform admin) to approve or reject an application.
+- **Authorization**: Requires the linked school or admin to sign
+- **Transitions**: Enforced per the state machine above; rejecting an application with `amount_claimed > 0` fails
+- **Errors**: `OnlyLinkedSchoolCanApprove`, `StudentHasNotApplied`, invalid-transition error
+- **Events**: Emits distinct approve, reject and revoke events with student and new status
 
-#### `get_application_status(env, pool_id, student) -> String`
-Returns the status of a student's application ("Pending", "Approved", "Rejected").
+#### `get_application_status(env, pool_id, student) -> ApplicationStatus`
+Returns the typed status of a student's application (`Pending`, `Approved` or `Rejected`).
+- **Errors**: `StudentHasNotApplied`
 
 ---
 
@@ -308,9 +347,9 @@ Returns the status of a student's application ("Pending", "Approved", "Rejected"
 
 #### `setup_application_milestones(env, pool_id, student, milestones: Vec<Milestone>)`
 Sets up payment milestones for an approved student.
-- **Authorization**: Requires student to sign
+- **Authorization**: Requires the linked school (or the platform admin) to sign — the student cannot configure their own schedule
 - **Constraints**: Sum of milestone amounts must equal pool goal
-- **Errors**: `PoolNotFound`
+- **Errors**: `PoolNotFound`, `OnlyLinkedSchoolCanApprove`
 - **Events**: Emits `MILESTONES_SET` event
 
 #### `get_milestones(env, pool_id, student) -> Vec<Milestone>`
@@ -340,8 +379,9 @@ Allows pool sponsor to withdraw surplus funds not locked by active applications.
 - **Constraints**: Pool must exist, surplus must be > 0
 - **Events**: Updates pool state
 
-#### `set_application_status(env, pool_id, student, status)`
-Sets the approval status for a student application (internal function).
+#### `set_application_status(env, pool_id, student, status: ApplicationStatus)`
+Sets the approval status for a student application (internal function). Accepts
+only the typed `ApplicationStatus` enum and enforces the state machine above.
 
 ---
 
@@ -556,7 +596,7 @@ soroban contract invoke \
    approve_application(env, pool_id, school, student, true);
    ```
 
-3. **Set Up Milestones** (Student)
+3. **Set Up Milestones** (Linked School or Admin)
    ```rust
    let milestones = Vec::from_array(&env, [
        Milestone { amount: 25_000_000 },
@@ -583,6 +623,27 @@ Key configuration values defined in the contract:
 | `MAX_DESCRIPTION_LENGTH` | 500 | Max characters in pool description |
 | `MAX_URL_LENGTH` | 256 | Max characters for URL fields |
 | `MAX_IMAGE_HASH_LENGTH` | 64 | Max characters for image hash |
+| `GRACE_PERIOD_SECS` | 86400 | 24-hour grace period (legacy, seconds) |
+| `REFUND_GRACE_PERIOD_LEDGERS` | 17280 | ~24 hours in ledger blocks; grace period applied to the refund window |
+
+---
+
+## Design Note: Unified Deadline Model
+
+All pool deadlines use a **single time base: the ledger sequence**. The
+`application_deadline` set at pool creation is a ledger sequence that gates
+donations and applications, and the refund deadline (`pool_deadline`) is also a
+ledger sequence.
+
+- **No contradictory deadlines**: `set_pool_deadline` rejects any value with
+  `pool_deadline < application_deadline`.
+- **Every pool has a reachable refund window**: when no explicit refund
+  deadline is set, the refund window opens at
+  `application_deadline + REFUND_GRACE_PERIOD_LEDGERS`. A pool is therefore
+  always refundable after its funding deadline plus the grace period, and the
+  `deadline == 0` → `PoolNotExpired` dead end no longer exists.
+- **Getters and events** report the effective refund deadline (explicit value
+  if set, otherwise the derived one).
 | `GRACE_PERIOD_SECS` | 86400 | 24-hour grace period for refunds |
 | `REFUND_GRACE_PERIOD_LEDGERS` | 17280 | ~24 hours in ledger blocks |
 | `PERSISTENT_TTL_THRESHOLD` | 100 | Min remaining TTL before extending persistent entries |
@@ -619,11 +680,13 @@ Potential improvements tracked in GitHub issues:
 - All arithmetic operations use checked methods to prevent overflow
 - Numeric tests verify edge cases and boundary conditions
 
-### Timestamp Validation
+### Deadline Validation
 
-- Deadlines are validated to be in the future
+- All deadlines use the ledger sequence as the single time base
+- `pool_deadline >= application_deadline` is enforced; contradictory deadlines are rejected
+- Pools without an explicit refund deadline become refundable at `application_deadline + REFUND_GRACE_PERIOD_LEDGERS`
 - Grace periods prevent manipulation of refund eligibility
-- Deterministic timestamp helpers used in testing
+- Deterministic ledger helpers used in testing
 
 ### Token Handling
 

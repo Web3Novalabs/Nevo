@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::{Contract, ContractClient, ContractError, PoolState};
+    use crate::{ApplicationStatus, Contract, ContractClient, ContractError, PoolState};
     use soroban_sdk::{testutils::*, Address, Env, String};
 
     fn setup_pool_with_school_and_application(
@@ -59,7 +59,7 @@ mod tests {
 
         // Verify application status is Approved
         let status = client.get_application_status(&pool_id, &student);
-        assert_eq!(status, String::from_str(&env, "Approved"));
+        assert_eq!(status, ApplicationStatus::Approved);
     }
 
     #[test]
@@ -76,7 +76,7 @@ mod tests {
 
         // Verify application status is Rejected
         let status = client.get_application_status(&pool_id, &student);
-        assert_eq!(status, String::from_str(&env, "Rejected"));
+        assert_eq!(status, ApplicationStatus::Rejected);
     }
 
     #[test]
@@ -192,7 +192,7 @@ mod tests {
         client.approve_application(&pool_id, &school, &student, &true, &500i128);
 
         let status = client.get_application_status(&pool_id, &student);
-        assert_eq!(status, String::from_str(&env, "Approved"));
+        assert_eq!(status, ApplicationStatus::Approved);
     }
 
     #[test]
@@ -211,7 +211,7 @@ mod tests {
         client.approve_application(&pool_id, &school, &student, &true, &500i128);
 
         let status = client.get_application_status(&pool_id, &student);
-        assert_eq!(status, String::from_str(&env, "Approved"));
+        assert_eq!(status, ApplicationStatus::Approved);
     }
 
     #[test]
@@ -230,7 +230,7 @@ mod tests {
         client.approve_application(&pool_id, &school, &student, &true, &500i128);
 
         let status = client.get_application_status(&pool_id, &student);
-        assert_eq!(status, String::from_str(&env, "Approved"));
+        assert_eq!(status, ApplicationStatus::Approved);
     }
 
     #[test]
@@ -295,6 +295,281 @@ mod tests {
         let status2 = client.get_application_status(&pool_id, &student2);
         let status3 = client.get_application_status(&pool_id, &student3);
 
+        assert_eq!(status1, ApplicationStatus::Approved);
+        assert_eq!(status2, ApplicationStatus::Approved);
+        assert_eq!(status3, ApplicationStatus::Rejected);
+    }
+
+    #[test]
+    fn test_application_status_starts_pending() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, _school, student, _sponsor) =
+            setup_pool_with_school_and_application(&env, &client);
+
+        let status = client.get_application_status(&pool_id, &student);
+        assert_eq!(status, ApplicationStatus::Pending);
+    }
+
+    #[test]
+    fn test_transition_pending_to_approved() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, school, student, _sponsor) =
+            setup_pool_with_school_and_application(&env, &client);
+
+        school.require_auth();
+        client.approve_application(&pool_id, &school, &student, &true);
+
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Approved
+        );
+    }
+
+    #[test]
+    fn test_transition_pending_to_rejected() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, school, student, _sponsor) =
+            setup_pool_with_school_and_application(&env, &client);
+
+        school.require_auth();
+        client.approve_application(&pool_id, &school, &student, &false);
+
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Rejected
+        );
+    }
+
+    #[test]
+    fn test_transition_rejected_to_approved_allowed() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, school, student, _sponsor) =
+            setup_pool_with_school_and_application(&env, &client);
+
+        school.require_auth();
+        client.approve_application(&pool_id, &school, &student, &false);
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Rejected
+        );
+
+        // Re-approval after rejection is allowed while nothing has been claimed.
+        client.approve_application(&pool_id, &school, &student, &true);
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Approved
+        );
+    }
+
+    #[test]
+    fn test_transition_approved_to_rejected_disallowed() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, school, student, _sponsor) =
+            setup_pool_with_school_and_application(&env, &client);
+
+        school.require_auth();
+        client.approve_application(&pool_id, &school, &student, &true);
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Approved
+        );
+
+        // Approved -> Rejected is not an allowed transition.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.approve_application(&pool_id, &school, &student, &false);
+        }));
+        assert!(result.is_err(), "Expected InvalidStatusTransition error");
+
+        // Status must be unchanged.
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Approved
+        );
+    }
+
+    #[test]
+    fn test_transition_approved_to_approved_disallowed() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, school, student, _sponsor) =
+            setup_pool_with_school_and_application(&env, &client);
+
+        school.require_auth();
+        client.approve_application(&pool_id, &school, &student, &true);
+
+        // Re-approving an already approved application is not an allowed transition.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.approve_application(&pool_id, &school, &student, &true);
+        }));
+        assert!(result.is_err(), "Expected InvalidStatusTransition error");
+
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Approved
+        );
+    }
+
+    #[test]
+    fn test_transition_rejected_to_rejected_disallowed() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, school, student, _sponsor) =
+            setup_pool_with_school_and_application(&env, &client);
+
+        school.require_auth();
+        client.approve_application(&pool_id, &school, &student, &false);
+
+        // Re-rejecting an already rejected application is not an allowed transition.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.approve_application(&pool_id, &school, &student, &false);
+        }));
+        assert!(result.is_err(), "Expected InvalidStatusTransition error");
+
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Rejected
+        );
+    }
+
+    #[test]
+    fn test_transition_approved_to_revoked_allowed_when_nothing_claimed() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, school, student, _sponsor) =
+            setup_pool_with_school_and_application(&env, &client);
+
+        school.require_auth();
+        client.approve_application(&pool_id, &school, &student, &true);
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Approved
+        );
+
+        // Revoking is allowed while the student has not claimed anything.
+        client.revoke_application(&pool_id, &school, &student);
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Revoked
+        );
+    }
+
+    #[test]
+    fn test_transition_approved_to_revoked_disallowed_after_claim() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, school, student, _sponsor) =
+            setup_pool_with_school_and_application(&env, &client);
+
+        school.require_auth();
+        client.approve_application(&pool_id, &school, &student, &true);
+
+        // Simulate a partial claim so amount_claimed > 0.
+        client.set_amount_claimed_for_test(&pool_id, &student, &1u128);
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.revoke_application(&pool_id, &school, &student);
+        }));
+        assert!(result.is_err(), "Expected InvalidStatusTransition error");
+
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Approved
+        );
+    }
+
+    #[test]
+    fn test_transition_pending_to_revoked_disallowed() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, school, student, _sponsor) =
+            setup_pool_with_school_and_application(&env, &client);
+
+        school.require_auth();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.revoke_application(&pool_id, &school, &student);
+        }));
+        assert!(result.is_err(), "Expected InvalidStatusTransition error");
+
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Pending
+        );
+    }
+
+    #[test]
+    fn test_transition_rejected_to_revoked_disallowed() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, school, student, _sponsor) =
+            setup_pool_with_school_and_application(&env, &client);
+
+        school.require_auth();
+        client.approve_application(&pool_id, &school, &student, &false);
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.revoke_application(&pool_id, &school, &student);
+        }));
+        assert!(result.is_err(), "Expected InvalidStatusTransition error");
+
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Rejected
+        );
+    }
+
+    #[test]
+    fn test_transition_revoked_to_approved_disallowed() {
+        let env = Env::new();
+        let contract_id = env.register_contract(None, Contract);
+        let client = ContractClient::new(&env, &contract_id);
+
+        let (pool_id, school, student, _sponsor) =
+            setup_pool_with_school_and_application(&env, &client);
+
+        school.require_auth();
+        client.approve_application(&pool_id, &school, &student, &true);
+        client.revoke_application(&pool_id, &school, &student);
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Revoked
+        );
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.approve_application(&pool_id, &school, &student, &true);
+        }));
+        assert!(result.is_err(), "Expected InvalidStatusTransition error");
+
+        assert_eq!(
+            client.get_application_status(&pool_id, &student),
+            ApplicationStatus::Revoked
+        );
         assert_eq!(status1, String::from_str(&env, "Approved"));
         assert_eq!(status2, String::from_str(&env, "Approved"));
         assert_eq!(status3, String::from_str(&env, "Rejected"));
