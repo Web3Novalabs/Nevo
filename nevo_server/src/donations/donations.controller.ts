@@ -10,6 +10,7 @@ import {
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { DonationSortBy, DonationsService } from './donations.service.js';
+import { PaginatedDonationsDto } from './dto/donation-response.dto.js';
 import { GetDonationsDto } from './dto/get-donations.dto.js';
 
 @ApiTags('donations')
@@ -24,15 +25,7 @@ export class DonationsController {
   @ApiQuery({ name: 'sortBy', required: false, enum: DonationSortBy })
   @ApiOkResponse({
     description: 'Paginated donations made to the pool.',
-    schema: {
-      type: 'object',
-      properties: {
-        data: { type: 'array', items: { type: 'object' } },
-        total: { type: 'number' },
-        page: { type: 'number' },
-        limit: { type: 'number' },
-      },
-    },
+    type: PaginatedDonationsDto,
   })
   @Get('pools/:id/donations')
   findByPool(@Param('id') id: string, @Query() query: GetDonationsDto) {
@@ -50,15 +43,7 @@ export class DonationsController {
   @ApiQuery({ name: 'sortBy', required: false, enum: DonationSortBy })
   @ApiOkResponse({
     description: 'Paginated donations made by the current user.',
-    schema: {
-      type: 'object',
-      properties: {
-        data: { type: 'array', items: { type: 'object' } },
-        total: { type: 'number' },
-        page: { type: 'number' },
-        limit: { type: 'number' },
-      },
-    },
+    type: PaginatedDonationsDto,
   })
   @UseGuards(JwtAuthGuard)
   @Get('users/me/donations')
