@@ -74,6 +74,7 @@ const mockRpcServer = {
   getTransaction: jest.fn(),
   getAccount: jest.fn(),
   simulateTransaction: jest.fn(),
+  prepareTransaction: jest.fn(),
 };
 
 // Patch the constructor so every `new StellarRpc.Server(...)` returns our mock
@@ -107,6 +108,11 @@ describe('ContractService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    // Default RPC behaviour: a funded account and a pass-through prepare
+    mockRpcServer.getAccount.mockImplementation(async (publicKey: string) =>
+      fakeAccount(publicKey),
+    );
+    mockRpcServer.prepareTransaction.mockImplementation(async (tx: any) => tx);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ContractService,
@@ -122,13 +128,14 @@ describe('ContractService', () => {
   // =========================================================================
 
   describe('Transaction envelope construction', () => {
-    it('buildCreatePoolTransaction — source account matches the creator', () => {
-      const xdrStr = service.buildCreatePoolTransaction({
+    it('buildCreatePoolTransaction — source account matches the creator', async () => {
+      const xdrStr = await service.buildCreatePoolTransaction({
         creator: SOURCE,
         goal: '1000',
         token: TOKEN,
         title: 'My Pool',
         description: 'desc',
+        applicationDeadline: '2000000000',
       });
 
       expect(typeof xdrStr).toBe('string');
@@ -137,44 +144,45 @@ describe('ContractService', () => {
       expect(() => TransactionBuilder.fromXDR(xdrStr, NETWORK)).not.toThrow();
     });
 
-    it('buildCreatePoolTransaction — sequence number is 1 (Account seeded with 0)', () => {
-      const xdrStr = service.buildCreatePoolTransaction({
+    it('buildCreatePoolTransaction — sequence number comes from the loaded account', async () => {
+      const xdrStr = await service.buildCreatePoolTransaction({
         creator: SOURCE,
         goal: '1000',
         token: TOKEN,
         title: 'My Pool',
         description: 'desc',
+        applicationDeadline: '2000000000',
       });
       const tx = TransactionBuilder.fromXDR(xdrStr, NETWORK) as any;
-      // TransactionBuilder increments from 0 → 1 on build()
-      expect(tx.sequence).toBe('1');
+      // Account seeded with sequence 100 → builder increments to 101
+      expect(tx.sequence).toBe('101');
     });
 
-    it('buildDonateTransaction — source account matches the caller', () => {
-      const xdrStr = service.buildDonateTransaction(SOURCE, 5, '250');
+    it('buildDonateTransaction — source account matches the caller', async () => {
+      const xdrStr = await service.buildDonateTransaction(SOURCE, 5, '250');
       const tx = TransactionBuilder.fromXDR(xdrStr, NETWORK) as any;
       expect(tx.source).toBe(SOURCE);
     });
 
-    it('buildDonateTransaction — sequence number is 1', () => {
-      const xdrStr = service.buildDonateTransaction(SOURCE, 5, '250');
+    it('buildDonateTransaction — sequence number comes from the loaded account', async () => {
+      const xdrStr = await service.buildDonateTransaction(SOURCE, 5, '250');
       const tx = TransactionBuilder.fromXDR(xdrStr, NETWORK) as any;
-      expect(tx.sequence).toBe('1');
+      expect(tx.sequence).toBe('101');
     });
 
-    it('buildWithdrawTransaction — source account matches the caller', () => {
-      const xdrStr = service.buildWithdrawTransaction(SOURCE, 3, TOKEN);
-      const tx = TransactionBuilder.fromXDR(xdrStr, NETWORK) as any;
-      expect(tx.source).toBe(SOURCE);
-    });
-
-    it('buildClosePoolTransaction — source account matches the caller', () => {
-      const xdrStr = service.buildClosePoolTransaction(SOURCE, 7);
+    it('buildWithdrawTransaction — source account matches the caller', async () => {
+      const xdrStr = await service.buildWithdrawTransaction(SOURCE, 3, TOKEN);
       const tx = TransactionBuilder.fromXDR(xdrStr, NETWORK) as any;
       expect(tx.source).toBe(SOURCE);
     });
 
-    it('all build methods produce parseable XDR', () => {
+    it('buildClosePoolTransaction — source account matches the caller', async () => {
+      const xdrStr = await service.buildClosePoolTransaction(SOURCE, 7);
+      const tx = TransactionBuilder.fromXDR(xdrStr, NETWORK) as any;
+      expect(tx.source).toBe(SOURCE);
+    });
+
+    it('all build methods produce parseable XDR', async () => {
       const cases = [
         () =>
           service.buildCreatePoolTransaction({
@@ -183,6 +191,7 @@ describe('ContractService', () => {
             token: TOKEN,
             title: 'T',
             description: 'D',
+            applicationDeadline: '2000000000',
           }),
         () => service.buildDonateTransaction(SOURCE, 1, '100'),
         () => service.buildWithdrawTransaction(SOURCE, 1, TOKEN),
@@ -190,7 +199,7 @@ describe('ContractService', () => {
       ];
       for (const build of cases) {
         expect(() =>
-          TransactionBuilder.fromXDR(build(), NETWORK),
+          TransactionBuilder.fromXDR(await build(), NETWORK),
         ).not.toThrow();
       }
     });
@@ -201,18 +210,69 @@ describe('ContractService', () => {
   // =========================================================================
 
   describe('Contract invocation parameter encoding', () => {
-    it('buildCreatePoolTransaction encodes goal as i128', () => {
-      const xdrStr = service.buildCreatePoolTransaction({
+    it('buildCreatePoolTransaction invokes create_pool with (creator, title, description, goal, application_deadline)', async () => {
+      const xdrStr = await service.buildCreatePoolTransaction({
         creator: SOURCE,
         goal: '9999',
         token: TOKEN,
         title: 'Pool',
         description: 'desc',
+        applicationDeadline: '2000000000',
       });
       const op = decodeFirstOp(xdrStr);
+      const invoke = op.func?.invokeContract?.();
+      expect(invoke?.functionName?.().toString()).toBe('create_pool');
+      const args: xdr.ScVal[] = invoke?.args?.() ?? [];
+      expect(args).toHaveLength(5);
+      // arg[0] creator: Address
+      expect(args[0].switch().name).toBe('scvAddress');
+      expect(scValToNative(args[0])).toBe(SOURCE);
+      // arg[1] title: String
+      expect(args[1].switch().name).toBe('scvString');
+      expect(args[1].str().toString()).toBe('Pool');
+      // arg[2] description: String
+      expect(args[2].switch().name).toBe('scvString');
+      expect(args[2].str().toString()).toBe('desc');
+      // arg[3] goal: u128
+      expect(args[3].switch().name).toBe('scvU128');
+      expect(scValToNative(args[3])).toBe(9999n);
+      // arg[4] application_deadline: u64
+      expect(args[4].switch().name).toBe('scvU64');
+      expect(scValToNative(args[4])).toBe(2000000000n);
+    });
+
+    it('buildDonateTransaction invokes donate_with_token with (pool_id, donor, token, amount)', async () => {
+      const xdrStr = await service.buildDonateTransaction(SOURCE, 42, '777');
       const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
       // arg[1] is the goal
       expect(args[1].switch().name).toBe('scvI128');
+      expect(args[1].switch().name).not.toBe('scvU128');
+      expect(scValToNative(args[1])).toBe(9999n);
+    });
+
+    it('buildCreatePoolTransaction rejects a goal above i128::MAX with a typed error', () => {
+      const tooLarge = (BigInt('1') << BigInt(127)).toString();
+      expect(() =>
+        service.buildCreatePoolTransaction({
+          creator: SOURCE,
+          goal: tooLarge,
+          token: TOKEN,
+          title: 'Pool',
+          description: 'desc',
+        }),
+      ).toThrow(StellarError);
+    });
+
+    it('buildCreatePoolTransaction rejects a negative goal with a typed error', () => {
+      expect(() =>
+        service.buildCreatePoolTransaction({
+          creator: SOURCE,
+          goal: '-1',
+          token: TOKEN,
+          title: 'Pool',
+          description: 'desc',
+        }),
+      ).toThrow(StellarError);
     });
 
     it('buildCreatePoolTransaction encodes title as string', () => {
@@ -233,16 +293,44 @@ describe('ContractService', () => {
     it('buildDonateTransaction encodes poolId as u32', () => {
       const xdrStr = service.buildDonateTransaction(SOURCE, 42, '100');
       const op = decodeFirstOp(xdrStr);
-      const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
+      const invoke = op.func?.invokeContract?.();
+      expect(invoke?.functionName?.().toString()).toBe('donate_with_token');
+      const args: xdr.ScVal[] = invoke?.args?.() ?? [];
+      expect(args).toHaveLength(4);
+      // arg[0] pool_id: u32
       expect(args[0].switch().name).toBe('scvU32');
       expect(args[0].u32()).toBe(42);
+      // arg[1] donor: Address
+      expect(args[1].switch().name).toBe('scvAddress');
+      expect(scValToNative(args[1])).toBe(SOURCE);
+      // arg[2] token: Address
+      expect(args[2].switch().name).toBe('scvAddress');
+      // arg[3] amount: i128
+      expect(args[3].switch().name).toBe('scvI128');
+      expect(scValToNative(args[3])).toBe(777n);
     });
 
+    it('buildWithdrawTransaction encodes poolId as u32 and token as address', async () => {
+      const xdrStr = await service.buildWithdrawTransaction(SOURCE, 9, TOKEN);
     it('buildDonateTransaction encodes amount as i128', () => {
       const xdrStr = service.buildDonateTransaction(SOURCE, 1, '777');
       const op = decodeFirstOp(xdrStr);
       const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
       expect(args[1].switch().name).toBe('scvI128');
+      expect(scValToNative(args[1])).toBe(777n);
+    });
+
+    it('buildDonateTransaction rejects an amount above i128::MAX with a typed error', () => {
+      const tooLarge = (BigInt('1') << BigInt(127)).toString();
+      expect(() =>
+        service.buildDonateTransaction(SOURCE, 1, tooLarge),
+      ).toThrow(StellarError);
+    });
+
+    it('buildDonateTransaction rejects a negative amount with a typed error', () => {
+      expect(() => service.buildDonateTransaction(SOURCE, 1, '-5')).toThrow(
+        StellarError,
+      );
     });
 
     it('buildWithdrawTransaction encodes poolId as u32 and token as address', () => {
@@ -254,26 +342,77 @@ describe('ContractService', () => {
       expect(args[1].switch().name).toBe('scvAddress');
     });
 
-    it('buildClosePoolTransaction encodes poolId as u32 and caller as address', () => {
+    it('buildClosePoolTransaction encodes poolId as u32 and passes no extra address argument', () => {
       const xdrStr = service.buildClosePoolTransaction(SOURCE, 11);
+    it('buildClosePoolTransaction encodes poolId as u32 and caller as address', async () => {
+      const xdrStr = await service.buildClosePoolTransaction(SOURCE, 11);
       const op = decodeFirstOp(xdrStr);
       const args: xdr.ScVal[] = op.func?.invokeContract?.()?.args?.() ?? [];
+      expect(args).toHaveLength(1);
       expect(args[0].switch().name).toBe('scvU32');
       expect(args[0].u32()).toBe(11);
-      expect(args[1].switch().name).toBe('scvAddress');
     });
   });
 
   describe('buildTransaction', () => {
-    it('builds a valid transaction from a contract operation', () => {
+    it('loads the source account and returns the prepared transaction XDR', async () => {
+      const operation = service['contract'].call(
+        'close_pool',
+        nativeToScVal(1, { type: 'u32' }),
+      );
+
+      const xdr = await service['buildTransaction'](SOURCE, operation);
+      expect(mockRpcServer.getAccount).toHaveBeenCalledWith(SOURCE);
+      expect(mockRpcServer.prepareTransaction).toHaveBeenCalledTimes(1);
+      expect(() => TransactionBuilder.fromXDR(xdr, NETWORK)).not.toThrow();
+    });
+
+    it('returns exactly the XDR produced by prepareTransaction', async () => {
       const operation = service['contract'].call(
         'close_pool',
         nativeToScVal(1, { type: 'u32' }),
         nativeToScVal(SOURCE, { type: 'address' }),
       );
+      const prepared = new TransactionBuilder(fakeAccount(SOURCE) as any, {
+        fee: '100',
+        networkPassphrase: NETWORK,
+      })
+        .addOperation(operation)
+        .setTimeout(30)
+        .build();
+      mockRpcServer.prepareTransaction.mockResolvedValueOnce(prepared);
 
-      const xdr = service['buildTransaction'](SOURCE, operation);
-      expect(() => TransactionBuilder.fromXDR(xdr, NETWORK)).not.toThrow();
+      const xdr = await service['buildTransaction'](SOURCE, operation);
+      expect(xdr).toBe(prepared.toXDR());
+    });
+
+    it('maps a getAccount rejection to a StellarError', async () => {
+      mockRpcServer.getAccount.mockRejectedValueOnce(
+        new Error('op_no_source_account'),
+      );
+      const operation = service['contract'].call(
+        'close_pool',
+        nativeToScVal(1, { type: 'u32' }),
+        nativeToScVal(SOURCE, { type: 'address' }),
+      );
+      await expect(
+        service['buildTransaction'](SOURCE, operation),
+      ).rejects.toBeInstanceOf(StellarError);
+      expect(mockRpcServer.prepareTransaction).not.toHaveBeenCalled();
+    });
+
+    it('maps a prepareTransaction rejection to a StellarError', async () => {
+      mockRpcServer.prepareTransaction.mockRejectedValueOnce(
+        new Error('simulation failed'),
+      );
+      const operation = service['contract'].call(
+        'close_pool',
+        nativeToScVal(1, { type: 'u32' }),
+        nativeToScVal(SOURCE, { type: 'address' }),
+      );
+      await expect(
+        service['buildTransaction'](SOURCE, operation),
+      ).rejects.toBeInstanceOf(StellarError);
     });
   });
 
@@ -305,7 +444,7 @@ describe('ContractService', () => {
         events: { transactionEventsXdr: [], contractEventsXdr: [] },
       } as StellarRpc.Api.GetSuccessfulTransactionResponse);
 
-      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      const validXdr = await service.buildDonateTransaction(SOURCE, 1, '100');
       const result = await service.submitSignedXdr(validXdr);
 
       expect(result.txHash).toBe('abc123txhash');
@@ -333,7 +472,7 @@ describe('ContractService', () => {
         events: { transactionEventsXdr: [], contractEventsXdr: [] },
       });
 
-      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      const validXdr = await service.buildDonateTransaction(SOURCE, 1, '100');
       const result = await service.submitSignedXdr(validXdr);
       expect(result).toEqual({ txHash: 'failtx', status: 'failed' });
     });
@@ -346,7 +485,7 @@ describe('ContractService', () => {
         latestLedgerCloseTime: 0,
       });
 
-      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      const validXdr = await service.buildDonateTransaction(SOURCE, 1, '100');
       await expect(service.submitSignedXdr(validXdr)).rejects.toBeInstanceOf(
         StellarError,
       );
@@ -361,7 +500,7 @@ describe('ContractService', () => {
         latestLedgerCloseTime: 0,
       });
 
-      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      const validXdr = await service.buildDonateTransaction(SOURCE, 1, '100');
       await expect(service.submitSignedXdr(validXdr)).rejects.toBeInstanceOf(
         StellarError,
       );
@@ -385,7 +524,7 @@ describe('ContractService', () => {
         oldestLedgerCloseTime: 0,
       });
 
-      const validXdr = service.buildDonateTransaction(SOURCE, 1, '100');
+      const validXdr = await service.buildDonateTransaction(SOURCE, 1, '100');
       const result = await service.submitSignedXdr(validXdr);
       expect(result).toEqual({ txHash: 'pendtx', status: 'pending' });
     });
@@ -396,21 +535,42 @@ describe('ContractService', () => {
   // =========================================================================
 
   describe('Timeout and error handling policy', () => {
-    it('getContributionOnChain returns 0n when getAccount throws (network timeout)', async () => {
-      mockRpcServer.getAccount.mockRejectedValueOnce(new Error('timeout'));
+    it('getContributionOnChain does not call getAccount (simulates from in-memory account)', async () => {
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(BigInt(500), { type: 'i128' })),
+      );
       const result = await service.getContributionOnChain(1, DONOR);
-      expect(result).toBe(0n);
+      expect(result).toBe(500n);
+      expect(mockRpcServer.getAccount).not.toHaveBeenCalled();
     });
 
-    it('getContributionOnChain returns 0n when simulateTransaction returns error shape', async () => {
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+    it('getContributionOnChain simulates with an in-memory Account', async () => {
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(BigInt(1), { type: 'i128' })),
+      );
+      await service.getContributionOnChain(1, DONOR);
+      const tx = mockRpcServer.simulateTransaction.mock.calls[0][0];
+      expect(tx.source).toBeInstanceOf(Account);
+      expect(tx.source.sequenceNumber()).toBe('0');
+    });
+
+    it('getContributionOnChain throws StellarError on RPC failure (not 0n)', async () => {
+      mockRpcServer.simulateTransaction.mockRejectedValueOnce(
+        new Error('timeout'),
+      );
+      await expect(
+        service.getContributionOnChain(1, DONOR),
+      ).rejects.toBeInstanceOf(StellarError);
+    });
+
+    it('getContributionOnChain throws StellarError when simulateTransaction returns error shape', async () => {
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(fakeSimError());
-      const result = await service.getContributionOnChain(1, DONOR);
-      expect(result).toBe(0n);
+      await expect(
+        service.getContributionOnChain(1, DONOR),
+      ).rejects.toBeInstanceOf(StellarError);
     });
 
     it('getContributionOnChain returns 0n when retval is missing', async () => {
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
       mockRpcServer.simulateTransaction.mockResolvedValueOnce({
         result: { retval: null, auth: [] },
         latestLedger: 1,
@@ -419,83 +579,88 @@ describe('ContractService', () => {
       expect(result).toBe(0n);
     });
 
-    it('getTotalRaisedOnChain returns 0n when getAccount throws', async () => {
-      mockRpcServer.getAccount.mockRejectedValueOnce(
-        new Error('connection refused'),
+    it('getTotalRaisedOnChain does not call getAccount', async () => {
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(BigInt(12345), { type: 'i128' })),
       );
       const result = await service.getTotalRaisedOnChain(1);
-      expect(result).toBe(0n);
+      expect(result).toBe(12345n);
+      expect(mockRpcServer.getAccount).not.toHaveBeenCalled();
     });
 
-    it('getTotalRaisedOnChain returns 0n when simulate returns error shape', async () => {
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+    it('getTotalRaisedOnChain throws StellarError on RPC failure (not 0n)', async () => {
+      mockRpcServer.simulateTransaction.mockRejectedValueOnce(
+        new Error('connection refused'),
+      );
+      await expect(service.getTotalRaisedOnChain(1)).rejects.toBeInstanceOf(
+        StellarError,
+      );
+    });
+
+    it('getTotalRaisedOnChain throws StellarError when simulate returns error shape', async () => {
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(fakeSimError());
-      const result = await service.getTotalRaisedOnChain(1);
-      expect(result).toBe(0n);
+      await expect(service.getTotalRaisedOnChain(1)).rejects.toBeInstanceOf(
+        StellarError,
+      );
     });
 
     it('decodes scvI128 return value correctly', async () => {
-      // Mock RPC getAccount to return a valid Account
-      const mockAccount = new Account(Keypair.random().publicKey(), '0');
-      jest
-        .spyOn(service['rpcServer'], 'getAccount')
-        .mockResolvedValue(mockAccount);
-
-      // Mock simulateTransaction to return a result with retval
-      const mockResult = {
-        result: {
-          retval: {
-            toXDR: () => Buffer.from([0]),
-          },
-        },
-      };
-      jest
-        .spyOn(service['rpcServer'], 'simulateTransaction')
-        .mockResolvedValue(mockResult as any);
-
-      // Mock xdr.ScVal.fromXDR to return an object indicating scvI128 with parts
-      const fromXdrSpy = jest.spyOn(xdr.ScVal, 'fromXDR').mockReturnValue({
-        switch: () => ({ name: 'scvI128' }),
-        i128: () => ({
-          hi: () => ({ toString: () => '0' }),
-          lo: () => ({ toString: () => '123' }),
-        }),
-        u128: undefined,
-      } as any);
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(BigInt(123), { type: 'i128' })),
+      );
 
       const donor = Keypair.random().publicKey();
-      try {
-        const contribution = await service.getContributionOnChain(1, donor);
-        expect(contribution).toBe(123n);
-      } finally {
-        fromXdrSpy.mockRestore();
-      }
+      const contribution = await service.getContributionOnChain(1, donor);
+      expect(contribution).toBe(123n);
     });
 
-    it('getDonorCountOnChain returns 0 when getAccount throws', async () => {
-      mockRpcServer.getAccount.mockRejectedValueOnce(new Error('timeout'));
+    it('getDonorCountOnChain does not call getAccount', async () => {
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(7, { type: 'u32' })),
+      );
       const result = await service.getDonorCountOnChain(1);
-      expect(result).toBe(0);
+      expect(result).toBe(7);
+      expect(mockRpcServer.getAccount).not.toHaveBeenCalled();
     });
 
-    it('getDonorCountOnChain returns 0 when simulate returns error shape', async () => {
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+    it('getDonorCountOnChain throws StellarError on RPC failure (not 0)', async () => {
+      mockRpcServer.simulateTransaction.mockRejectedValueOnce(
+        new Error('timeout'),
+      );
+      await expect(service.getDonorCountOnChain(1)).rejects.toBeInstanceOf(
+        StellarError,
+      );
+    });
+
+    it('getDonorCountOnChain throws StellarError when simulate returns error shape', async () => {
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(fakeSimError());
-      const result = await service.getDonorCountOnChain(1);
-      expect(result).toBe(0);
+      await expect(service.getDonorCountOnChain(1)).rejects.toBeInstanceOf(
+        StellarError,
+      );
     });
 
-    it('getPoolOnChain returns null when getAccount throws', async () => {
-      mockRpcServer.getAccount.mockRejectedValueOnce(new Error('timeout'));
-      const result = await service.getPoolOnChain(1);
-      expect(result).toBeNull();
+    it('getPoolOnChain does not call getAccount', async () => {
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal({ id: 1 }, { type: 'map' })),
+      );
+      await service.getPoolOnChain(1);
+      expect(mockRpcServer.getAccount).not.toHaveBeenCalled();
     });
 
-    it('getPoolOnChain returns null when simulate returns error shape', async () => {
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
+    it('getPoolOnChain throws StellarError on RPC failure (not null)', async () => {
+      mockRpcServer.simulateTransaction.mockRejectedValueOnce(
+        new Error('timeout'),
+      );
+      await expect(service.getPoolOnChain(1)).rejects.toBeInstanceOf(
+        StellarError,
+      );
+    });
+
+    it('getPoolOnChain throws StellarError when simulate returns error shape', async () => {
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(fakeSimError());
-      const result = await service.getPoolOnChain(1);
-      expect(result).toBeNull();
+      await expect(service.getPoolOnChain(1)).rejects.toBeInstanceOf(
+        StellarError,
+      );
     });
   });
 
@@ -506,7 +671,6 @@ describe('ContractService', () => {
   describe('getContributionOnChain — mocked RPC', () => {
     it('decodes a non-zero i128 return value', async () => {
       const scVal = nativeToScVal(BigInt(500), { type: 'i128' });
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(
         fakeSimResult(scVal),
       );
@@ -516,7 +680,6 @@ describe('ContractService', () => {
 
     it('returns 0n when retval switch is neither i128 nor u128', async () => {
       const scVal = nativeToScVal(42, { type: 'u32' });
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(
         fakeSimResult(scVal),
       );
@@ -525,15 +688,9 @@ describe('ContractService', () => {
     });
 
     it('returns the total raised from the simulation result', async () => {
-      const mockAccount = new Account(Keypair.random().publicKey(), '0');
-      jest
-        .spyOn(service['rpcServer'], 'getAccount')
-        .mockResolvedValue(mockAccount);
-      jest
-        .spyOn(service['rpcServer'], 'simulateTransaction')
-        .mockResolvedValue({
-          result: { retval: nativeToScVal(5000n, { type: 'i128' }) },
-        } as any);
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(5000n, { type: 'i128' })),
+      );
 
       const result = await service.getTotalRaisedOnChain(1);
       expect(result).toBe(5000n);
@@ -543,7 +700,6 @@ describe('ContractService', () => {
   describe('getTotalRaisedOnChain — mocked RPC', () => {
     it('returns a bigint from a simulate response', async () => {
       const scVal = nativeToScVal(BigInt(12345), { type: 'i128' });
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(
         fakeSimResult(scVal),
       );
@@ -555,7 +711,6 @@ describe('ContractService', () => {
   describe('getDonorCountOnChain — mocked RPC', () => {
     it('returns a number from a simulate response', async () => {
       const scVal = nativeToScVal(7, { type: 'u32' });
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
       mockRpcServer.simulateTransaction.mockResolvedValueOnce(
         fakeSimResult(scVal),
       );
@@ -564,15 +719,9 @@ describe('ContractService', () => {
     });
 
     it('returns the donor count from the simulation result', async () => {
-      const mockAccount = new Account(Keypair.random().publicKey(), '0');
-      jest
-        .spyOn(service['rpcServer'], 'getAccount')
-        .mockResolvedValue(mockAccount);
-      jest
-        .spyOn(service['rpcServer'], 'simulateTransaction')
-        .mockResolvedValue({
-          result: { retval: nativeToScVal(7, { type: 'u32' }) },
-        } as any);
+      mockRpcServer.simulateTransaction.mockResolvedValueOnce(
+        fakeSimResult(nativeToScVal(7, { type: 'u32' })),
+      );
 
       const result = await service.getDonorCountOnChain(1);
       expect(result).toBe(7);
@@ -581,7 +730,6 @@ describe('ContractService', () => {
 
   describe('getPoolOnChain — mocked RPC', () => {
     it('returns null when retval is missing', async () => {
-      mockRpcServer.getAccount.mockResolvedValue(fakeAccount(SOURCE));
       mockRpcServer.simulateTransaction.mockResolvedValueOnce({
         result: { retval: null, auth: [] },
         latestLedger: 1,

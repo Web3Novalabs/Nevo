@@ -13,7 +13,9 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "generate:api-types": "openapi-typescript ../nevo_server/openapi.json -o lib/api-types.generated.ts",
-    "check:api-types": "npm run generate:api-types && git diff --exit-code lib/api-types.generated.ts"
+    "check:api-types": "npm run generate:api-types && git diff --exit-code lib/api-types.generated.ts",
+    "generate:contract-bindings": "npm --prefix ../packages/nevo-contract-client run generate",
+    "check:contract-bindings": "npm run generate:contract-bindings && git diff --exit-code ../packages/nevo-contract-client"
   },
   "overrides": {
     "react": "19.3.0",
@@ -30,6 +32,7 @@
   },
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^1.9.5",
+    "@nevo/contract-client": "file:../packages/nevo-contract-client",
     "@sentry/nextjs": "^10.73.0",
     "@stellar/freighter-api": "^6.0.1",
     "@stellar/stellar-sdk": "^16.1.0",

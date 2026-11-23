@@ -1438,3 +1438,292 @@ fn test_close_pool_twice_panics() {
 
     client.close_pool(&pool_id);
 }
+
+// ============= PERSISTENT STORAGE TTL TESTS (#1656) =============
+
+/// Advance the ledger sequence past the default persistent-entry TTL and
+/// verify that pools, contributions and applications are still readable.
+/// The contract extends the TTL on every read/write, so no manual restore
+/// is required.
+#[test]
+fn test_persistent_entries_readable_after_default_ttl_elapses() {
+// ============= READ GETTER TESTS (#1679) =============
+
+#[test]
+fn test_get_pool_token_returns_set_token() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let student = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "TTL Pool"),
+        &String::from_str(&env, "Long running pool"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+    client.donate(&pool_id, &donor, &250_000_000u128);
+    client.apply_to_pool(
+        &pool_id,
+        &student,
+        &String::from_str(&env, "TTL application"),
+    );
+
+    // Advance well past the default persistent-entry TTL.
+    advance_ledger(&env, 100_000);
+
+    // Pool, contribution and application entries must still be readable.
+    let pool = client.get_pool(&pool_id);
+    assert_eq!(pool.0, pool_id);
+    assert_eq!(pool.3, 250_000_000u128);
+
+    assert_eq!(client.get_contribution(&pool_id, &donor), 250_000_000u128);
+
+    let application = client.get_application(&pool_id, &student).unwrap();
+    assert_eq!(application.pool_id, pool_id);
+    assert_eq!(application.student, student);
+}
+
+/// Instance-stored config (admin, creation fee, crowdfunding token, pool
+/// count) must survive a ledger advance past the default TTL because the
+/// instance TTL is extended on every write.
+#[test]
+fn test_instance_config_survives_default_ttl() {
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Token Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let token = Address::generate(&env);
+    client.set_pool_token(&pool_id, &token);
+    assert_eq!(client.get_pool_token(&pool_id), token);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_get_pool_token_missing_pool_panics() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let _ = client.get_pool_token(&999u32);
+}
+
+#[test]
+fn test_get_pool_state_returns_current_state() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
+    client.set_creation_fee(&admin, &123_456i128);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Config Pool"),
+        &String::from_str(&env, "Config survives TTL"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+    assert_eq!(pool_id, 1);
+
+    // Advance well past the default persistent-entry TTL.
+    advance_ledger(&env, 100_000);
+
+    assert_eq!(client.get_admin(), admin);
+    assert_eq!(client.get_creation_fee(), 123_456i128);
+    assert_eq!(client.get_pool_count(), 1);
+}
+
+// ============= REFUND STATE CONSISTENCY TESTS (#1665) =============
+
+/// A Completed pool that is partly refunded below its goal must revert to
+/// Active so that `state` stays consistent with `collected`.
+#[test]
+fn test_partial_refund_below_goal_reverts_completed_pool_to_active() {
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "State Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    assert_eq!(client.get_pool_state(&pool_id), PoolState::Active);
+    client.set_pool_state(&pool_id, &PoolState::Disbursed);
+    assert_eq!(client.get_pool_state(&pool_id), PoolState::Disbursed);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_get_pool_state_missing_pool_panics() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let _ = client.get_pool_state(&999u32);
+}
+
+#[test]
+fn test_get_unclaimed_fees_defaults_to_zero_and_tracks_accrual() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let goal: u128 = 1_000_000_000;
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Refund State Pool"),
+        &String::from_str(&env, "State consistency"),
+        &goal,
+        &100_000u64,
+    );
+
+    // Fund the contract so the refund transfer can succeed.
+    let donation_amount: i128 = 1_000_000_000;
+    let token_address = create_token(&env, donation_amount, &contract_id);
+    client.donate(&pool_id, &donor, &(donation_amount as u128));
+
+    // Pool reached its goal and is Completed.
+    assert_eq!(client.get_pool(&pool_id).3, goal);
+    assert_eq!(client.get_pool_state(&pool_id), PoolState::Completed);
+
+    // Set deadline 100 ledgers ahead, then advance past the grace period.
+    let current = env.ledger().sequence();
+    let deadline = current + 100;
+    client.set_pool_deadline(&pool_id, &deadline);
+    advance_ledger(&env, 100 + 17_280 + 1);
+
+    // Partly refund the donation so collected drops below the goal.
+    client.refund_donation(&pool_id, &donor, &token_address);
+
+    let pool = client.get_pool(&pool_id);
+    assert!(pool.3 < goal, "collected must drop below the goal");
+    assert_eq!(
+        client.get_pool_state(&pool_id),
+        PoolState::Active,
+        "state must be recomputed to Active when collected < goal"
+    );
+}
+
+/// A full refund must clear the donor marker so a later re-donation counts
+/// as a new donor and increments the donor count.
+#[test]
+fn test_full_refund_clears_donor_marker_and_redonation_counts_new_donor() {
+    let admin = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let student = Address::generate(&env);
+    let claim_amount: i128 = 100_000_000;
+    let token = create_token(&env, claim_amount, &contract_id);
+
+    let pool_id = create_pool_with_school(
+        &env,
+        &client,
+        &creator,
+        &admin,
+        &creator,
+        "Fees Pool",
+        "Test",
+        1_000_000_000u128,
+        100_000u64,
+    );
+
+    assert_eq!(client.get_unclaimed_fees(&token), 0i128);
+
+    client.donate(&pool_id, &creator, &500_000_000u128);
+    client.set_application_status(&creator, &pool_id, &student, &String::from_str(&env, "Approved"));
+    client.claim_funds(&student, &pool_id, &claim_amount, &token);
+
+    assert_eq!(client.get_unclaimed_fees(&token), 1_000_000i128);
+}
+
+#[test]
+fn test_get_emergency_withdrawal_returns_stored_request() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_admin(&admin);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Emergency Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let token = create_token(&env, 500_000_000i128, &contract_id);
+    client.request_emergency_withdraw(&admin, &pool_id, &token, &500_000_000i128);
+
+    let request = client.get_emergency_withdrawal(&pool_id);
+    assert_eq!(request.token, token);
+    assert_eq!(request.amount, 500_000_000i128);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #22)")]
+fn test_get_emergency_withdrawal_missing_request_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Donor Marker Pool"),
+        &String::from_str(&env, "Donor marker reset"),
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Emergency Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let donation_amount: i128 = 500_000_000;
+    let token_address = create_token(&env, donation_amount, &contract_id);
+    client.donate(&pool_id, &donor, &(donation_amount as u128));
+    assert_eq!(client.get_donor_count(&pool_id), 1);
+
+    // Set deadline 100 ledgers ahead, then advance past the grace period.
+    let current = env.ledger().sequence();
+    let deadline = current + 100;
+    client.set_pool_deadline(&pool_id, &deadline);
+    advance_ledger(&env, 100 + 17_280 + 1);
+
+    // Full refund clears the contribution and the donor marker.
+    client.refund_donation(&pool_id, &donor, &token_address);
+    assert_eq!(client.get_contribution(&pool_id, &donor), 0u128);
+
+    // Re-donation must count as a new donor.
+    client.donate(&pool_id, &donor, &100_000_000u128);
+    assert_eq!(
+        client.get_donor_count(&pool_id),
+        2,
+        "re-donation after a full refund must count as a new donor"
+    );
+    let _ = client.get_emergency_withdrawal(&pool_id);
+}

@@ -154,6 +154,67 @@ The contract uses a hierarchical key system to organize persistent storage:
 | `unclaimed_fees` | Accumulated protocol fees | "unclaimed_fees" |
 | `creation_fee` | Pool creation fee | "creation_fee" |
 
+### Storage Tiers and TTL Strategy
+
+Soroban persistent storage entries expire after their time-to-live (TTL) elapses
+and must be restored before they can be read again. To keep long-running pools
+usable without manual restore operations, the contract splits state between
+**instance** and **persistent** storage and actively extends TTLs.
+
+#### Instance storage (contract-wide config)
+
+Global configuration is stored in instance storage, which shares a single TTL
+with the contract instance:
+
+- `admin` — platform administrator address
+- `creation_fee` — pool creation fee
+- `crowdfunding_token` — token used for crowdfunding donations
+- `pool_count` — total number of pools created (pool ID counter)
+
+The instance TTL is extended on every write to these values, so the contract
+instance stays alive as long as it is being used.
+
+#### Persistent storage (per-entity data)
+
+Entity data lives in persistent storage and has its own TTL per key:
+
+- Pools (`pool`, `metadata`, `pool_school`, `pool_deadline`, ...)
+- Contributions and donor markers (`contribution`, `(pool_id, "donor", donor)`)
+- Applications (`a_*`, `ap_*`, `app_status`, `milestones`, `claimed_amount`)
+- School registrations (`school_reg`) and accumulated fees (`unclaimed_fees`)
+
+#### Named TTL constants
+
+| Constant | Value (ledgers) | Purpose |
+|----------|-----------------|---------|
+| `PERSISTENT_TTL_THRESHOLD` | 100 | Extend persistent entries when their remaining TTL drops below this |
+| `PERSISTENT_TTL_EXTEND` | 518_400 | Target TTL applied to persistent entries (~30 days at 5s/ledger) |
+| `INSTANCE_TTL_THRESHOLD` | 100 | Extend the instance when its remaining TTL drops below this |
+| `INSTANCE_TTL_EXTEND` | 518_400 | Target TTL applied to the instance (~30 days at 5s/ledger) |
+
+#### Extension on read and write
+
+Every read and write of a pool, contribution, application, or donor marker
+calls `extend_ttl` with the persistent threshold/extend constants. Writes to
+global config extend the instance TTL. As a result, active pools, contributions,
+and applications stay readable without a manual restore operation; only entries
+that have been completely idle for longer than the extend window need restoring.
+
+---
+
+## Refund Behaviour
+
+`refund_donation` lowers `pool.collected` and then **recomputes the pool state**
+so it stays consistent with the collected amount:
+
+- If the pool was `Completed` and `collected` drops below `goal`, the state
+  returns to `Active`.
+- If `collected` still meets or exceeds `goal`, the state remains `Completed`.
+
+On a **full refund** (the donor's contribution reaches zero), the donor marker
+`(pool_id, "donor", donor)` is cleared and the pool's donor count is decremented,
+so a later re-donation by the same address counts as a new donor.
+
 ---
 
 ## Contract Functions
@@ -213,7 +274,35 @@ Returns the total number of pools created.
 #### `get_total_raised(env, pool_id) -> u128`
 Returns the total amount donated to a pool.
 
+#### Read Getters
+
+The following read-only getters expose pool and protocol state so clients can
+render it without guessing or reconstructing values from events.
+
+##### `get_pool_token(env, pool_id) -> Address`
+Returns the token address configured for a pool via `set_pool_token`.
+- **Returns**: The pool's token `Address`
+- **Errors**: `PoolNotFound` if the pool does not exist
+
+##### `get_pool_state(env, pool_id) -> PoolState`
+Returns the current `PoolState` of a pool (`Active`, `Paused`, `Completed`,
+`Cancelled`, `Disbursed`, or `Closed`). This value is not included in
+`get_pool`.
+- **Returns**: The pool's `PoolState`
+- **Errors**: `PoolNotFound` if the pool does not exist
+
+##### `get_unclaimed_fees(env) -> i128`
+Returns the accumulated protocol fees that have not yet been claimed.
+- **Returns**: The unclaimed fee balance as `i128` (0 when none accrued)
+
+##### `get_emergency_withdrawal(env, pool_id) -> EmergencyWithdrawalRequest`
+Returns the pending emergency withdrawal request for a pool.
+- **Returns**: The `EmergencyWithdrawalRequest` for the pool
+- **Errors**: `PoolNotFound` if the pool does not exist;
+  `EmergencyWithdrawalNotRequested` if no emergency withdrawal is pending
+
 ---
+=======
 
 ### Donation Operations
 
@@ -555,6 +644,12 @@ ledger sequence.
   `deadline == 0` → `PoolNotExpired` dead end no longer exists.
 - **Getters and events** report the effective refund deadline (explicit value
   if set, otherwise the derived one).
+| `GRACE_PERIOD_SECS` | 86400 | 24-hour grace period for refunds |
+| `REFUND_GRACE_PERIOD_LEDGERS` | 17280 | ~24 hours in ledger blocks |
+| `PERSISTENT_TTL_THRESHOLD` | 100 | Min remaining TTL before extending persistent entries |
+| `PERSISTENT_TTL_EXTEND` | 518400 | Target TTL for persistent entries (~30 days) |
+| `INSTANCE_TTL_THRESHOLD` | 100 | Min remaining TTL before extending the instance |
+| `INSTANCE_TTL_EXTEND` | 518400 | Target TTL for the instance (~30 days) |
 
 ---
 
@@ -598,6 +693,13 @@ Potential improvements tracked in GitHub issues:
 - Token transfers are properly validated
 - Failed transfers don't corrupt contract state
 - Insufficient balance scenarios are handled safely
+
+### Storage TTL
+
+- Global config lives in instance storage; entity data in persistent storage
+- TTLs are extended on read and write using the named TTL constants
+- Active pools, contributions, and applications stay readable without manual restore
+- Tests advance the ledger past the default TTL to verify entries remain readable
 
 ---
 

@@ -14,6 +14,116 @@ use soroban_sdk::{
     Address, BytesN, Env, IntoVal, String,
 };
 
+/// Issue #1678: a `Cancelled` pool must not be closable while it still holds
+/// donor funds, and donors must always be able to recover their funds from a
+/// `Cancelled` pool even when no refund deadline was ever set.
+struct CancelSetup<'a> {
+    contract_id: Address,
+    client: ContractClient<'a>,
+    sponsor: Address,
+    pool_id: u32,
+    token: Address,
+    donors: [Address; 2],
+}
+
+fn setup_cancelled(env: &Env) -> CancelSetup<'_> {
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(env, &contract_id);
+
+    let admin = Address::generate(env);
+    client.set_admin(&admin);
+    let school = Address::generate(env);
+    client.register_school(&school, &BytesN::from_array(env, &[7u8; 32]));
+
+    let sponsor = Address::generate(env);
+    let pool_id = client.create_pool_for_school(
+        &sponsor,
+        &String::from_str(env, "Cancelled Pool"),
+        &String::from_str(env, "close_pool on cancelled pool"),
+        &10_000i128,
+        &school,
+        &200_000u64,
+    );
+
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(env))
+        .address();
+    let asset = StellarAssetClient::new(env, &token);
+
+    let donors = [Address::generate(env), Address::generate(env)];
+    for (donor, amount) in donors.iter().zip([400i128, 600i128]) {
+        asset.mint(donor, &amount);
+        client.donate_with_token(&pool_id, donor, &amount, &token);
+    }
+
+    client.set_pool_state(&pool_id, &PoolState::Cancelled);
+
+    CancelSetup {
+        contract_id,
+        client,
+        sponsor,
+        pool_id,
+        token,
+        donors,
+    }
+}
+
+// (1678) A Cancelled pool that still holds donor funds cannot be closed.
+#[test]
+fn test_cancelled_pool_with_funds_cannot_close() {
+    let env = Env::default();
+    let s = setup_cancelled(&env);
+
+    assert_eq!(s.client.get_total_raised(&s.pool_id), 1_000);
+    assert_eq!(
+        s.client.try_close_pool(&s.pool_id),
+        Err(Ok(ContractError::PoolHasFunds))
+    );
+    assert!(!s.client.get_pool(&s.pool_id).4);
+    assert_eq!(
+        stored_state(&env, &s.contract_id, s.pool_id),
+        PoolState::Cancelled
+    );
+}
+
+// (1678) Donors can recover their funds from a Cancelled pool even though no
+// refund deadline was ever configured.
+#[test]
+fn test_cancelled_pool_refunds_available_without_deadline() {
+    let env = Env::default();
+    let s = setup_cancelled(&env);
+    let token_client = token::Client::new(&env, &s.token);
+
+    for (donor, amount) in s.donors.iter().zip([400i128, 600i128]) {
+        assert_eq!(token_client.balance(donor), 0);
+        s.client.refund_donation(&s.pool_id, donor);
+        assert_eq!(token_client.balance(donor), amount);
+    }
+
+    assert_eq!(s.client.get_total_raised(&s.pool_id), 0);
+    assert_eq!(token_client.balance(&s.contract_id), 0);
+}
+
+// (1678) Once every donation has been refunded the Cancelled pool can close.
+#[test]
+fn test_cancelled_pool_closes_after_all_refunds() {
+    let env = Env::default();
+    let s = setup_cancelled(&env);
+
+    for donor in s.donors.iter() {
+        s.client.refund_donation(&s.pool_id, donor);
+    }
+
+    s.client.close_pool(&s.pool_id);
+
+    assert!(s.client.get_pool(&s.pool_id).4);
+    assert_eq!(
+        stored_state(&env, &s.contract_id, s.pool_id),
+        PoolState::Closed
+    );
+}
+
 struct Setup<'a> {
     contract_id: Address,
     client: ContractClient<'a>,
@@ -44,7 +154,7 @@ fn setup(env: &Env) -> Setup<'_> {
         &sponsor,
         &String::from_str(env, "Closing Pool"),
         &String::from_str(env, "close_pool with pending claims"),
-        &10_000u128,
+        &10_000i128,
         &school,
         &200_000u64,
     );
@@ -56,7 +166,7 @@ fn setup(env: &Env) -> Setup<'_> {
         client.approve_application(&pool_id, &school, student, &true);
     }
 
-    client.donate(&pool_id, &Address::generate(env), &1_000u128);
+    client.donate(&pool_id, &Address::generate(env), &1_000i128);
 
     let token = env
         .register_stellar_asset_contract_v2(Address::generate(env))
@@ -215,7 +325,7 @@ fn test_donation_rejected_after_closure() {
 
     s.client.close_pool(&s.pool_id);
     s.client
-        .donate(&s.pool_id, &Address::generate(&env), &100u128);
+        .donate(&s.pool_id, &Address::generate(&env), &100i128);
 }
 
 // (5) get_pool and the stored state reflect the closure; collected is unchanged.

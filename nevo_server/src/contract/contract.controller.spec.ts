@@ -12,11 +12,19 @@ import { UsersService } from '../users/users.service';
 
 describe('ContractController', () => {
   let controller: ContractController;
-  let contractService: { submitSignedXdr: jest.Mock };
+  let contractService: {
+    submitSignedXdr: jest.Mock;
+    buildDonateTransaction: jest.Mock;
+    buildCloseTransaction: jest.Mock;
+    buildWithdrawTransaction: jest.Mock;
+  };
 
   beforeEach(async () => {
     contractService = {
       submitSignedXdr: jest.fn(),
+      buildDonateTransaction: jest.fn(),
+      buildCloseTransaction: jest.fn(),
+      buildWithdrawTransaction: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -76,6 +84,66 @@ describe('ContractController', () => {
     });
   });
 
+  describe('async build methods', () => {
+    it('awaits buildDonateTransaction and returns its resolved XDR', async () => {
+      contractService.buildDonateTransaction.mockResolvedValue({
+        xdr: 'donate-prepared-xdr',
+      });
+
+      const result = await controller.buildDonateTransaction({
+        poolId: 'pool-1',
+        sourcePublicKey: 'GPUBKEY',
+        amount: '100',
+      });
+
+      expect(contractService.buildDonateTransaction).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ xdr: 'donate-prepared-xdr' });
+    });
+
+    it('awaits buildCloseTransaction and returns its resolved XDR', async () => {
+      contractService.buildCloseTransaction.mockResolvedValue({
+        xdr: 'close-prepared-xdr',
+      });
+
+      const result = await controller.buildCloseTransaction({
+        poolId: 'pool-1',
+        sourcePublicKey: 'GPUBKEY',
+      });
+
+      expect(contractService.buildCloseTransaction).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ xdr: 'close-prepared-xdr' });
+    });
+
+    it('awaits buildWithdrawTransaction and returns its resolved XDR', async () => {
+      contractService.buildWithdrawTransaction.mockResolvedValue({
+        xdr: 'withdraw-prepared-xdr',
+      });
+
+      const result = await controller.buildWithdrawTransaction({
+        poolId: 'pool-1',
+        sourcePublicKey: 'GPUBKEY',
+        amount: '100',
+      });
+
+      expect(contractService.buildWithdrawTransaction).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ xdr: 'withdraw-prepared-xdr' });
+    });
+
+    it('propagates StellarError from async build methods', async () => {
+      contractService.buildDonateTransaction.mockRejectedValue(
+        new StellarError('simulation_failed'),
+      );
+
+      await expect(
+        controller.buildDonateTransaction({
+          poolId: 'pool-1',
+          sourcePublicKey: 'GPUBKEY',
+          amount: '100',
+        }),
+      ).rejects.toThrow(StellarError);
+    });
+  });
+
   describe('JwtAuthGuard protection', () => {
     it('applies JwtAuthGuard to the submitXdr route handler', () => {
       // Verify the guard decorator is present on the submitXdr method via metadata
@@ -111,7 +179,12 @@ describe('ContractController', () => {
 // ---------------------------------------------------------------------------
 describe('ContractController (guard / HTTP)', () => {
   let app: INestApplication;
-  let contractService: { submitSignedXdr: jest.Mock };
+  let contractService: {
+    submitSignedXdr: jest.Mock;
+    buildDonateTransaction: jest.Mock;
+    buildCloseTransaction: jest.Mock;
+    buildWithdrawTransaction: jest.Mock;
+  };
 
   const jwtSecret = process.env.JWT_SECRET ?? JWT_SECRET_FALLBACK;
   const signToken = (
@@ -125,6 +198,15 @@ describe('ContractController (guard / HTTP)', () => {
       submitSignedXdr: jest
         .fn()
         .mockResolvedValue({ txHash: 'tx-hash-abc', status: 'completed' }),
+      buildDonateTransaction: jest
+        .fn()
+        .mockResolvedValue({ xdr: 'donate-prepared-xdr' }),
+      buildCloseTransaction: jest
+        .fn()
+        .mockResolvedValue({ xdr: 'close-prepared-xdr' }),
+      buildWithdrawTransaction: jest
+        .fn()
+        .mockResolvedValue({ xdr: 'withdraw-prepared-xdr' }),
     };
 
     const moduleRef: TestingModule = await Test.createTestingModule({

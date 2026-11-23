@@ -12,6 +12,7 @@ import {
   scValToNative,
 } from '@stellar/stellar-sdk';
 import { rpc as StellarRpc } from '@stellar/stellar-sdk';
+import { Client as NevoContractClient } from '@nevo/contract-client';
 import type { HistoryEntry } from '../transactions/history.service.js';
 import { StellarError } from './stellar.error.js';
 import { StellarConfig } from './stellar.config.js';
@@ -20,6 +21,8 @@ import { StellarConfig } from './stellar.config.js';
 const CONFIRMATION_TIMEOUT_MS = 15_000;
 /** Polling interval between `getTransaction` calls during confirmation. */
 const CONFIRMATION_POLL_INTERVAL_MS = 500;
+/** Largest value representable by the contract's `i128` amount type. */
+const I128_MAX = (1n << 127n) - 1n;
 
 /**
  * Application status as represented by the contract's `ApplicationStatus`
@@ -66,11 +69,17 @@ export class ContractService {
   private readonly logger = new Logger(ContractService.name);
   private readonly rpcServer: StellarRpc.Server;
   private readonly contract: Contract;
+  private readonly client: NevoContractClient;
 
   constructor(private readonly stellar: StellarConfig) {
     const { rpcUrl, contractId, network } = this.stellar;
     this.rpcServer = new StellarRpc.Server(rpcUrl);
     this.contract = new Contract(contractId);
+    this.client = new NevoContractClient({
+      contractId,
+      networkPassphrase: this.stellar.networkPassphrase,
+      rpcUrl,
+    });
     this.logger.log(`Stellar RPC connected: ${rpcUrl} (${network})`);
   }
 
@@ -79,82 +88,172 @@ export class ContractService {
     return this.stellar.networkPassphrase;
   }
 
-  buildCreatePoolTransaction(params: {
+  async buildCreatePoolTransaction(params: {
     creator: string;
-    goal: string;
-    token: string;
     title: string;
     description: string;
-  }): string {
-    const { creator, goal, token, title, description } = params;
+    goal: string;
+    applicationDeadline: string | number | bigint;
+  }): Promise<string> {
+    const { creator, title, description, goal, applicationDeadline } = params;
     return this.buildTransaction(
       creator,
+      this.client.create_pool({
+        creator,
+        goal: BigInt(goal),
+        token,
+        title,
+        description,
+      }),
       this.contract.call(
         'create_pool',
         nativeToScVal(creator, { type: 'address' }),
-        nativeToScVal(BigInt(goal), { type: 'i128' }),
+        nativeToScVal(this.parseAmount(goal), { type: 'i128' }),
         nativeToScVal(token, { type: 'address' }),
         nativeToScVal(title, { type: 'string' }),
         nativeToScVal(description, { type: 'string' }),
+        nativeToScVal(BigInt(goal), { type: 'u128' }),
+        nativeToScVal(BigInt(applicationDeadline), { type: 'u64' }),
       ),
     );
   }
 
-  buildDonateTransaction(
+  async buildDonateTransaction(
     sourcePublicKey: string,
     poolId: number,
+    donor: string,
+    token: string,
+    amount: string,
+  ): Promise<string> {
+    return this.buildTransaction(
+      sourcePublicKey,
+      this.client.donate({
+        donor: sourcePublicKey,
+        pool_id: poolId,
+        amount: BigInt(amount),
+      }),
+    );
+  }
+
+  buildDonateWithTokenTransaction(
+    sourcePublicKey: string,
+    poolId: number,
+    tokenAddress: string,
     amount: string,
   ): string {
     return this.buildTransaction(
       sourcePublicKey,
+      this.client.donate_with_token({
+        donor: sourcePublicKey,
+        pool_id: poolId,
+        token: tokenAddress,
+        amount: BigInt(amount),
+      }),
       this.contract.call(
-        'donate',
+        'donate_with_token',
         nativeToScVal(poolId, { type: 'u32' }),
+        nativeToScVal(donor, { type: 'address' }),
+        nativeToScVal(token, { type: 'address' }),
         nativeToScVal(BigInt(amount), { type: 'i128' }),
       ),
     );
+  }
+
+  async buildWithdrawTransaction(
+        nativeToScVal(this.parseAmount(amount), { type: 'i128' }),
+      ),
+    );
+  }
+
+  /**
+   * Parses a decimal amount string into a non-negative `bigint` that fits in
+   * the contract's `i128` representation. Throws a typed `StellarError`
+   * (`invalid_amount`) instead of silently wrapping on lossy casts.
+   */
+  private parseAmount(value: string | bigint): bigint {
+    let amount: bigint;
+    try {
+      amount = typeof value === 'bigint' ? value : BigInt(value);
+    } catch {
+      throw new StellarError('invalid_amount');
+    }
+    if (amount < 0n || amount > I128_MAX) {
+      throw new StellarError('invalid_amount');
+    }
+    return amount;
   }
 
   buildWithdrawTransaction(
     sourcePublicKey: string,
     poolId: number,
     tokenAddress: string,
-  ): string {
+  ): Promise<string> {
     return this.buildTransaction(
       sourcePublicKey,
-      this.contract.call(
-        'withdraw',
-        nativeToScVal(poolId, { type: 'u32' }),
-        nativeToScVal(tokenAddress, { type: 'address' }),
-      ),
+      this.client.withdraw_unallocated_funds({
+        pool_id: poolId,
+        token: tokenAddress,
+      }),
     );
   }
 
-  buildClosePoolTransaction(sourcePublicKey: string, poolId: number): string {
+  async buildClosePoolTransaction(
+    sourcePublicKey: string,
+    poolId: number,
+  ): Promise<string> {
     return this.buildTransaction(
       sourcePublicKey,
-      this.contract.call(
-        'close_pool',
-        nativeToScVal(poolId, { type: 'u32' }),
-        nativeToScVal(sourcePublicKey, { type: 'address' }),
-      ),
+      this.contract.call('close_pool', nativeToScVal(poolId, { type: 'u32' })),
+      this.client.close_pool({
+        pool_id: poolId,
+        caller: sourcePublicKey,
+      }),
     );
   }
 
-  private buildTransaction(
+  private async buildTransaction(
     sourcePublicKey: string,
     operation: xdr.Operation,
-  ): string {
+  ): Promise<string> {
+    let source: Account;
     try {
-      const source = new Account(sourcePublicKey, '0');
-      const tx = new TransactionBuilder(source, {
+      source = await this.rpcServer.getAccount(sourcePublicKey);
+    } catch (err: unknown) {
+      throw this.mapError(err);
+    }
+
+    let tx: Transaction;
+    try {
+      tx = new TransactionBuilder(source, {
         fee: BASE_FEE,
         networkPassphrase: this.stellar.networkPassphrase,
       })
         .addOperation(operation)
         .setTimeout(30)
         .build();
-      return tx.toXDR();
+    } catch (err: unknown) {
+      throw this.mapError(err);
+    }
+
+    try {
+      const prepared = await this.rpcServer.prepareTransaction(tx);
+      return prepared.toXDR();
+    } catch (err: unknown) {
+      throw this.mapError(err);
+    }
+  }
+
+  /**
+   * Builds a transaction from a generated-client call. The generated
+   * `Client` returns an assembled `Transaction` (via `AssembledTransaction`),
+   * so we only need to re-serialize it to XDR here.
+   */
+  private buildTransactionFromClient(
+    call: { build: () => Promise<Transaction> } | Transaction,
+  ): string {
+    try {
+      if (call instanceof Transaction) return call.toXDR();
+      throw new StellarError('tx_build_failed');
     } catch (err: unknown) {
       throw this.mapError(err);
     }
@@ -299,36 +398,58 @@ export class ContractService {
       return 'failed';
   }
 
+  /**
+   * Simulates a read-only contract call from an in-memory source account.
+   * Simulation does not require a funded account or a real sequence number,
+   * so no `getAccount` round-trip is needed. Throws on RPC/simulation
+   * failure so callers can distinguish an outage from a genuine result.
+   */
+  private async simulateRead<T>(
+    method: string,
+    ...args: xdr.ScVal[]
+  ): Promise<T> {
+    const source = new Account(
+      this.stellar.sourceSecret
+        ? Keypair.fromSecret(this.stellar.sourceSecret).publicKey()
+        : Keypair.random().publicKey(),
+      '0',
+    );
+    const tx = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: this.stellar.networkPassphrase,
+    })
+      .addOperation(this.contract.call(method, ...args))
+      .setTimeout(30)
+      .build();
+
+    const result = await this.rpcServer.simulateTransaction(tx);
+    if ('error' in result) {
+      throw new Error(`${method} simulation failed: ${String(result.error)}`);
+    }
+    const retVal = result.result?.retval;
+    if (!retVal) {
+      throw new Error(`${method} simulation returned no value`);
+    }
+    return scValToNative(retVal) as T;
+  }
+
   async getContributionOnChain(poolId: number, donor: string): Promise<bigint> {
     try {
-      const keypair = this.stellar.sourceSecret
-        ? Keypair.fromSecret(this.stellar.sourceSecret)
-        : Keypair.random();
-      const account = await this.rpcServer.getAccount(keypair.publicKey());
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: this.stellar.networkPassphrase,
-      })
-        .addOperation(
-          this.contract.call(
-            'get_contribution',
-            nativeToScVal(poolId, { type: 'u32' }),
-            nativeToScVal(donor, { type: 'address' }),
-          ),
-        )
-        .setTimeout(30)
-        .build();
-
-      const result = await this.rpcServer.simulateTransaction(tx);
-      if ('error' in result) return 0n;
-
-      const simResult = result;
-      const retVal = simResult.result?.retval;
-      if (!retVal) return 0n;
-
+      const native = await this.simulateRead<unknown>('get_contribution', [
+        nativeToScVal(poolId, { type: 'u32' }),
+        nativeToScVal(donor, { type: 'address' }),
+      ]);
+      return typeof native === 'bigint' ? native : BigInt(String(native));
       const val = xdr.ScVal.fromXDR(retVal.toXDR());
-      if (val.switch().name === 'scvI128' || val.switch().name === 'scvU128') {
-        const parts = val.i128?.() ?? val.u128?.();
+      if (val.switch().name === 'scvI128') {
+        const parts = val.i128();
+        if (!parts) return 0n;
+        return (
+          (BigInt(parts.hi().toString()) << 64n) | BigInt(parts.lo().toString())
+        );
+      }
+      if (val.switch().name === 'scvU128') {
+        const parts = val.u128();
         if (!parts) return 0n;
         return (
           (BigInt(parts.hi().toString()) << 64n) | BigInt(parts.lo().toString())
@@ -352,37 +473,17 @@ export class ContractService {
     closed: boolean;
   } | null> {
     try {
-      const keypair = this.stellar.sourceSecret
-        ? Keypair.fromSecret(this.stellar.sourceSecret)
-        : Keypair.random();
-      const account = await this.rpcServer.getAccount(keypair.publicKey());
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: this.stellar.networkPassphrase,
-      })
-        .addOperation(
-          this.contract.call(
-            'get_pool',
-            nativeToScVal(poolId, { type: 'u32' }),
-          ),
-        )
-        .setTimeout(30)
-        .build();
-
-      const result = await this.rpcServer.simulateTransaction(tx);
-      if ('error' in result) return null;
-
-      const retVal = result.result?.retval;
-      if (!retVal) return null;
-
-      const native: unknown = scValToNative(retVal);
+      const native = await this.simulateRead<unknown>(
+        'get_pool',
+        nativeToScVal(poolId, { type: 'u32' }),
+      );
       if (Array.isArray(native) && native.length >= 5) {
         const fields = native as Array<bigint | number | string | boolean>;
         return {
           id: poolId,
           creator: String(fields[1]),
-          goal: BigInt(fields[2]),
-          collected: BigInt(fields[3]),
+          goal: this.parseAmount(fields[2] as bigint | string),
+          collected: this.parseAmount(fields[3] as bigint | string),
           closed: Boolean(fields[4]),
         };
       }
@@ -401,6 +502,11 @@ export class ContractService {
    * callers that persist the result never mistake an outage for a zero total.
    */
   async fetchTotalRaisedOnChain(poolId: number): Promise<bigint> {
+    const native = await this.simulateRead<unknown>(
+      'get_total_raised',
+      nativeToScVal(poolId, { type: 'u32' }),
+    );
+    return typeof native === 'bigint' ? native : BigInt(String(native));
     const keypair = this.stellar.sourceSecret
       ? Keypair.fromSecret(this.stellar.sourceSecret)
       : Keypair.random();
@@ -431,7 +537,9 @@ export class ContractService {
     }
 
     const native: unknown = scValToNative(retVal);
-    return typeof native === 'bigint' ? native : BigInt(String(native));
+    return this.parseAmount(
+      typeof native === 'bigint' ? native : String(native),
+    );
   }
 
   async getTotalRaisedOnChain(poolId: number): Promise<bigint> {
@@ -487,30 +595,11 @@ export class ContractService {
 
   async getDonorCountOnChain(poolId: number): Promise<number> {
     try {
-      const keypair = this.stellar.sourceSecret
-        ? Keypair.fromSecret(this.stellar.sourceSecret)
-        : Keypair.random();
-      const account = await this.rpcServer.getAccount(keypair.publicKey());
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: this.stellar.networkPassphrase,
-      })
-        .addOperation(
-          this.contract.call(
-            'get_donor_count',
-            nativeToScVal(poolId, { type: 'u32' }),
-          ),
-        )
-        .setTimeout(30)
-        .build();
-
-      const result = await this.rpcServer.simulateTransaction(tx);
-      if ('error' in result) return 0;
-
-      const retVal = result.result?.retval;
-      if (!retVal) return 0;
-
-      return Number(scValToNative(retVal));
+      const native = await this.simulateRead<unknown>(
+        'get_donor_count',
+        nativeToScVal(poolId, { type: 'u32' }),
+      );
+      return Number(native);
     } catch (err: unknown) {
       this.logger.error(
         `Failed to fetch donor count on-chain for poolId ${poolId}`,

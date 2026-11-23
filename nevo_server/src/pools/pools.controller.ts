@@ -147,7 +147,7 @@ export class PoolsController {
     if (pool.creatorWallet !== req.user.publicKey) {
       throw new ForbiddenException('Only the pool creator may withdraw');
     }
-    return this.poolsService.buildWithdrawTx(pool);
+    return await this.poolsService.buildWithdrawTx(pool);
   }
 
   @ApiOperation({
@@ -180,7 +180,7 @@ export class PoolsController {
     if (pool.creatorWallet !== req.user.publicKey) {
       throw new ForbiddenException('Only the pool creator may close this pool');
     }
-    return this.poolsService.buildClosePoolTx(pool);
+    return await this.poolsService.buildClosePoolTx(pool);
   }
 
   @ApiOperation({
@@ -209,9 +209,10 @@ export class PoolsController {
     const pool = await this.poolsService.findByContractId(String(id));
     if (!pool) throw new NotFoundException('Pool not found');
 
-    const unsignedXdr = this.contractService.buildDonateTransaction(
+    const unsignedXdr = await this.contractService.buildDonateTransaction(
       req.user.publicKey,
       id,
+      pool.tokenAddress,
       String(dto.amount),
     );
     return { unsignedXdr };

@@ -1,8 +1,15 @@
 {
   "name": "nevo",
   "private": true,
+  "workspaces": [
+    "nevo_server",
+    "nevo_frontend",
+    "packages/nevo-contract-client"
+  ],
   "scripts": {
-    "prepare": "husky"
+    "prepare": "husky",
+    "generate:contract-bindings": "bash scripts/generate-contract-bindings.sh",
+    "check:contract-bindings": "bash scripts/generate-contract-bindings.sh && git diff --exit-code -- packages/nevo-contract-client"
   },
   "devDependencies": {
     "husky": "^9.1.7"
