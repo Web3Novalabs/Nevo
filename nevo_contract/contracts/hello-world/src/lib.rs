@@ -2724,3 +2724,7 @@ mod test_issue_1365_event_emission_ordering;
 mod test_pool_disbursement_safety;
 #[cfg(test)]
 mod test_issue_1750_missing_pool_getters;
+mod test_issue_1354_contract_error_variants;
+mod test_issue_1356_milestone_struct_validation;
+mod test_issue_1359_apply_approve_claim_flow;
+mod test_issue_1369_duplicate_school_metadata_hash;
