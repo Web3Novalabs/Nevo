@@ -9,6 +9,7 @@ import {
   Contract,
   Keypair,
   Networks,
+  StrKey,
   nativeToScVal,
   scValToNative,
 } from '@stellar/stellar-sdk';
@@ -40,8 +41,7 @@ jest.mock('@stellar/stellar-sdk', () => {
   };
 });
 
-import { contractService } from '../lib/contract-service';
-import { ApplicationStatus } from '../lib/contract-types';
+import { ContractReadError, contractService } from '../lib/contract-service';
 
 let callSpy: jest.SpyInstance;
 
@@ -75,33 +75,51 @@ describe('ContractService.getPoolCount', () => {
     expect(scValToNative).toHaveBeenCalledWith('mock-sc-val');
   });
 
-  it('returns -1 when the RPC simulation has an error', async () => {
+  it('simulates from an in-memory account without loading it', async () => {
+    mockSimulateTransaction.mockResolvedValue({
+      result: { retval: 'mock-sc-val' },
+    });
+
+    await contractService.getPoolCount();
+
+    expect(mockGetAccount).not.toHaveBeenCalled();
+    const tx = mockSimulateTransaction.mock.calls[0][0];
+    expect(StrKey.isValidEd25519PublicKey(tx.source)).toBe(true);
+    expect(tx.sequence).toBe('1');
+  });
+
+  it('throws SIMULATION_FAILED when the simulation has an error', async () => {
     mockSimulateTransaction.mockResolvedValue({
       error: 'Contract execution error',
     });
 
-    const count = await contractService.getPoolCount();
-
-    expect(count).toBe(-1);
+    await expect(contractService.getPoolCount()).rejects.toMatchObject({
+      name: 'ContractReadError',
+      code: 'SIMULATION_FAILED',
+      method: 'get_pool_count',
+    });
     expect(scValToNative).not.toHaveBeenCalled();
   });
 
-  it('returns -1 when the simulation result has no retval', async () => {
+  it('throws EMPTY_RESULT when the simulation has no retval', async () => {
     mockSimulateTransaction.mockResolvedValue({
       result: {},
     });
 
-    const count = await contractService.getPoolCount();
-
-    expect(count).toBe(-1);
+    await expect(contractService.getPoolCount()).rejects.toMatchObject({
+      code: 'EMPTY_RESULT',
+    });
   });
 
-  it('returns -1 when the RPC server throws', async () => {
-    mockSimulateTransaction.mockRejectedValue(new Error('RPC timeout'));
+  it('throws RPC_ERROR when the RPC server throws', async () => {
+    const cause = new Error('RPC timeout');
+    mockSimulateTransaction.mockRejectedValue(cause);
 
-    const count = await contractService.getPoolCount();
+    const error = await contractService.getPoolCount().catch((e) => e);
 
-    expect(count).toBe(-1);
+    expect(error).toBeInstanceOf(ContractReadError);
+    expect(error.code).toBe('RPC_ERROR');
+    expect(error.cause).toBe(cause);
   });
 
   it('handles boundary numeric values', async () => {
@@ -127,14 +145,14 @@ describe('ContractService.buildCreatePoolTransaction', () => {
     const xdr = await contractService.buildCreatePoolTransaction(
       TEST_PUBKEY,
       'Test Pool',
-      goal,
-      30
+      'Test description',
+      goal
     );
 
     expect(typeof xdr).toBe('string');
     expect(xdr.length).toBeGreaterThan(0);
 
-    const [method, , , goalArg] = callSpy.mock.calls[0];
+    const [method, , , , goalArg] = callSpy.mock.calls[0];
     expect(method).toBe('create_pool');
     expect(goalArg.switch().name).toBe('scvI128');
     expect(goalArg.toXDR('base64')).toBe(
@@ -208,53 +226,44 @@ describe('ContractService.buildDonateTransaction', () => {
 });
 
 describe('ContractService.getApplicationStatus', () => {
-  it('decodes the enum-based status returned by the contract', async () => {
+  it('passes the pool id and student to the contract', async () => {
     mockSimulateTransaction.mockResolvedValue({
       result: { retval: 'mock-sc-val' },
     });
-
-    (scValToNative as jest.Mock).mockReturnValue(ApplicationStatus.Approved);
+    (scValToNative as jest.Mock).mockReturnValue('Approved');
 
     const status = await contractService.getApplicationStatus(1, TEST_PUBKEY);
 
-    expect(status).toBe(ApplicationStatus.Approved);
-    expect(mockSimulateTransaction).toHaveBeenCalledTimes(1);
-    expect(scValToNative).toHaveBeenCalledWith('mock-sc-val');
+    expect(status).toBe('Approved');
+    const [method, pool, student] = callSpy.mock.calls[0];
+    expect(method).toBe('get_application_status');
+    expect(pool.u32()).toBe(1);
+    expect(student.toXDR('base64')).toBe(
+      new Address(TEST_PUBKEY).toScVal().toXDR('base64')
+    );
   });
 
-  it('decodes every enum variant without string conversion', async () => {
+  it('decodes every enum variant', async () => {
     mockSimulateTransaction.mockResolvedValue({
       result: { retval: 'mock-sc-val' },
     });
 
-    for (const variant of [
-      ApplicationStatus.Pending,
-      ApplicationStatus.Approved,
-      ApplicationStatus.Rejected,
-    ]) {
-      (scValToNative as jest.Mock).mockReturnValue(variant);
-      const status = await contractService.getApplicationStatus(1, TEST_PUBKEY);
-      expect(status).toBe(variant);
-      expect(typeof status).not.toBe('string');
+    for (const variant of ['Pending', 'Approved', 'Rejected', 'Revoked']) {
+      (scValToNative as jest.Mock).mockReturnValue([variant]);
+      await expect(
+        contractService.getApplicationStatus(1, TEST_PUBKEY)
+      ).resolves.toBe(variant);
     }
   });
 
-  it('returns Pending when the simulation has an error', async () => {
+  it('throws a typed error when the simulation fails', async () => {
     mockSimulateTransaction.mockResolvedValue({
       error: 'Contract execution error',
     });
 
-    const status = await contractService.getApplicationStatus(1, TEST_PUBKEY);
-
-    expect(status).toBe(ApplicationStatus.Pending);
+    await expect(
+      contractService.getApplicationStatus(1, TEST_PUBKEY)
+    ).rejects.toMatchObject({ code: 'SIMULATION_FAILED' });
     expect(scValToNative).not.toHaveBeenCalled();
-  });
-
-  it('returns Pending when the RPC server throws', async () => {
-    mockSimulateTransaction.mockRejectedValue(new Error('RPC timeout'));
-
-    const status = await contractService.getApplicationStatus(1, TEST_PUBKEY);
-
-    expect(status).toBe(ApplicationStatus.Pending);
   });
 });

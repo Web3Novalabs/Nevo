@@ -270,14 +270,6 @@ fn test_refund_after_grace_period_succeeds() {
 /// At/after the funding deadline + grace period → refund succeeds.
 #[test]
 fn test_refund_without_explicit_deadline_uses_funding_deadline() {
-// ── Test 5: cancelled pool refunds are always available (issue #1678) ─────
-
-/// A Cancelled pool must never strand donor funds: `refund_donation` must
-/// succeed for a cancelled pool even when no deadline has been set (or the
-/// deadline/grace period has not elapsed). Closing such a pool while
-/// `collected > 0` must be rejected so funds stay recoverable.
-#[test]
-fn test_cancelled_pool_refund_without_deadline_succeeds() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -328,11 +320,42 @@ fn test_cancelled_pool_refund_without_deadline_succeeds() {
     let grace_end = derived_deadline + GRACE;
     set_ledger_sequence(&env, grace_end);
 
+    client.refund_donation(&pool_id, &donor, &token);
+
+    let contrib_after = client.get_contribution(&pool_id, &donor);
+    assert_eq!(
+        contrib_after, 0u128,
+        "Contribution must be zeroed after a successful refund"
+    );
+}
+
+// ── Test 5: cancelled pool refunds are always available (issue #1678) ─────
+
+/// A Cancelled pool must never strand donor funds: `refund_donation` must
+/// succeed for a cancelled pool even when no deadline has been set (or the
+/// deadline/grace period has not elapsed). Closing such a pool while
+/// `collected > 0` must be rejected so funds stay recoverable.
+#[test]
+fn test_cancelled_pool_refund_without_deadline_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    set_ledger_sequence(&env, 100);
+
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+    let donation: i128 = 500_000_000;
+
+    let token = create_token(&env, donation, &donor);
+
     let pool_id = client.create_pool(
         &creator,
         &String::from_str(&env, "Cancelled Refund Pool"),
         &String::from_str(&env, "Testing cancelled refunds"),
-        &5_000_000_000i128,
+        &5_000_000_000u128,
         &2_000_000u64,
     );
     client.donate_with_token(&pool_id, &donor, &token, &donation);
@@ -355,9 +378,18 @@ fn test_cancelled_pool_refund_without_deadline_succeeds() {
 
     let contrib_after = client.get_contribution(&pool_id, &donor);
     assert_eq!(
-        contrib_after, 0u128,
-        "Contribution must be zeroed after a successful refund"
+        contrib_after, 0i128,
+        "Contribution must be zeroed after a cancelled-pool refund"
     );
+
+    let pool_collected = client.get_total_raised(&pool_id);
+    assert_eq!(
+        pool_collected, 0i128,
+        "Pool collected must be zero after refunding a cancelled pool"
+    );
+
+    // With everything refunded, closing the pool is now safe.
+    client.close_pool(&pool_id);
 }
 
 // ── Test 6: contradictory deadlines are rejected ──────────────────────────
@@ -391,16 +423,4 @@ fn test_contradictory_deadlines_rejected() {
 
     // Refund deadline strictly before the funding deadline → must be rejected.
     client.set_pool_deadline(&pool_id, &((funding_deadline as u32) - 1));
-        contrib_after, 0i128,
-        "Contribution must be zeroed after a cancelled-pool refund"
-    );
-
-    let pool_collected = client.get_total_raised(&pool_id);
-    assert_eq!(
-        pool_collected, 0i128,
-        "Pool collected must be zero after refunding a cancelled pool"
-    );
-
-    // With everything refunded, closing the pool is now safe.
-    client.close_pool(&pool_id);
 }

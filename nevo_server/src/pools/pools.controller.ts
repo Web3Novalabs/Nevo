@@ -30,6 +30,13 @@ import { ContractService } from '../contract/contract.service.js';
 import { CreatePoolDto } from './dto/create-pool.dto.js';
 import { DonatePoolDto } from './dto/donate-pool.dto.js';
 import { FilterPoolsDto } from './dto/filter-pools.dto.js';
+import {
+  PaginatedPoolsDto,
+  PoolDetailResponseDto,
+  PoolResponseDto,
+  UnsignedTransactionDto,
+  WithdrawTransactionDto,
+} from './dto/pool-response.dto.js';
 import { UpdatePoolDto } from './dto/update-pool.dto.js';
 
 interface JwtPayload {
@@ -52,7 +59,10 @@ export class PoolsController {
       '(raisedOnChain, closedOnChain, donorCount).',
   })
   @ApiParam({ name: 'id', description: 'On-chain pool id.' })
-  @ApiOkResponse({ description: 'The pool, including on-chain state.' })
+  @ApiOkResponse({
+    description: 'The pool, including on-chain state.',
+    type: PoolDetailResponseDto,
+  })
   @ApiNotFoundResponse({ description: 'No pool with that id.' })
   @Get(':id')
   async findOne(@Param('id') id: string) {
@@ -69,15 +79,7 @@ export class PoolsController {
   })
   @ApiOkResponse({
     description: 'Paginated pools.',
-    schema: {
-      type: 'object',
-      properties: {
-        data: { type: 'array', items: { type: 'object' } },
-        total: { type: 'integer' },
-        page: { type: 'integer' },
-        limit: { type: 'integer' },
-      },
-    },
+    type: PaginatedPoolsDto,
   })
   @Get()
   async findAll(@Query() query: FilterPoolsDto) {
@@ -89,7 +91,10 @@ export class PoolsController {
     description:
       'Stores the off-chain record for a pool that already exists on-chain.',
   })
-  @ApiCreatedResponse({ description: 'The created pool.' })
+  @ApiCreatedResponse({
+    description: 'The created pool.',
+    type: PoolResponseDto,
+  })
   @Post()
   create(
     @Body(new ValidationPipe({ transform: true, whitelist: true }))
@@ -105,7 +110,7 @@ export class PoolsController {
       'goal and creator cannot be changed here.',
   })
   @ApiParam({ name: 'id', description: 'On-chain pool id.' })
-  @ApiOkResponse({ description: 'The updated pool.' })
+  @ApiOkResponse({ description: 'The updated pool.', type: PoolResponseDto })
   @ApiNotFoundResponse({ description: 'No pool with that id.' })
   @Patch(':id')
   async updateMeta(@Param('id') id: string, @Body() dto: UpdatePoolDto) {
@@ -124,13 +129,7 @@ export class PoolsController {
   @ApiParam({ name: 'id', description: 'On-chain pool id.' })
   @ApiOkResponse({
     description: 'Unsigned transaction for the creator to sign and submit.',
-    schema: {
-      type: 'object',
-      properties: {
-        unsignedXdr: { type: 'string' },
-        poolId: { type: 'string' },
-      },
-    },
+    type: WithdrawTransactionDto,
   })
   @ApiNotFoundResponse({ description: 'No pool with that id.' })
   @ApiForbiddenResponse({
@@ -160,10 +159,7 @@ export class PoolsController {
   @ApiParam({ name: 'id', description: 'On-chain pool id.' })
   @ApiOkResponse({
     description: 'Unsigned transaction for the creator to sign and submit.',
-    schema: {
-      type: 'object',
-      properties: { unsignedXdr: { type: 'string' } },
-    },
+    type: UnsignedTransactionDto,
   })
   @ApiNotFoundResponse({ description: 'No pool with that id.' })
   @ApiForbiddenResponse({
@@ -193,10 +189,7 @@ export class PoolsController {
   @ApiParam({ name: 'id', description: 'On-chain pool id (numeric).' })
   @ApiOkResponse({
     description: 'Unsigned transaction for the donor to sign and submit.',
-    schema: {
-      type: 'object',
-      properties: { unsignedXdr: { type: 'string' } },
-    },
+    type: UnsignedTransactionDto,
   })
   @ApiNotFoundResponse({ description: 'No pool with that id.' })
   @UseGuards(JwtAuthGuard)

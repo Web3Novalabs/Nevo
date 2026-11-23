@@ -11,8 +11,12 @@ import { SyncState } from './sync-state.entity';
 import { StellarConfig } from '../contract/stellar.config';
 import { Pool, PoolStatus } from '../pools/pool.entity';
 import {
+  Account,
+  Asset,
   Contract,
   Keypair,
+  Networks,
+  TransactionBuilder,
   nativeToScVal,
   rpc as StellarRpc,
   xdr,
@@ -115,13 +119,14 @@ const poolClosedEvent = eventResponse({
   txHash: 'tx-close-001',
 });
 
-const POOL_TOKEN = 'CDONATIONTOKENAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+const POOL_TOKEN = 'CA2E53VHFZ6YSWQIEIPBXJQGT6VW3VKWWZO555XKRQXYJ63GEBJJGHY7';
 
 describe('SyncService', () => {
   let service: SyncService;
   const upsertFromChain = jest.fn();
   const markStatus = jest.fn();
   const incrementRaised = jest.fn();
+  const setRaised = jest.fn();
   const decrementRaised = jest.fn();
   const findByContractId = jest.fn();
   const isTxProcessed = jest.fn();
@@ -140,9 +145,11 @@ describe('SyncService', () => {
   const rpcServer = {
     getEvents: jest.fn(),
     getHealth: jest.fn(),
+    getTransaction: jest.fn(),
   };
   const stellarConfig = {
     contractId: STELLAR_CONTRACT_ID,
+    networkPassphrase: Networks.TESTNET,
     rpcUrl: 'https://soroban-testnet.stellar.org',
     syncStartLedger: 0,
   };
@@ -157,6 +164,7 @@ describe('SyncService', () => {
             upsertFromChain,
             markStatus,
             incrementRaised,
+            setRaised,
             decrementRaised,
             findByContractId,
           },
@@ -173,9 +181,11 @@ describe('SyncService', () => {
 
     service = module.get(SyncService);
     (service as any).rpcServer = rpcServer;
+    rpcServer.getTransaction.mockReset().mockResolvedValue({ status: 'NOT_FOUND' });
     upsertFromChain.mockReset();
     markStatus.mockReset().mockResolvedValue(null);
     incrementRaised.mockReset().mockResolvedValue(null);
+    setRaised.mockReset().mockResolvedValue(null);
     decrementRaised.mockReset().mockResolvedValue(null);
     findByContractId.mockReset().mockResolvedValue(null);
     isTxProcessed.mockReset().mockResolvedValue(false);
@@ -422,7 +432,81 @@ describe('SyncService', () => {
       expect(incrementRaised).not.toHaveBeenCalled();
     });
 
-    it('reads the asset from the pool token rather than the event index', async () => {
+    const donationTx = (token: string, poolId = 7) =>
+      new TransactionBuilder(new Account(DONOR_WALLET, '0'), {
+        fee: '100',
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(
+          new Contract(STELLAR_CONTRACT_ID).call(
+            'donate_with_token',
+            nativeToScVal(poolId, { type: 'u32' }),
+            nativeToScVal(DONOR_WALLET, { type: 'address' }),
+            nativeToScVal(token, { type: 'address' }),
+            nativeToScVal(250n, { type: 'i128' }),
+          ),
+        )
+        .setTimeout(30)
+        .build()
+        .toEnvelope();
+
+    const contribution = (txHash: string): HorizonContractEvent => ({
+      topic: ['contrib', '7'],
+      value: [DONOR_WALLET, '250', '250', 'true'],
+      txHash,
+    });
+
+    it('records the exact token contract from the donation transaction', async () => {
+      rpcServer.getTransaction.mockResolvedValue({
+        status: StellarRpc.Api.GetTransactionStatus.SUCCESS,
+        envelopeXdr: donationTx(POOL_TOKEN),
+      });
+
+      await service.processContributionEvent(contribution('token-tx'));
+
+      expect(recordDonation).toHaveBeenCalledWith(
+        expect.objectContaining({ tokenContract: POOL_TOKEN, asset: 'TOKEN' }),
+      );
+    });
+
+    it('uses XLM as the display code for the native token contract', async () => {
+      const native = Asset.native().contractId(Networks.TESTNET);
+      rpcServer.getTransaction.mockResolvedValue({
+        status: StellarRpc.Api.GetTransactionStatus.SUCCESS,
+        envelopeXdr: donationTx(native),
+      });
+
+      await service.processContributionEvent(contribution('native-tx'));
+
+      expect(recordDonation).toHaveBeenCalledWith(
+        expect.objectContaining({ tokenContract: native, asset: 'XLM' }),
+      );
+    });
+
+    it('ignores a donate call for a different pool', async () => {
+      rpcServer.getTransaction.mockResolvedValue({
+        status: StellarRpc.Api.GetTransactionStatus.SUCCESS,
+        envelopeXdr: donationTx(POOL_TOKEN, 8),
+      });
+
+      await service.processContributionEvent(contribution('other-pool-tx'));
+
+      expect(recordDonation).toHaveBeenCalledWith(
+        expect.objectContaining({ tokenContract: null }),
+      );
+    });
+
+    it('still indexes the donation when the transaction lookup fails', async () => {
+      rpcServer.getTransaction.mockRejectedValue(new Error('RPC down'));
+
+      await service.processContributionEvent(contribution('rpc-down-tx'));
+
+      expect(recordDonation).toHaveBeenCalledWith(
+        expect.objectContaining({ tokenContract: null, asset: 'XLM' }),
+      );
+    });
+
+    it('falls back to the pool token when the transaction is unavailable', async () => {
       findByContractId.mockResolvedValueOnce({
         contractPoolId: 'pool-2',
         creatorWallet: 'GCREATOR',
@@ -438,11 +522,11 @@ describe('SyncService', () => {
         txHash: 'contrib-hash-1',
       };
 
-      await service.processDonationEvent(event);
+      await service.processContributionEvent(event);
 
       expect(recordDonation).toHaveBeenCalledTimes(1);
       expect(recordDonation).toHaveBeenCalledWith(
-        expect.objectContaining({ asset: POOL_TOKEN }),
+        expect.objectContaining({ tokenContract: POOL_TOKEN, asset: 'TOKEN' }),
       );
     });
 

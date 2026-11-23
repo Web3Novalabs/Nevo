@@ -64,7 +64,7 @@ fn test_get_pool_school_panics_for_pool_created_via_create_pool() {
 
 /// `get_pool_school` panics for a pool id that was never created at all.
 #[test]
-#[should_panic(expected = "Pool school not set")]
+#[should_panic(expected = "Error(Contract, #1)")]
 fn test_get_pool_school_panics_for_nonexistent_pool_id() {
     let env = Env::default();
     env.mock_all_auths();

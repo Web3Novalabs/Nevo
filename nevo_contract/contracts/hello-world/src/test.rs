@@ -1447,10 +1447,6 @@ fn test_close_pool_twice_panics() {
 /// is required.
 #[test]
 fn test_persistent_entries_readable_after_default_ttl_elapses() {
-// ============= READ GETTER TESTS (#1679) =============
-
-#[test]
-fn test_get_pool_token_returns_set_token() {
     let env = Env::default();
     env.mock_all_auths();
     let contract_id = env.register(Contract, ());
@@ -1494,31 +1490,6 @@ fn test_get_pool_token_returns_set_token() {
 /// instance TTL is extended on every write.
 #[test]
 fn test_instance_config_survives_default_ttl() {
-    let pool_id = client.create_pool(
-        &creator,
-        &String::from_str(&env, "Token Pool"),
-        &String::from_str(&env, "Test"),
-        &1_000_000_000u128,
-        &100_000u64,
-    );
-
-    let token = Address::generate(&env);
-    client.set_pool_token(&pool_id, &token);
-    assert_eq!(client.get_pool_token(&pool_id), token);
-}
-
-#[test]
-#[should_panic(expected = "Error(Contract, #1)")]
-fn test_get_pool_token_missing_pool_panics() {
-    let env = Env::default();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
-
-    let _ = client.get_pool_token(&999u32);
-}
-
-#[test]
-fn test_get_pool_state_returns_current_state() {
     let env = Env::default();
     env.mock_all_auths();
     let contract_id = env.register(Contract, ());
@@ -1552,32 +1523,6 @@ fn test_get_pool_state_returns_current_state() {
 /// Active so that `state` stays consistent with `collected`.
 #[test]
 fn test_partial_refund_below_goal_reverts_completed_pool_to_active() {
-    let creator = Address::generate(&env);
-    let pool_id = client.create_pool(
-        &creator,
-        &String::from_str(&env, "State Pool"),
-        &String::from_str(&env, "Test"),
-        &1_000_000_000u128,
-        &100_000u64,
-    );
-
-    assert_eq!(client.get_pool_state(&pool_id), PoolState::Active);
-    client.set_pool_state(&pool_id, &PoolState::Disbursed);
-    assert_eq!(client.get_pool_state(&pool_id), PoolState::Disbursed);
-}
-
-#[test]
-#[should_panic(expected = "Error(Contract, #1)")]
-fn test_get_pool_state_missing_pool_panics() {
-    let env = Env::default();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
-
-    let _ = client.get_pool_state(&999u32);
-}
-
-#[test]
-fn test_get_unclaimed_fees_defaults_to_zero_and_tracks_accrual() {
     let env = Env::default();
     env.mock_all_auths();
     let contract_id = env.register(Contract, ());
@@ -1626,6 +1571,116 @@ fn test_get_unclaimed_fees_defaults_to_zero_and_tracks_accrual() {
 /// as a new donor and increments the donor count.
 #[test]
 fn test_full_refund_clears_donor_marker_and_redonation_counts_new_donor() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let donor = Address::generate(&env);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Donor Marker Pool"),
+        &String::from_str(&env, "Donor marker reset"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let donation_amount: i128 = 500_000_000;
+    let token_address = create_token(&env, donation_amount, &contract_id);
+    client.donate(&pool_id, &donor, &(donation_amount as u128));
+    assert_eq!(client.get_donor_count(&pool_id), 1);
+
+    // Set deadline 100 ledgers ahead, then advance past the grace period.
+    let current = env.ledger().sequence();
+    let deadline = current + 100;
+    client.set_pool_deadline(&pool_id, &deadline);
+    advance_ledger(&env, 100 + 17_280 + 1);
+
+    // Full refund clears the contribution and the donor marker.
+    client.refund_donation(&pool_id, &donor, &token_address);
+    assert_eq!(client.get_contribution(&pool_id, &donor), 0u128);
+
+    // Re-donation must count as a new donor.
+    client.donate(&pool_id, &donor, &100_000_000u128);
+    assert_eq!(
+        client.get_donor_count(&pool_id),
+        2,
+        "re-donation after a full refund must count as a new donor"
+    );
+}
+
+// ============= READ GETTER TESTS (#1679) =============
+
+#[test]
+fn test_get_pool_token_returns_set_token() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "Token Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    let token = Address::generate(&env);
+    client.set_pool_token(&pool_id, &token);
+    assert_eq!(client.get_pool_token(&pool_id), token);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_get_pool_token_missing_pool_panics() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let _ = client.get_pool_token(&999u32);
+}
+
+#[test]
+fn test_get_pool_state_returns_current_state() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+    let pool_id = client.create_pool(
+        &creator,
+        &String::from_str(&env, "State Pool"),
+        &String::from_str(&env, "Test"),
+        &1_000_000_000u128,
+        &100_000u64,
+    );
+
+    assert_eq!(client.get_pool_state(&pool_id), PoolState::Active);
+    client.set_pool_state(&pool_id, &PoolState::Disbursed);
+    assert_eq!(client.get_pool_state(&pool_id), PoolState::Disbursed);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_get_pool_state_missing_pool_panics() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let _ = client.get_pool_state(&999u32);
+}
+
+#[test]
+fn test_get_unclaimed_fees_defaults_to_zero_and_tracks_accrual() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
     let admin = Address::generate(&env);
     let creator = Address::generate(&env);
     let student = Address::generate(&env);
@@ -1689,12 +1744,6 @@ fn test_get_emergency_withdrawal_missing_request_panics() {
     let client = ContractClient::new(&env, &contract_id);
 
     let creator = Address::generate(&env);
-    let donor = Address::generate(&env);
-
-    let pool_id = client.create_pool(
-        &creator,
-        &String::from_str(&env, "Donor Marker Pool"),
-        &String::from_str(&env, "Donor marker reset"),
     let pool_id = client.create_pool(
         &creator,
         &String::from_str(&env, "Emergency Pool"),
@@ -1703,27 +1752,5 @@ fn test_get_emergency_withdrawal_missing_request_panics() {
         &100_000u64,
     );
 
-    let donation_amount: i128 = 500_000_000;
-    let token_address = create_token(&env, donation_amount, &contract_id);
-    client.donate(&pool_id, &donor, &(donation_amount as u128));
-    assert_eq!(client.get_donor_count(&pool_id), 1);
-
-    // Set deadline 100 ledgers ahead, then advance past the grace period.
-    let current = env.ledger().sequence();
-    let deadline = current + 100;
-    client.set_pool_deadline(&pool_id, &deadline);
-    advance_ledger(&env, 100 + 17_280 + 1);
-
-    // Full refund clears the contribution and the donor marker.
-    client.refund_donation(&pool_id, &donor, &token_address);
-    assert_eq!(client.get_contribution(&pool_id, &donor), 0u128);
-
-    // Re-donation must count as a new donor.
-    client.donate(&pool_id, &donor, &100_000_000u128);
-    assert_eq!(
-        client.get_donor_count(&pool_id),
-        2,
-        "re-donation after a full refund must count as a new donor"
-    );
     let _ = client.get_emergency_withdrawal(&pool_id);
 }

@@ -25,14 +25,13 @@ fn test_get_pool_metadata_existing_pool_returns_saved_fields() {
 }
 
 #[test]
-fn test_get_pool_metadata_nonexistent_pool_returns_empty_strings() {
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_get_pool_metadata_nonexistent_pool_panics() {
     let env = Env::default();
     let contract_id = env.register(Contract, ());
     let client = ContractClient::new(&env, &contract_id);
 
-    let (title, description) = client.get_pool_metadata(&424242u32);
-    assert_eq!(title, String::from_str(&env, ""));
-    assert_eq!(description, String::from_str(&env, ""));
+    let _ = client.get_pool_metadata(&424242u32);
 }
 
 #[test]

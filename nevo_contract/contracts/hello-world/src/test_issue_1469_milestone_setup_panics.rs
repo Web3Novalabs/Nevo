@@ -8,11 +8,6 @@ use soroban_sdk::{testutils::Address as _, vec, Address, BytesN, Env, String};
 
 const GOAL: u128 = 1_000_000;
 
-/// Creates a school-linked pool with `GOAL` and an approved application, so
-/// `setup_application_milestones` reaches its milestone checks. Returns the
-/// client, pool id, student and the linked school (which must authorize
-/// milestone setup).
-fn setup_approved_application(env: &Env) -> (ContractClient<'_>, u32, Address, Address) {
 const APPROVED_AMOUNT: u128 = 600_000;
 
 /// Creates a school-linked pool with `GOAL` and an application approved for
@@ -21,7 +16,7 @@ const APPROVED_AMOUNT: u128 = 600_000;
 fn setup_approved_application(
     env: &Env,
     approved_amount: u128,
-) -> (ContractClient<'_>, u32, Address) {
+) -> (ContractClient<'_>, u32, Address, Address) {
     let contract_id = env.register(Contract, ());
     let client = ContractClient::new(env, &contract_id);
 
@@ -43,12 +38,6 @@ fn setup_approved_application(
     // approve_application currently fails with Error(Auth, ExistingValue)
     // (school auth is required twice), so approve via set_application_status.
     client.set_application_status(&school, &pool_id, &student, &ApplicationStatus::Approved);
-    client.set_application_status(
-        &school,
-        &pool_id,
-        &student,
-        &String::from_str(env, APPLICATION_STATUS_APPROVED),
-    );
     client.set_approved_amount(&school, &pool_id, &student, &approved_amount);
 
     (client, pool_id, student, school)
@@ -59,8 +48,7 @@ fn setup_approved_application(
 fn test_setup_milestones_empty_list_panics() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, pool_id, student, school) = setup_approved_application(&env);
-    let (client, pool_id, student) = setup_approved_application(&env, APPROVED_AMOUNT);
+    let (client, pool_id, student, school) = setup_approved_application(&env, APPROVED_AMOUNT);
 
     client.setup_application_milestones(&school, &pool_id, &student, &Vec::new(&env));
 }
@@ -70,8 +58,7 @@ fn test_setup_milestones_empty_list_panics() {
 fn test_setup_milestones_sum_one_below_approved_amount_panics() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, pool_id, student, school) = setup_approved_application(&env);
-    let (client, pool_id, student) = setup_approved_application(&env, APPROVED_AMOUNT);
+    let (client, pool_id, student, school) = setup_approved_application(&env, APPROVED_AMOUNT);
 
     let milestones = vec![
         &env,
@@ -90,8 +77,7 @@ fn test_setup_milestones_sum_one_below_approved_amount_panics() {
 fn test_setup_milestones_sum_one_above_approved_amount_panics() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, pool_id, student, school) = setup_approved_application(&env);
-    let (client, pool_id, student) = setup_approved_application(&env, APPROVED_AMOUNT);
+    let (client, pool_id, student, school) = setup_approved_application(&env, APPROVED_AMOUNT);
 
     let milestones = vec![
         &env,
@@ -110,8 +96,7 @@ fn test_setup_milestones_sum_one_above_approved_amount_panics() {
 fn test_setup_milestones_sum_equal_to_pool_goal_panics() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, pool_id, student, school) = setup_approved_application(&env);
-    let (client, pool_id, student) = setup_approved_application(&env, APPROVED_AMOUNT);
+    let (client, pool_id, student, school) = setup_approved_application(&env, APPROVED_AMOUNT);
 
     // Summing to the pool goal no longer satisfies the check when the
     // student's approved amount is smaller.
@@ -128,7 +113,7 @@ fn test_setup_milestones_sum_equal_to_pool_goal_panics() {
 fn test_setup_milestones_sum_equal_to_approved_amount_is_stored() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, pool_id, student) = setup_approved_application(&env, APPROVED_AMOUNT);
+    let (client, pool_id, student, school) = setup_approved_application(&env, APPROVED_AMOUNT);
 
     let milestones = vec![
         &env,
@@ -148,10 +133,9 @@ fn test_setup_milestones_sum_equal_to_approved_amount_is_stored() {
 fn test_two_students_share_pool_with_own_milestones() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, pool_id, student_a) = setup_approved_application(&env, APPROVED_AMOUNT);
+    let (client, pool_id, student_a, school) = setup_approved_application(&env, APPROVED_AMOUNT);
 
     // Second student in the same pool, approved for a different amount.
-    let school = client.get_pool(&pool_id).school;
     let student_b = Address::generate(&env);
     let approved_b: u128 = 300_000;
     client.apply_to_pool(
@@ -163,7 +147,7 @@ fn test_two_students_share_pool_with_own_milestones() {
         &school,
         &pool_id,
         &student_b,
-        &String::from_str(&env, APPLICATION_STATUS_APPROVED),
+        &ApplicationStatus::Approved,
     );
     client.set_approved_amount(&school, &pool_id, &student_b, &approved_b);
 
@@ -198,8 +182,7 @@ fn test_two_students_share_pool_with_own_milestones() {
 fn test_setup_milestones_sum_overflow_panics() {
     let env = Env::default();
     env.mock_all_auths();
-    let (client, pool_id, student, school) = setup_approved_application(&env);
-    let (client, pool_id, student) = setup_approved_application(&env, APPROVED_AMOUNT);
+    let (client, pool_id, student, school) = setup_approved_application(&env, APPROVED_AMOUNT);
 
     let milestones = vec![
         &env,
@@ -213,7 +196,7 @@ fn test_setup_milestones_sum_overflow_panics() {
 #[should_panic]
 fn test_student_alone_cannot_setup_milestones() {
     let env = Env::default();
-    let (client, pool_id, student, _school) = setup_approved_application(&env);
+    let (client, pool_id, student, _school) = setup_approved_application(&env, APPROVED_AMOUNT);
 
     // Only the student authorizes; the contract must require the linked
     // school (or admin) and therefore reject this call.

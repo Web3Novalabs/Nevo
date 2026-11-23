@@ -201,24 +201,36 @@ describe('DonationsService', () => {
       asset: 'XLM',
       txHash: 'tx789',
     };
+    const stored = { ...data, tokenContract: null };
 
     it('saves a donation with the provided memo', async () => {
       const result = await service.recordDonation({ ...data, memo: 'thanks' });
-      expect(mockRepo.create).toHaveBeenCalledWith({ ...data, memo: 'thanks' });
-      expect(mockRepo.save).toHaveBeenCalledWith({ ...data, memo: 'thanks' });
-      expect(result).toEqual({ id: 1, ...data, memo: 'thanks' });
+      expect(mockRepo.create).toHaveBeenCalledWith({ ...stored, memo: 'thanks' });
+      expect(mockRepo.save).toHaveBeenCalledWith({ ...stored, memo: 'thanks' });
+      expect(result).toEqual({ id: 1, ...stored, memo: 'thanks' });
+    });
+
+    it('stores the exact token contract', async () => {
+      const tokenContract =
+        'CA2E53VHFZ6YSWQIEIPBXJQGT6VW3VKWWZO555XKRQXYJ63GEBJJGHY7';
+      await service.recordDonation({ ...data, tokenContract });
+      expect(mockRepo.create).toHaveBeenCalledWith({
+        ...data,
+        tokenContract,
+        memo: null,
+      });
     });
 
     it('stores memo as null when it is omitted', async () => {
       const result = await service.recordDonation(data);
-      expect(mockRepo.create).toHaveBeenCalledWith({ ...data, memo: null });
-      expect(mockRepo.save).toHaveBeenCalledWith({ ...data, memo: null });
-      expect(result).toEqual({ id: 1, ...data, memo: null });
+      expect(mockRepo.create).toHaveBeenCalledWith({ ...stored, memo: null });
+      expect(mockRepo.save).toHaveBeenCalledWith({ ...stored, memo: null });
+      expect(result).toEqual({ id: 1, ...stored, memo: null });
     });
 
     it('accepts an explicit null memo', async () => {
       const result = await service.recordDonation({ ...data, memo: null });
-      expect(mockRepo.save).toHaveBeenCalledWith({ ...data, memo: null });
+      expect(mockRepo.save).toHaveBeenCalledWith({ ...stored, memo: null });
       expect(result.memo).toBeNull();
     });
 

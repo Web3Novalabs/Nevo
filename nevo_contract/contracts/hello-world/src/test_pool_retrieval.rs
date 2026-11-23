@@ -128,16 +128,15 @@ fn test_get_pool_metadata_existing() {
     assert_eq!(d, desc);
 }
 
-/// Test 6: Get pool metadata for nonexistent pool returns empty strings
+/// Test 6: Get pool metadata for nonexistent pool fails with PoolNotFound
 #[test]
-fn test_get_pool_metadata_nonexistent_returns_empty() {
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_get_pool_metadata_nonexistent_panics() {
     let env = Env::default();
     let contract_id = env.register(Contract, ());
     let client = ContractClient::new(&env, &contract_id);
 
-    let (t, d) = client.get_pool_metadata(&999);
-    assert_eq!(t, String::from_str(&env, ""));
-    assert_eq!(d, String::from_str(&env, ""));
+    let _ = client.get_pool_metadata(&999);
 }
 
 /// Test 7: Pool count starts at zero

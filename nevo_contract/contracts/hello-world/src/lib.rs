@@ -209,9 +209,9 @@ pub enum ContractError {
     InvalidRefundDeadline = 31,
     /// A monetary amount could not be converted without loss (e.g. a value
     /// outside the `i128` range).
-    AmountOverflow = 30,
+    AmountOverflow = 34,
     /// Milestone total does not match the student's approved amount.
-    MilestoneTotalMismatch = 31,
+    MilestoneTotalMismatch = 35,
     /// Claim would exceed the total amount released for the student.
     MilestonesNotReleased = 32,
     /// A Cancelled pool still holds donor funds that must be refunded first.
@@ -421,6 +421,8 @@ pub fn validate_transition(
     } else {
         Err(ContractError::InvalidStatusTransition)
     }
+}
+
 /// Extend the TTL of the contract instance (global config) if it is close to
 /// expiring. Called on every instance-storage write.
 fn extend_instance_ttl(env: &Env) {
@@ -430,13 +432,24 @@ fn extend_instance_ttl(env: &Env) {
 }
 
 /// Extend the TTL of a persistent entry if it is close to expiring.
+///
+/// Absent keys are skipped because `extend_ttl` traps on them, which would turn
+/// a legitimately empty value (e.g. a pool with no applications) into an error.
 fn extend_persistent_ttl<K: soroban_sdk::IntoVal<Env, soroban_sdk::Val>>(env: &Env, key: &K) {
-    env.storage()
-        .persistent()
-        .extend_ttl(key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND);
+    let storage = env.storage().persistent();
+    if storage.has(key) {
+        storage.extend_ttl(key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND);
+    }
 }
 
-fn pool_claimed(env: &Env, pool_id: u32) -> u128 {
+/// Convention for pool-scoped getters (#1750): a nonexistent pool always fails
+/// with `ContractError::PoolNotFound`. Empty values mean the pool exists.
+fn require_pool_exists(env: &Env, pool_id: u32) {
+    if !env.storage().persistent().has(&pool_id) {
+        env.panic_with_error(ContractError::PoolNotFound);
+    }
+}
+
 fn pool_claimed(env: &Env, pool_id: u32) -> i128 {
     let storage = env.storage().persistent();
     let total_key = (Symbol::new(env, POOL_CLAIMED_PREFIX), pool_id);
@@ -754,6 +767,7 @@ impl Contract {
 
     /// Return the multi-signature threshold and signer list saved for a pool.
     pub fn get_pool_signers(env: Env, pool_id: u32) -> (u32, Vec<Address>) {
+        require_pool_exists(&env, pool_id);
         let signers_key = (Symbol::new(&env, "pool_signers"), pool_id);
         env.storage()
             .persistent()
@@ -877,6 +891,7 @@ impl Contract {
 
     /// Get the school linked to a pool.
     pub fn get_pool_school(env: Env, pool_id: u32) -> Address {
+        require_pool_exists(&env, pool_id);
         let pool_school_key = (Symbol::new(&env, POOL_SCHOOL_PREFIX), pool_id);
         env.storage()
             .persistent()
@@ -976,8 +991,12 @@ impl Contract {
     }
 
     /// Get pool metadata as a tuple (title, description).
-    /// Returns empty strings if the pool or metadata does not exist.
+    /// Returns empty strings if the pool exists but has no metadata.
+    ///
+    /// # Panics
+    /// - `ContractError::PoolNotFound` if pool_id is invalid
     pub fn get_pool_metadata(env: Env, pool_id: u32) -> (String, String) {
+        require_pool_exists(&env, pool_id);
         let metadata_key = (Symbol::new(&env, POOL_METADATA_PREFIX), pool_id);
         env.storage()
             .persistent()
@@ -986,7 +1005,12 @@ impl Contract {
     }
 
     /// Get saved description, URL, and image hash metadata.
+    /// Returns empty strings if the pool exists but has no saved metadata.
+    ///
+    /// # Panics
+    /// - `ContractError::PoolNotFound` if pool_id is invalid
     pub fn get_saved_pool_metadata(env: Env, pool_id: u32) -> (String, String, String) {
+        require_pool_exists(&env, pool_id);
         let metadata_key = (Symbol::new(&env, SAVED_METADATA_PREFIX), pool_id);
         env.storage()
             .persistent()
@@ -1145,16 +1169,15 @@ impl Contract {
         let contribution = env
             .storage()
             .persistent()
-            .get::<_, u128>(&contrib_key)
+            .get::<_, i128>(&contrib_key)
             .unwrap_or(0);
         extend_persistent_ttl(&env, &contrib_key);
         contribution
-            .get::<_, i128>(&(pool_id, "contribution", &donor))
-            .unwrap_or(0)
     }
 
     /// Get the number of applications submitted to a pool.
     pub fn get_application_count(env: Env, pool_id: u32) -> u32 {
+        require_pool_exists(&env, pool_id);
         let count_key = (Symbol::new(&env, APPLICATION_COUNT_PREFIX), pool_id);
         let count = env
             .storage()
@@ -1239,15 +1262,6 @@ impl Contract {
         extend_persistent_ttl(&env, &applicant_key);
         env.storage().persistent().set(&count_key, &app_count);
         extend_persistent_ttl(&env, &count_key);
-
-        let pending = String::from_str(&env, "Pending");
-        let status_key = (
-            Symbol::new(&env, APPLICATION_STATUS_PREFIX),
-            pool_id,
-            student.clone(),
-        );
-        env.storage().persistent().set(&status_key, &pending);
-        extend_persistent_ttl(&env, &status_key);
 
         // Emit application/contribution event with privacy flag (default: false for public)
         env.events().publish(
@@ -1383,9 +1397,6 @@ impl Contract {
         student: Address,
         milestones: Vec<Milestone>,
     ) {
-        let pool: Pool = env
-        student.require_auth();
-
         let _pool: Pool = env
             .storage()
             .persistent()
@@ -1585,16 +1596,19 @@ impl Contract {
 
     /// Return the total amount released for a student in a pool.
     pub fn get_released_total(env: Env, pool_id: u32, student: Address) -> i128 {
+        require_pool_exists(&env, pool_id);
         released_total(&env, pool_id, &student)
     }
 
     /// Return the per-milestone released flags for a student in a pool.
     pub fn get_released_flags(env: Env, pool_id: u32, student: Address) -> Vec<bool> {
+        require_pool_exists(&env, pool_id);
         released_flags(&env, pool_id, &student)
     }
 
     /// Get student milestones for a pool.
     pub fn get_milestones(env: Env, pool_id: u32, student: Address) -> Vec<Milestone> {
+        require_pool_exists(&env, pool_id);
         let milestones_key = (Symbol::new(&env, MILESTONES_PREFIX), pool_id, student);
         let milestones = env
             .storage()
@@ -1631,14 +1645,6 @@ impl Contract {
         if caller != linked_school && !is_admin {
             env.panic_with_error(ContractError::UnauthorizedAdmin);
         }
-        let status_key = (
-            Symbol::new(&env, APPLICATION_STATUS_PREFIX),
-            pool_id,
-            student.clone(),
-        );
-        env.storage().persistent().set(&status_key, &status);
-        extend_persistent_ttl(&env, &status_key);
-
         let application_key = (
             Symbol::new(&env, CLAIMED_AMOUNT_PREFIX),
             pool_id,
@@ -1654,48 +1660,45 @@ impl Contract {
             validate_transition(&application.status, &status, application.amount_claimed)
         {
             env.panic_with_error(err);
-            application.status = status;
-            env.storage()
-                .persistent()
-                .set(&application_key, &application);
-            extend_persistent_ttl(&env, &application_key);
         }
 
         application.status = status;
         env.storage()
             .persistent()
             .set(&application_key, &application);
+        extend_persistent_ttl(&env, &application_key);
     }
 
     /// Get application status for a student in a pool.
     ///
     /// Returns `ApplicationStatus::Pending` if the student has not applied.
+    ///
+    /// # Panics
+    /// - `ContractError::PoolNotFound` if pool_id is invalid
     pub fn get_application_status(env: Env, pool_id: u32, student: Address) -> ApplicationStatus {
+        require_pool_exists(&env, pool_id);
         let application_key = (
             Symbol::new(&env, CLAIMED_AMOUNT_PREFIX),
             pool_id,
             student.clone(),
         );
-        let status = env
-            .storage()
+        env.storage()
             .persistent()
             .get::<_, Application>(&application_key)
             .map(|application| application.status)
             .unwrap_or(ApplicationStatus::Pending)
-            .get::<_, String>(&status_key)
-            .unwrap_or(String::from_str(&env, ""));
-        extend_persistent_ttl(&env, &status_key);
-        status
     }
 
     /// Returns true if the student has already applied to the given pool.
     pub fn has_applied(env: Env, pool_id: u32, student: Address) -> bool {
+        require_pool_exists(&env, pool_id);
         let applicant_key = (Symbol::new(&env, APPLICANT_PREFIX), pool_id, student);
         env.storage().persistent().has(&applicant_key)
     }
 
     /// Get claimed amount for a student in a pool.
     pub fn get_claimed_amount(env: Env, pool_id: u32, student: Address) -> i128 {
+        require_pool_exists(&env, pool_id);
         let claimed_key = (
             Symbol::new(&env, CLAIMED_AMOUNT_PREFIX),
             pool_id,
@@ -1713,6 +1716,7 @@ impl Contract {
     /// Get the full Application record for a student in a pool.
     /// Returns `None` if the student has not applied to the pool.
     pub fn get_application(env: Env, pool_id: u32, student: Address) -> Option<Application> {
+        require_pool_exists(&env, pool_id);
         let app_key = (
             Symbol::new(&env, CLAIMED_AMOUNT_PREFIX),
             pool_id,
@@ -1729,6 +1733,7 @@ impl Contract {
         pool_id: u32,
         index: u32,
     ) -> Option<(u32, Address, String)> {
+        require_pool_exists(&env, pool_id);
         let app_key = (Symbol::new(&env, APPLICATION_PREFIX), pool_id, index);
         let application = env
             .storage()
@@ -1764,10 +1769,6 @@ impl Contract {
             .persistent()
             .get::<_, u32>(&count_key)
             .unwrap_or(0);
-
-        let mut locked: u128 = 0u128;
-        let approved_str = String::from_str(&env, APPLICATION_STATUS_APPROVED);
-        let pending_str = String::from_str(&env, "Pending");
 
         let mut locked: i128 = 0i128;
         for idx in 1..=app_count {
@@ -2130,8 +2131,10 @@ impl Contract {
     ///
     /// Issue #1664: if no explicit refund deadline has been set, the refund
     /// window is derived from the funding deadline plus the grace period, so
-    /// every pool has a reachable refund window. Returns `0` only if the pool
-    /// does not exist.
+    /// every pool has a reachable refund window.
+    ///
+    /// # Panics
+    /// - `ContractError::PoolNotFound` if pool_id is invalid
     pub fn get_pool_deadline(env: Env, pool_id: u32) -> u32 {
         let pool: Pool = env
             .storage()
@@ -2146,14 +2149,6 @@ impl Contract {
 
         Self::funding_deadline_ledger(&env, &pool)
             .saturating_add(REFUND_GRACE_PERIOD_LEDGERS)
-        let deadline_key = (Symbol::new(&env, POOL_DEADLINE_PREFIX), pool_id);
-        let deadline = env
-            .storage()
-            .persistent()
-            .get::<_, u32>(&deadline_key)
-            .unwrap_or(0);
-        extend_persistent_ttl(&env, &deadline_key);
-        deadline
     }
 
     /// Refund a donor's contribution from an expired pool.
@@ -2727,3 +2722,5 @@ mod test_issue_1365_event_emission_ordering;
 
 #[cfg(test)]
 mod test_pool_disbursement_safety;
+#[cfg(test)]
+mod test_issue_1750_missing_pool_getters;

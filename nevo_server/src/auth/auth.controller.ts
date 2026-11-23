@@ -24,6 +24,11 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { NonceService } from './nonce.service';
 import type { AuthResult } from './auth.service';
+import {
+  AuthChallengeDto,
+  AuthResultDto,
+  LogoutResultDto,
+} from './dto/auth-response.dto';
 import { VerifyAuthDto } from './dto/verify-auth.dto';
 import { ChallengeQueryDto } from './dto/challenge-query.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -53,10 +58,7 @@ export class AuthController {
   })
   @ApiOkResponse({
     description: 'Nonce to be signed by the wallet.',
-    schema: {
-      type: 'object',
-      properties: { nonce: { type: 'string' } },
-    },
+    type: AuthChallengeDto,
   })
   @ApiBadRequestResponse({
     description: 'publicKey is missing or not a valid Stellar public key.',
@@ -101,13 +103,7 @@ export class AuthController {
   })
   @ApiOkResponse({
     description: 'Access token and the authenticated user.',
-    schema: {
-      type: 'object',
-      properties: {
-        accessToken: { type: 'string' },
-        user: { type: 'object' },
-      },
-    },
+    type: AuthResultDto,
   })
   @ApiUnauthorizedResponse({ description: 'Signature or nonce is invalid.' })
   @Throttle({ default: { limit: 5, ttl: 60000 } })
@@ -124,7 +120,7 @@ export class AuthController {
       'all previously issued JWTs. Subsequent requests with those tokens ' +
       'will be rejected with 401.',
   })
-  @ApiOkResponse({ description: 'Tokens revoked.' })
+  @ApiOkResponse({ description: 'Tokens revoked.', type: LogoutResultDto })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid token.' })
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
