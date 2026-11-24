@@ -5,6 +5,7 @@ import { ContractService } from '../../contract/contract.service';
 import { PoolStatus } from '../pool.entity';
 import { PoolsController } from '../pools.controller';
 import { PoolsService } from '../pools.service';
+import { PoolSortOrder } from './filter-pools.dto';
 
 /**
  * Pins down the GET /pools query contract as it behaves under the global
@@ -132,7 +133,15 @@ describe('FilterPoolsDto (GET /pools query contract)', () => {
     expect(findAll).not.toHaveBeenCalled();
   });
 
-  it('rejects unknown query parameters with 400', async () => {
+  it.each(Object.values(PoolSortOrder))('accepts sortBy=%s', async (sortBy) => {
+    await request(app.getHttpServer())
+      .get('/pools')
+      .query({ sortBy })
+      .expect(200);
+    expect(findAll).toHaveBeenCalledWith(expect.objectContaining({ sortBy }));
+  });
+
+  it('rejects an invalid sort option with 400', async () => {
     await request(app.getHttpServer())
       .get('/pools')
       .query({ sortBy: 'largest' })

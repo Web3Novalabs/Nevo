@@ -28,7 +28,7 @@ export function buildDataSourceOptions(
     synchronize: false,
   } as const;
 
-  const url = process.env.DATABASE_URL;
+  const url = process.env.DATABASE_URL?.trim();
   if (url) {
     return { ...common, url };
   }

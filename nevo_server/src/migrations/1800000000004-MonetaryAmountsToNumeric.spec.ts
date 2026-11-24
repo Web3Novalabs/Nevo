@@ -3,9 +3,13 @@ import { CreateDonationsTable1750680081742 } from './1750680081742-CreateDonatio
 import { CreatePoolsTable1782396384461 } from './1782396384461-CreatePoolsTable';
 import { UpdateDonationsAssetLength1800000000000 } from './1800000000000-UpdateDonationsAssetLength';
 import { MonetaryAmountsToNumeric1800000000004 } from './1800000000004-MonetaryAmountsToNumeric';
+import { AddPoolApplicationDeadline1800000000007 } from './1800000000007-AddPoolApplicationDeadline';
 import { Pool } from '../pools/pool.entity';
 import { Donation } from '../donations/donation.entity';
-import { DonationSortBy, DonationsService } from '../donations/donations.service';
+import {
+  DonationSortBy,
+  DonationsService,
+} from '../donations/donations.service';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -168,7 +172,9 @@ describeWithDatabase('MonetaryAmountsToNumeric migration (Postgres)', () => {
         `SELECT goal::text AS goal, raised::text AS raised FROM pools`,
       );
       expect(pool).toEqual({ goal: BIGINT_MAX, raised: '12345' });
-      const [donation] = await queryRunner.query(`SELECT amount FROM donations`);
+      const [donation] = await queryRunner.query(
+        `SELECT amount FROM donations`,
+      );
       expect(donation.amount).toBe('9007199254740993');
     });
 
@@ -199,6 +205,7 @@ describeWithDatabase('MonetaryAmountsToNumeric migration (Postgres)', () => {
   describe('i128 round-trip', () => {
     beforeEach(async () => {
       await migration.up(queryRunner);
+      await new AddPoolApplicationDeadline1800000000007().up(queryRunner);
     });
 
     it('stores and returns i128::MAX exactly through the entities', async () => {
@@ -241,9 +248,9 @@ describeWithDatabase('MonetaryAmountsToNumeric migration (Postgres)', () => {
     });
 
     it('rejects values wider than 39 digits', async () => {
-      await expect(insertDonation('tx-wide', '1' + '0'.repeat(39))).rejects.toMatchObject(
-        { code: '22003' },
-      );
+      await expect(
+        insertDonation('tx-wide', '1' + '0'.repeat(39)),
+      ).rejects.toMatchObject({ code: '22003' });
     });
 
     it('sorts largest donations numerically without a cast', async () => {
@@ -252,7 +259,9 @@ describeWithDatabase('MonetaryAmountsToNumeric migration (Postgres)', () => {
       await insertDonation('tx-c', '100');
       await insertDonation('tx-d', BEYOND_BIGINT);
 
-      const service = new DonationsService(queryRunner.manager.getRepository(Donation));
+      const service = new DonationsService(
+        queryRunner.manager.getRepository(Donation),
+      );
       const result = await service.findByPool('1', DonationSortBy.largest);
 
       expect(result.data.map((d) => d.amount)).toEqual([

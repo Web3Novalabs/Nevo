@@ -1,8 +1,11 @@
 import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { parseTrustProxy } from './config/environment';
 
 function buildSwaggerConfig() {
   return new DocumentBuilder()
@@ -40,7 +43,11 @@ export async function generateOpenApiDocument(): Promise<OpenAPIObject> {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    abortOnError: false,
+  });
+  const config = app.get(ConfigService);
+  app.set('trust proxy', parseTrustProxy(config.get<string>('TRUST_PROXY')));
   app.use(helmet());
 
   const corsOrigins = process.env.CORS_ORIGIN ?? process.env.FRONTEND_ORIGIN;
@@ -69,7 +76,7 @@ async function bootstrap() {
 // imported by the OpenAPI export script).
 if (require.main === module) {
   bootstrap().catch((err: unknown) => {
-    console.error(err);
+    console.error(err instanceof Error ? err.message : err);
     process.exit(1);
   });
 }

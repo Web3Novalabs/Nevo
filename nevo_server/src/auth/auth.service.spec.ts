@@ -14,7 +14,6 @@ import { VerifyAuthDto } from './dto/verify-auth.dto';
 import { UsersService } from '../users/users.service';
 import { NonceService } from './nonce.service';
 import { User } from '../users/user.entity';
-import { Nonce } from './nonce.entity';
 import * as StellarSdk from '@stellar/stellar-sdk';
 
 describe('AuthService', () => {
@@ -50,8 +49,7 @@ describe('AuthService', () => {
           provide: NonceService,
           useValue: {
             generateNonce: jest.fn(),
-            findAndValidateNonce: jest.fn(),
-            markNonceAsUsed: jest.fn(),
+            consumeNonce: jest.fn(),
             deleteExpiredNonces: jest.fn(),
           },
         },
@@ -262,7 +260,7 @@ describe('AuthService', () => {
         message,
       };
 
-      jest.spyOn(nonceService, 'findAndValidateNonce').mockResolvedValue(null); // Nonce validation fails
+      jest.spyOn(nonceService, 'consumeNonce').mockResolvedValue(false); // Nonce validation fails
 
       await expect(service.verify(dto)).rejects.toThrow(UnauthorizedException);
       await expect(service.verify(dto)).rejects.toThrow(
@@ -281,7 +279,7 @@ describe('AuthService', () => {
         message,
       };
 
-      jest.spyOn(nonceService, 'findAndValidateNonce').mockResolvedValue(null);
+      jest.spyOn(nonceService, 'consumeNonce').mockResolvedValue(false);
 
       await expect(service.verify(dto)).rejects.toThrow(UnauthorizedException);
     });
@@ -293,25 +291,13 @@ describe('AuthService', () => {
       const nonce = 'fresh-nonce';
       const signature = keypair.sign(Buffer.from(nonce)).toString('hex');
 
-      const validNonce: Nonce = {
-        id: 'nonce-uuid-3',
-        nonce,
-        publicKey: keypair.publicKey(),
-        createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-        used: false,
-      };
-
       const dto: VerifyAuthDto = {
         publicKey: keypair.publicKey(),
         signature,
         message: nonce,
       };
 
-      jest
-        .spyOn(nonceService, 'findAndValidateNonce')
-        .mockResolvedValue(validNonce);
-      jest.spyOn(nonceService, 'markNonceAsUsed').mockResolvedValue();
+      jest.spyOn(nonceService, 'consumeNonce').mockResolvedValue(true);
       jest.spyOn(usersService, 'findOrCreate').mockResolvedValue({
         ...mockUser,
         publicKey: keypair.publicKey(),
@@ -319,8 +305,10 @@ describe('AuthService', () => {
       jest.spyOn(jwtService, 'sign').mockReturnValue('jwt-token');
 
       await service.verify(dto);
-
-      expect(nonceService.markNonceAsUsed).toHaveBeenCalledWith(validNonce.id);
+      expect(nonceService.consumeNonce).toHaveBeenCalledWith(
+        nonce,
+        dto.publicKey,
+      );
     });
 
     it('should fail on second verify call with same nonce (nonce already used)', async () => {
@@ -335,19 +323,7 @@ describe('AuthService', () => {
       };
 
       // First call - nonce is fresh
-      const validNonce: Nonce = {
-        id: 'nonce-uuid-4',
-        nonce,
-        publicKey: keypair.publicKey(),
-        createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-        used: false,
-      };
-
-      jest
-        .spyOn(nonceService, 'findAndValidateNonce')
-        .mockResolvedValueOnce(validNonce);
-      jest.spyOn(nonceService, 'markNonceAsUsed').mockResolvedValue();
+      jest.spyOn(nonceService, 'consumeNonce').mockResolvedValueOnce(true);
       jest.spyOn(usersService, 'findOrCreate').mockResolvedValue({
         ...mockUser,
         publicKey: keypair.publicKey(),
@@ -358,9 +334,7 @@ describe('AuthService', () => {
       await service.verify(dto);
 
       // Second call - nonce is now used/invalid
-      jest
-        .spyOn(nonceService, 'findAndValidateNonce')
-        .mockResolvedValueOnce(null);
+      jest.spyOn(nonceService, 'consumeNonce').mockResolvedValueOnce(false);
 
       // Second verify - should fail
       await expect(service.verify(dto)).rejects.toThrow(UnauthorizedException);
@@ -369,7 +343,7 @@ describe('AuthService', () => {
       );
     });
 
-    it('should throw when nonce validation returns null (nonce used or expired)', async () => {
+    it('should throw when nonce consumption returns false (nonce used or expired)', async () => {
       const keypair = StellarSdk.Keypair.random();
       const nonce = 'reused-nonce';
       const signature = keypair.sign(Buffer.from(nonce)).toString('hex');
@@ -380,7 +354,7 @@ describe('AuthService', () => {
         message: nonce,
       };
 
-      jest.spyOn(nonceService, 'findAndValidateNonce').mockResolvedValue(null); // Nonce already used or expired
+      jest.spyOn(nonceService, 'consumeNonce').mockResolvedValue(false); // Nonce already used or expired
 
       await expect(service.verify(dto)).rejects.toThrow(
         new UnauthorizedException('Invalid or expired nonce'),
@@ -428,15 +402,6 @@ describe('AuthService', () => {
       const nonce = 'valid-fresh-nonce';
       const signature = keypair.sign(Buffer.from(nonce)).toString('hex');
 
-      const validNonce: Nonce = {
-        id: 'nonce-uuid-6',
-        nonce,
-        publicKey: keypair.publicKey(),
-        createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-        used: false,
-      };
-
       const dto: VerifyAuthDto = {
         publicKey: keypair.publicKey(),
         signature,
@@ -452,10 +417,7 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
 
-      jest
-        .spyOn(nonceService, 'findAndValidateNonce')
-        .mockResolvedValue(validNonce);
-      jest.spyOn(nonceService, 'markNonceAsUsed').mockResolvedValue();
+      jest.spyOn(nonceService, 'consumeNonce').mockResolvedValue(true);
       jest.spyOn(usersService, 'findOrCreate').mockResolvedValue(user);
       jest.spyOn(jwtService, 'sign').mockReturnValue('jwt-token');
 
@@ -465,8 +427,10 @@ describe('AuthService', () => {
         accessToken: 'jwt-token',
         user,
       });
-      expect(nonceService.findAndValidateNonce).toHaveBeenCalledWith(nonce);
-      expect(nonceService.markNonceAsUsed).toHaveBeenCalledWith(validNonce.id);
+      expect(nonceService.consumeNonce).toHaveBeenCalledWith(
+        nonce,
+        dto.publicKey,
+      );
       expect(usersService.findOrCreate).toHaveBeenCalledWith(
         keypair.publicKey(),
       );
@@ -481,15 +445,6 @@ describe('AuthService', () => {
       const keypair = StellarSdk.Keypair.random();
       const nonce = 'new-user-nonce';
       const signature = keypair.sign(Buffer.from(nonce)).toString('hex');
-
-      const validNonce: Nonce = {
-        id: 'nonce-uuid-7',
-        nonce,
-        publicKey: keypair.publicKey(),
-        createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-        used: false,
-      };
 
       const dto: VerifyAuthDto = {
         publicKey: keypair.publicKey(),
@@ -506,10 +461,7 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
 
-      jest
-        .spyOn(nonceService, 'findAndValidateNonce')
-        .mockResolvedValue(validNonce);
-      jest.spyOn(nonceService, 'markNonceAsUsed').mockResolvedValue();
+      jest.spyOn(nonceService, 'consumeNonce').mockResolvedValue(true);
       jest.spyOn(usersService, 'findOrCreate').mockResolvedValue(newUser);
       jest.spyOn(jwtService, 'sign').mockReturnValue('jwt-token');
 
@@ -561,7 +513,7 @@ describe('AuthService', () => {
         signature: keypair.sign(Buffer.from(message)).toString('hex'),
         message,
       };
-      jest.spyOn(nonceService, 'findAndValidateNonce').mockResolvedValue(null);
+      jest.spyOn(nonceService, 'consumeNonce').mockResolvedValue(false);
 
       await expect(service.verify(dto)).rejects.toThrow(
         'Invalid or expired nonce',

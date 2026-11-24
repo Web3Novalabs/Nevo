@@ -8,6 +8,8 @@ import {
 } from '../testing/test-database';
 import { PoolsService, ChainPoolData } from './pools.service';
 import { Pool, PoolStatus } from './pool.entity';
+import { PoolSortOrder } from './dto/filter-pools.dto';
+import { AddPoolApplicationDeadline1800000000007 } from '../migrations/1800000000007-AddPoolApplicationDeadline';
 import { ContractService } from '../contract/contract.service';
 import { StellarConfig } from '../contract/stellar.config';
 import { CreatePoolsTable1782396384461 as CreatePoolsTable } from '../migrations/1782396384461-CreatePoolsTable';
@@ -18,7 +20,7 @@ import { CreatePoolsTable1782396384461 as CreatePoolsTable } from '../migrations
 
 type MockQueryBuilder = {
   andWhere: jest.Mock;
-  orderBy: jest.Mock;
+  addOrderBy: jest.Mock;
   skip: jest.Mock;
   take: jest.Mock;
   getManyAndCount: jest.Mock;
@@ -36,7 +38,7 @@ async function buildService(
 
   const qb: MockQueryBuilder = {
     andWhere: jest.fn().mockReturnThis(),
-    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
     skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
     getManyAndCount: jest
@@ -113,6 +115,7 @@ const makePool = (overrides: Partial<Pool> = {}): Pool => ({
   title: 'Test Pool',
   description: 'A test pool',
   imageUrl: null,
+  applicationDeadline: null,
   createdAt: new Date(),
   updatedAt: new Date(),
   ...overrides,
@@ -275,7 +278,7 @@ describe('PoolsService', () => {
 
       await service.findAll({});
 
-      expect(qb.orderBy).toHaveBeenCalledWith('pool.createdAt', 'DESC');
+      expect(qb.addOrderBy).toHaveBeenCalledWith('pool.createdAt', 'DESC');
     });
   });
 
@@ -686,6 +689,7 @@ describe('PoolsService', () => {
           runner.query(sql.replaceAll('"public".', `"${SCHEMA}".`), params),
       } as unknown as QueryRunner;
       await new CreatePoolsTable().up(scoped);
+      await new AddPoolApplicationDeadline1800000000007().up(scoped);
       await runner.release();
       poolRepo = dataSource.getRepository(Pool);
     }, 30000);
@@ -696,6 +700,124 @@ describe('PoolsService', () => {
 
     beforeEach(async () => {
       await poolRepo.clear();
+    });
+
+    it.each([
+      [PoolSortOrder.Newest, ['5', '4', '3', '2', '1']],
+      [PoolSortOrder.MostRaised, ['1', '4', '2', '5', '3']],
+      [PoolSortOrder.GoalLow, ['5', '2', '3', '4', '1']],
+      [PoolSortOrder.EndingSoon, ['3', '1', '5', '4', '2']],
+    ])('sorts %s before applying pagination', async (sortBy, expected) => {
+      const now = Math.floor(Date.now() / 1000);
+      const early = String(now + 3600);
+      const late = String(now + 7200);
+      const expired = String(now - 3600);
+      const fixtures = [
+        {
+          contractPoolId: '1',
+          goal: '100',
+          raised: '100',
+          applicationDeadline: late,
+          createdAt: new Date(1000),
+        },
+        {
+          contractPoolId: '2',
+          goal: '2',
+          raised: '10',
+          applicationDeadline: expired,
+          createdAt: new Date(2000),
+        },
+        {
+          contractPoolId: '3',
+          goal: '10',
+          raised: '1',
+          applicationDeadline: early,
+          createdAt: new Date(3000),
+        },
+        {
+          contractPoolId: '4',
+          goal: '20',
+          raised: '10',
+          applicationDeadline: early,
+          createdAt: new Date(4000),
+          status: PoolStatus.Completed,
+        },
+        {
+          contractPoolId: '5',
+          goal: '2',
+          raised: '2',
+          applicationDeadline: null,
+          createdAt: new Date(5000),
+        },
+      ];
+
+      await poolRepo.insert(
+        fixtures.map((pool) => ({
+          title: 'T',
+          description: 'D',
+          creatorWallet: 'GWALLET',
+          ...pool,
+        })),
+      );
+      const service = new PoolsService(
+        poolRepo,
+        {} as ContractService,
+        {} as StellarConfig,
+      );
+      const pages = await Promise.all(
+        [1, 2, 3].map((page) => service.findAll({ sortBy, page, limit: 2 })),
+      );
+      expect(pages.map(({ total }) => total)).toEqual([5, 5, 5]);
+      expect(
+        pages.flatMap(({ data }) =>
+          data.map(({ contractPoolId }) => contractPoolId),
+        ),
+      ).toEqual(expected);
+    });
+
+    it('fills missing pool deadlines from Stellar while preserving known deadlines', async () => {
+      await poolRepo.insert([
+        {
+          contractPoolId: '1',
+          title: 'T',
+          description: 'D',
+          creatorWallet: 'GWALLET',
+          goal: '10',
+        },
+        {
+          contractPoolId: '2',
+          title: 'T',
+          description: 'D',
+          creatorWallet: 'GWALLET',
+          goal: '10',
+          applicationDeadline: '100',
+        },
+        {
+          contractPoolId: '3',
+          title: 'T',
+          description: 'D',
+          creatorWallet: 'GWALLET',
+          goal: '10',
+        },
+      ]);
+      const getPoolApplicationDeadlines = jest
+        .fn()
+        .mockResolvedValue(new Map([['1', '200']]));
+      const service = new PoolsService(
+        poolRepo,
+        { getPoolApplicationDeadlines } as unknown as ContractService,
+        {} as StellarConfig,
+      );
+
+      await service.syncApplicationDeadlines();
+
+      expect(new Set(getPoolApplicationDeadlines.mock.calls[0][0])).toEqual(
+        new Set(['1', '3']),
+      );
+      const pools = await poolRepo.find({ order: { contractPoolId: 'ASC' } });
+      expect(
+        pools.map(({ applicationDeadline }) => applicationDeadline),
+      ).toEqual(['200', '100', null]);
     });
 
     it('defaults category to empty string when omitted', async () => {

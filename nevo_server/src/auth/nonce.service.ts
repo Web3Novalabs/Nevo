@@ -45,31 +45,22 @@ export class NonceService {
     return nonce;
   }
 
-  async findAndValidateNonce(nonce: string): Promise<Nonce | null> {
-    const foundNonce = await this.nonceRepository.findOne({
-      where: { nonce },
-    });
-
-    if (!foundNonce) {
-      return null;
+  async consumeNonce(nonce: string, publicKey: string): Promise<boolean> {
+    const update = this.nonceRepository
+      .createQueryBuilder()
+      .update(Nonce)
+      .set({ used: true })
+      .where({ nonce, publicKey, used: false })
+      .andWhere('expires_at > CURRENT_TIMESTAMP');
+    if (
+      this.nonceRepository.manager.connection.driver.isReturningSqlSupported(
+        'update',
+      )
+    ) {
+      update.returning('id');
     }
-
-    // Check if nonce is expired
-    if (new Date() > foundNonce.expiresAt) {
-      await this.nonceRepository.remove(foundNonce);
-      return null;
-    }
-
-    // Check if nonce was already used
-    if (foundNonce.used) {
-      return null;
-    }
-
-    return foundNonce;
-  }
-
-  async markNonceAsUsed(nonceId: string): Promise<void> {
-    await this.nonceRepository.update(nonceId, { used: true });
+    const result = await update.execute();
+    return result.affected === 1;
   }
 
   async deleteExpiredNonces(): Promise<void> {

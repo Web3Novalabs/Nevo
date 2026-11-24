@@ -13,6 +13,13 @@ import {
 import { STELLAR_PUBLIC_KEY } from '../../common/stellar-public-key.js';
 import { PoolStatus } from '../pool.entity.js';
 
+export enum PoolSortOrder {
+  Newest = 'newest',
+  MostRaised = 'most_raised',
+  GoalLow = 'goal_low',
+  EndingSoon = 'ending_soon',
+}
+
 /**
  * Query string accepted by `GET /pools`. Every field is optional.
  *
@@ -60,6 +67,16 @@ export class FilterPoolsDto {
   @IsOptional()
   @IsEnum(PoolStatus)
   status?: PoolStatus;
+
+  @ApiPropertyOptional({
+    enum: PoolSortOrder,
+    default: PoolSortOrder.Newest,
+    description:
+      'Sort before paginating. Ending soon puts active pools with future application deadlines first.',
+  })
+  @IsOptional()
+  @IsEnum(PoolSortOrder)
+  sortBy?: PoolSortOrder;
 
   @ApiPropertyOptional({
     minimum: 1,
