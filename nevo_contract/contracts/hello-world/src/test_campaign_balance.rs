@@ -162,3 +162,179 @@ fn test_campaign_balance_equals_sum_of_all_donations() {
         expected_total
     );
 }
+
+// ── Test 5: same donor making multiple donations increases balance ───────
+
+/// A single donor making multiple separate donations must result in the
+/// balance reflecting the sum of all their contributions.
+#[test]
+fn test_campaign_balance_same_donor_multiple_donations() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_campaign(&env, &client);
+    let donor = Address::generate(&env);
+
+    let amount1 = 100_000_000u128;
+    let amount2 = 200_000_000u128;
+    let amount3 = 150_000_000u128;
+
+    client.donate(&pool_id, &donor, &amount1);
+    assert_eq!(
+        client.get_campaign_balance(&pool_id),
+        amount1,
+        "Balance after first donation from same donor"
+    );
+
+    client.donate(&pool_id, &donor, &amount2);
+    assert_eq!(
+        client.get_campaign_balance(&pool_id),
+        amount1 + amount2,
+        "Balance after second donation from same donor"
+    );
+
+    client.donate(&pool_id, &donor, &amount3);
+    assert_eq!(
+        client.get_campaign_balance(&pool_id),
+        amount1 + amount2 + amount3,
+        "Balance must accumulate all donations from same donor"
+    );
+}
+
+// ── Test 6: balance with minimal donation amount (1 stroop) ──────────────
+
+/// The smallest possible donation (1 stroop) must be tracked correctly
+/// and reflected in the campaign balance without truncation.
+#[test]
+fn test_campaign_balance_with_minimal_donation() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_campaign(&env, &client);
+    let donor = Address::generate(&env);
+
+    let minimal_amount = 1u128;
+
+    client.donate(&pool_id, &donor, &minimal_amount);
+    assert_eq!(
+        client.get_campaign_balance(&pool_id),
+        minimal_amount,
+        "Balance must correctly track even a 1-stroop donation"
+    );
+}
+
+// ── Test 7: balance with very large donation amount ──────────────────────
+
+/// A very large donation amount (close to the practical upper limit)
+/// must be stored and retrieved correctly without overflow or precision loss.
+#[test]
+fn test_campaign_balance_with_very_large_donation() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_campaign(&env, &client);
+    let donor = Address::generate(&env);
+
+    // A very large amount: 100 trillion stroops (1 million XLM)
+    let large_amount = 100_000_000_000_000u128;
+
+    client.donate(&pool_id, &donor, &large_amount);
+    assert_eq!(
+        client.get_campaign_balance(&pool_id),
+        large_amount,
+        "Balance must correctly store and retrieve very large donation amounts"
+    );
+}
+
+// ── Test 8: balance remains independent across multiple campaigns ────────
+
+/// Each campaign must maintain its own independent balance. Donations to
+/// one campaign must not affect the balance of another campaign.
+#[test]
+fn test_campaign_balances_are_independent() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id_1 = setup_campaign(&env, &client);
+    let pool_id_2 = setup_campaign(&env, &client);
+
+    let donor1 = Address::generate(&env);
+    let donor2 = Address::generate(&env);
+
+    let amount1 = 100_000_000u128;
+    let amount2 = 250_000_000u128;
+
+    // Donate to first campaign
+    client.donate(&pool_id_1, &donor1, &amount1);
+    
+    // Donate to second campaign
+    client.donate(&pool_id_2, &donor2, &amount2);
+
+    // Verify each campaign has its own correct balance
+    assert_eq!(
+        client.get_campaign_balance(&pool_id_1),
+        amount1,
+        "First campaign balance must only reflect its own donations"
+    );
+
+    assert_eq!(
+        client.get_campaign_balance(&pool_id_2),
+        amount2,
+        "Second campaign balance must only reflect its own donations"
+    );
+
+    // Add another donation to first campaign
+    client.donate(&pool_id_1, &donor2, &amount2);
+    
+    // Verify first campaign increased while second remains unchanged
+    assert_eq!(
+        client.get_campaign_balance(&pool_id_1),
+        amount1 + amount2,
+        "First campaign balance must accumulate only its donations"
+    );
+
+    assert_eq!(
+        client.get_campaign_balance(&pool_id_2),
+        amount2,
+        "Second campaign balance must remain unchanged"
+    );
+}
+
+// ── Test 9: balance after many small donations ───────────────────────────
+
+/// A campaign receiving many small donations must accurately track the
+/// cumulative total without precision loss or accumulation errors over
+/// a large number of operations.
+#[test]
+fn test_campaign_balance_many_small_donations() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_campaign(&env, &client);
+
+    // 50 donations of 1000 stroops each
+    let donation_count = 50u128;
+    let donation_amount = 1_000u128;
+
+    for _ in 0..donation_count {
+        let donor = Address::generate(&env);
+        client.donate(&pool_id, &donor, &donation_amount);
+    }
+
+    let expected_total = donation_count * donation_amount;
+    let reported_balance = client.get_campaign_balance(&pool_id);
+
+    assert_eq!(
+        reported_balance,
+        expected_total,
+        "Balance after {} small donations must equal {} (got {})",
+        donation_count,
+        expected_total,
+        reported_balance
+    );
+}
