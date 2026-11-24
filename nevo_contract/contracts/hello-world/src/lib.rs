@@ -2728,3 +2728,7 @@ mod test_issue_1354_contract_error_variants;
 mod test_issue_1356_milestone_struct_validation;
 mod test_issue_1359_apply_approve_claim_flow;
 mod test_issue_1369_duplicate_school_metadata_hash;
+mod test_issue_1330_get_donor_count;
+mod test_issue_1332_claim_protocol_fees;
+mod test_issue_1333_creation_fee_config;
+mod test_issue_1334_get_pool_metadata;
