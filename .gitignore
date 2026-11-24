@@ -3,6 +3,8 @@ target/
 **/target/
 test_snapshots/
 **/test_snapshots/
+*.snap
+**/*.snap
 # Local Soroban/Stellar settings
 .soroban/
 .stellar/
