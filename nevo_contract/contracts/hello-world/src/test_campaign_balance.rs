@@ -338,3 +338,217 @@ fn test_campaign_balance_many_small_donations() {
         reported_balance
     );
 }
+
+// ── Test 10: balance with mixed donation sizes ───────────────────────────
+
+/// A campaign receiving a mix of very small, medium, and large donations
+/// must correctly accumulate all amounts regardless of their magnitude.
+#[test]
+fn test_campaign_balance_mixed_donation_sizes() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_campaign(&env, &client);
+
+    let donations: &[u128] = &[
+        1u128,                          // 1 stroop (minimal)
+        10_000_000u128,                 // 10 XLM
+        100_000_000_000u128,            // 100,000 XLM (large)
+        5u128,                          // 5 stroops (very small)
+        50_000_000u128,                 // 50 XLM (medium)
+        1_000_000_000_000u128,          // 1 million XLM (very large)
+        999_999u128,                    // ~1 XLM (odd number)
+    ];
+
+    let mut expected_total = 0u128;
+    for &amount in donations {
+        let donor = Address::generate(&env);
+        client.donate(&pool_id, &donor, &amount);
+        expected_total += amount;
+    }
+
+    assert_eq!(
+        client.get_campaign_balance(&pool_id),
+        expected_total,
+        "Balance must correctly accumulate donations of vastly different sizes"
+    );
+}
+
+// ── Test 11: balance check immediately after each donation ───────────────
+
+/// After each individual donation, the balance must reflect that exact
+/// donation immediately without any delay or state inconsistency.
+#[test]
+fn test_campaign_balance_immediate_consistency() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_campaign(&env, &client);
+
+    let donations: &[u128] = &[
+        12_345_678u128,
+        98_765_432u128,
+        11_111_111u128,
+        22_222_222u128,
+        33_333_333u128,
+    ];
+
+    let mut running_total = 0u128;
+    
+    for &amount in donations {
+        let donor = Address::generate(&env);
+        client.donate(&pool_id, &donor, &amount);
+        running_total += amount;
+        
+        // Check balance immediately after each donation
+        let current_balance = client.get_campaign_balance(&pool_id);
+        assert_eq!(
+            current_balance,
+            running_total,
+            "Balance must be immediately consistent after each donation (expected {}, got {})",
+            running_total,
+            current_balance
+        );
+    }
+}
+
+// ── Test 12: balance with sequential campaign IDs ────────────────────────
+
+/// When multiple campaigns are created sequentially, each must maintain
+/// its own independent balance correctly identified by its unique pool ID.
+#[test]
+fn test_campaign_balance_sequential_campaign_ids() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    // Create 5 campaigns sequentially
+    let pool_ids: Vec<u32> = (0..5)
+        .map(|_| setup_campaign(&env, &client))
+        .collect();
+
+    // Donate different amounts to each campaign
+    let donation_amounts: &[u128] = &[
+        100_000_000u128,
+        200_000_000u128,
+        300_000_000u128,
+        400_000_000u128,
+        500_000_000u128,
+    ];
+
+    for (idx, &pool_id) in pool_ids.iter().enumerate() {
+        let donor = Address::generate(&env);
+        client.donate(&pool_id, &donor, &donation_amounts[idx]);
+    }
+
+    // Verify each campaign has its correct balance
+    for (idx, &pool_id) in pool_ids.iter().enumerate() {
+        assert_eq!(
+            client.get_campaign_balance(&pool_id),
+            donation_amounts[idx],
+            "Campaign {} must have balance {} (got {})",
+            pool_id,
+            donation_amounts[idx],
+            client.get_campaign_balance(&pool_id)
+        );
+    }
+}
+
+// ── Test 13: balance precision with prime number amounts ─────────────────
+
+/// Donations using prime number amounts should accumulate without any
+/// rounding or precision loss, verifying exact arithmetic.
+#[test]
+fn test_campaign_balance_prime_number_amounts() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_campaign(&env, &client);
+
+    // Prime number donation amounts (in stroops)
+    let prime_donations: &[u128] = &[
+        2u128,
+        3u128,
+        5u128,
+        7u128,
+        11u128,
+        13u128,
+        17u128,
+        19u128,
+        23u128,
+        29u128,
+        31u128,
+        37u128,
+        41u128,
+        43u128,
+        47u128,
+        53u128,
+        59u128,
+        61u128,
+        67u128,
+        71u128,
+    ];
+
+    let mut expected_total = 0u128;
+    for &amount in prime_donations {
+        let donor = Address::generate(&env);
+        client.donate(&pool_id, &donor, &amount);
+        expected_total += amount;
+    }
+
+    let reported_balance = client.get_campaign_balance(&pool_id);
+
+    assert_eq!(
+        reported_balance,
+        expected_total,
+        "Balance with prime number donations must be exact (expected {}, got {})",
+        expected_total,
+        reported_balance
+    );
+
+    // Also verify the mathematical sum for transparency
+    let sum_of_primes: u128 = prime_donations.iter().sum();
+    assert_eq!(
+        expected_total,
+        sum_of_primes,
+        "Expected total must match direct sum of prime donations"
+    );
+}
+
+// ── Test 14: balance check with zero balance before any operations ───────
+
+/// Multiple sequential balance checks on a newly created campaign with no
+/// donations must consistently return zero without any state corruption.
+#[test]
+fn test_campaign_balance_multiple_zero_checks() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    let pool_id = setup_campaign(&env, &client);
+
+    // Check balance multiple times before any donations
+    for iteration in 0..10 {
+        let balance = client.get_campaign_balance(&pool_id);
+        assert_eq!(
+            balance,
+            0u128,
+            "Balance check iteration {} must return 0 for campaign with no donations",
+            iteration
+        );
+    }
+
+    // Now make a donation and verify it's tracked
+    let donor = Address::generate(&env);
+    let amount = 50_000_000u128;
+    client.donate(&pool_id, &donor, &amount);
+
+    assert_eq!(
+        client.get_campaign_balance(&pool_id),
+        amount,
+        "Balance must correctly reflect donation after multiple zero checks"
+    );
+}
