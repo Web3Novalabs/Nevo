@@ -223,6 +223,7 @@ pub enum ContractError {
     Insolvency = 37,
     /// `withdraw_unallocated_funds` called when no unallocated surplus remains.
     NoSurplusToWithdraw = 38,
+    CrowdfundingTokenNotSet = 36,
 }
 
 // Helper functions for timestamp/deadline edge-case tests
@@ -731,7 +732,6 @@ impl Contract {
         extend_persistent_ttl(&env, &pool_id);
 
         pool.sponsor.require_auth();
-
         if description.len() as usize > MAX_DESCRIPTION_LENGTH {
             panic!("Description exceeds maximum length");
         }
@@ -1100,6 +1100,7 @@ impl Contract {
         if pool.is_closed {
             env.panic_with_error(ContractError::PoolAlreadyClosed);
         }
+
 
         if pool.state != PoolState::Disbursed && pool.state != PoolState::Cancelled {
             env.panic_with_error(ContractError::PoolNotDisbursedOrRefunded);
@@ -1772,7 +1773,6 @@ impl Contract {
     /// - `ContractError::Insolvency` if locked > collected
     /// - `ContractError::NoSurplusToWithdraw` if surplus == 0
     pub fn withdraw_unallocated_funds(env: Env, pool_id: u32, token_address: Address) {
-        // TODO(#1748): resolve pool token and reject a mismatched token_address
         let mut pool: Pool = env
             .storage()
             .persistent()
@@ -1780,6 +1780,11 @@ impl Contract {
             .unwrap_or_else(|| env.panic_with_error(ContractError::PoolNotFound));
 
         pool.sponsor.require_auth();
+
+        let expected_token = Self::resolve_pool_token(&env, pool_id);
+        if expected_token != token_address {
+            env.panic_with_error(ContractError::TokenTransferFailed);
+        }
 
         let count_key = (Symbol::new(&env, APPLICATION_COUNT_PREFIX), pool_id);
         let app_count: u32 = env
@@ -1898,13 +1903,8 @@ impl Contract {
             env.panic_with_error(ContractError::InvalidPoolState);
         }
 
-        let token_key = (Symbol::new(&env, POOL_TOKEN_PREFIX), pool_id);
-        if env
-            .storage()
-            .persistent()
-            .get::<_, Address>(&token_key)
-            .is_some_and(|expected| expected != token_address)
-        {
+        let expected_token = Self::resolve_pool_token(&env, pool_id);
+        if expected_token != token_address {
             env.panic_with_error(ContractError::TokenTransferFailed);
         }
 
@@ -2189,7 +2189,6 @@ impl Contract {
     /// - `ContractError::PoolNotExpired` if the deadline has not passed (or grace not elapsed)
     /// - `ContractError::NoContributionToRefund` if the donor has no recorded contribution
     pub fn refund_donation(env: Env, pool_id: u32, donor: Address, token_address: Address) {
-        // TODO(#1749): resolve donation token and reject mismatches with TokenTransferFailed
         donor.require_auth();
 
         let mut pool: Pool = env
@@ -2231,11 +2230,9 @@ impl Contract {
             env.panic_with_error(ContractError::InvalidPoolState);
         }
 
-        let token_key = (Symbol::new(&env, POOL_TOKEN_PREFIX), pool_id);
-        if let Some(expected_token) = env.storage().persistent().get::<_, Address>(&token_key) {
-            if expected_token != token_address {
-                panic!("TokenTransferFailed");
-            }
+        let expected_token = Self::resolve_pool_token(&env, pool_id);
+        if expected_token != token_address {
+            env.panic_with_error(ContractError::TokenTransferFailed);
         }
 
         let contrib_key = (pool_id, "contribution", &donor);
@@ -2310,11 +2307,9 @@ impl Contract {
             env.panic_with_error(ContractError::InvalidAmount);
         }
 
-        let token_key = (Symbol::new(&env, POOL_TOKEN_PREFIX), pool_id);
-        if let Some(expected_token) = env.storage().persistent().get::<_, Address>(&token_key) {
-            if expected_token != token_address {
-                env.panic_with_error(ContractError::TokenTransferFailed);
-            }
+        let expected_token = Self::resolve_pool_token(&env, pool_id);
+        if expected_token != token_address {
+            env.panic_with_error(ContractError::TokenTransferFailed);
         }
 
         let token_client = token::Client::new(&env, &token_address);
@@ -2384,7 +2379,7 @@ impl Contract {
         let admin_key = Symbol::new(&env, ADMIN_KEY);
         let stored_admin: Address = env
             .storage()
-            .persistent()
+            .instance()
             .get::<_, Address>(&admin_key)
             .unwrap_or_else(|| env.panic_with_error(ContractError::AdminNotSet));
         if stored_admin != admin {
@@ -2561,6 +2556,30 @@ impl Contract {
         )
     }
 
+    /// Resolve the token a pool's `collected` is denominated in.
+    ///
+    /// Precedence:
+    ///   1. Pool-specific token set via `set_pool_token` — always wins.
+    ///   2. Global crowdfunding token set via `set_crowdfunding_token`.
+    ///
+    /// Panics with `ContractError::CrowdfundingTokenNotSet` if neither is
+    /// configured, so a pool can never accept or pay out an arbitrary asset.
+    fn resolve_pool_token(env: &Env, pool_id: u32) -> Address {
+        let pool_token_key = (Symbol::new(env, POOL_TOKEN_PREFIX), pool_id);
+        if let Some(token) = env
+            .storage()
+            .persistent()
+            .get::<_, Address>(&pool_token_key)
+        {
+            return token;
+        }
+        let global_key = Symbol::new(env, CROWDFUNDING_TOKEN_KEY);
+        env.storage()
+            .persistent()
+            .get::<_, Address>(&global_key)
+            .unwrap_or_else(|| env.panic_with_error(ContractError::CrowdfundingTokenNotSet))
+    }
+
     /// Configure the global crowdfunding token.
     ///
     /// # Authorization
@@ -2576,7 +2595,7 @@ impl Contract {
         let admin_key = Symbol::new(&env, ADMIN_KEY);
         let stored_admin: Address = env
             .storage()
-            .persistent()
+            .instance()
             .get::<_, Address>(&admin_key)
             .unwrap_or_else(|| env.panic_with_error(ContractError::AdminNotSet));
         if stored_admin != admin {
@@ -2752,3 +2771,67 @@ impl Contract {
 // mod test_issue_1334_get_pool_metadata;
 // mod test_issue_1652_application_deadline;
 mod test_issue_1463_typed_withdraw_errors;
+mod test;
+mod test_campaign_lifecycle;
+mod test_contract_initialization;
+mod test_issue_1287_pool_multisig;
+mod test_issue_1319_memory;
+mod test_issue_1480_claim_fee;
+mod test_issue_1478_campaign_enumeration;
+mod test_issue_1477_pool_school_relationship;
+mod test_issue_1467_create_pool_validation_panics;
+mod test_issue_1469_milestone_setup_panics;
+mod test_issue_1470_get_pool_omits_state;
+mod test_issue_1472_application_index_bounds;
+mod test_issue_1473_get_application_claimed_amount_consistency;
+mod test_issue_1482_pool_getter_missing_pool;
+mod test_issue_1483_crowdfunding_token_unset;
+mod test_issue_1484_create_campaign_with_fee;
+mod test_issue_1485_campaign_balance_alias;
+mod test_issue_1487_emergency_withdraw_amount_validation;
+mod test_get_max_description_length;
+mod test_issues;
+mod test_auth_bypass;
+mod test_numeric_overflow;
+mod test_timestamp_edge_cases;
+mod test_token_transfer_errors;
+mod test_get_total_raised;
+mod test_is_school_registered;
+mod test_get_school_metadata;
+mod test_create_pool_for_school;
+mod test_pool_creation;
+mod test_pool_retrieval;
+mod test_register_school;
+mod test_issue_1455;
+mod test_withdraw;
+mod test_issue_1460;
+mod test_issue_1459;
+mod test_issue_1355_pool_state_completeness;
+mod test_issue_1368_repeat_donor_aggregation;
+mod test_issue_1358_donate_close_claim_ordering;
+mod test_issue_1357_emergency_withdrawal_request_lifecycle;
+mod test_issue_1371_emergency_withdraw_duplicate_requests;
+mod test_issue_1352_set_pool_state_transitions;
+mod test_issue_1351_close_pool_pending_claims;
+mod test_issue_1353_grace_period_boundaries;
+mod test_issue_1377_pool_deadline;
+mod test_issue_1462_crowdfunding_token_event;
+mod test_issue_1331_withdraw_unallocated_funds;
+mod test_issue_1365_event_emission_ordering;
+
+#[cfg(test)]
+mod test_pool_disbursement_safety;
+#[cfg(test)]
+mod test_issue_1750_missing_pool_getters;
+mod test_issue_1354_contract_error_variants;
+mod test_issue_1356_milestone_struct_validation;
+mod test_issue_1359_apply_approve_claim_flow;
+mod test_issue_1369_duplicate_school_metadata_hash;
+mod test_issue_1330_get_donor_count;
+mod test_issue_1332_claim_protocol_fees;
+mod test_issue_1333_creation_fee_config;
+mod test_issue_1334_get_pool_metadata;
+mod test_issue_1650_token_resolution;
+
+
+mod test_issue_1652_application_deadline;
