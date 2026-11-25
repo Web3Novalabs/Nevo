@@ -23,8 +23,8 @@ fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
     token.address()
 }
 
-fn approved_status(env: &Env) -> String {
-    String::from_str(env, "Approved")
+fn approved_status(_env: &Env) -> ApplicationStatus {
+    ApplicationStatus::Approved
 }
 
 // =============================================================================
@@ -59,8 +59,8 @@ fn test_first_claimant_drains_pool_up_to_collected() {
     let admin = Address::generate(&env);
     let school = Address::generate(&env);
 
-    let goal: u128 = 900_000_000;
-    let collected: u128 = 500_000_000;
+    let goal: i128 = 900_000_000;
+    let collected: i128 = 500_000_000;
 
     // Real token with `collected` supply, held by the contract.
     let token = create_token(&env, collected as i128, &contract_id);
@@ -75,7 +75,7 @@ fn test_first_claimant_drains_pool_up_to_collected() {
         &school,
         &100_000u64,
     );
-    client.donate(&pool_id, &creator, &collected);
+    client.donate(&pool_id, &creator, &(collected as i128));
 
     client.apply_to_pool(
         &pool_id,
@@ -87,9 +87,9 @@ fn test_first_claimant_drains_pool_up_to_collected() {
     // Milestones total = goal, as `setup_application_milestones` requires.
     let milestones = soroban_sdk::vec![
         &env,
-        Milestone { amount: 300_000_000u128 },
-        Milestone { amount: 300_000_000u128 },
-        Milestone { amount: 300_000_000u128 },
+        Milestone { amount: 300_000_000i128 },
+        Milestone { amount: 300_000_000i128 },
+        Milestone { amount: 300_000_000i128 },
     ];
     client.setup_application_milestones(&pool_id, &student, &milestones);
 
@@ -129,8 +129,8 @@ fn test_two_approved_students_each_see_whole_pool() {
     let admin = Address::generate(&env);
     let school = Address::generate(&env);
 
-    let goal: u128 = 900_000_000;
-    let collected: u128 = 500_000_000;
+    let goal: i128 = 900_000_000;
+    let collected: i128 = 500_000_000;
 
     let token = create_token(&env, collected as i128, &contract_id);
 
@@ -144,7 +144,7 @@ fn test_two_approved_students_each_see_whole_pool() {
         &school,
         &100_000u64,
     );
-    client.donate(&pool_id, &creator, &collected);
+    client.donate(&pool_id, &creator, &(collected as i128));
 
     client.apply_to_pool(
         &pool_id,
@@ -161,8 +161,8 @@ fn test_two_approved_students_each_see_whole_pool() {
 
     let milestones = soroban_sdk::vec![
         &env,
-        Milestone { amount: 450_000_000u128 },
-        Milestone { amount: 450_000_000u128 },
+        Milestone { amount: 450_000_000i128 },
+        Milestone { amount: 450_000_000i128 },
     ];
     client.setup_application_milestones(&pool_id, &student_a, &milestones);
     client.setup_application_milestones(&pool_id, &student_b, &milestones);

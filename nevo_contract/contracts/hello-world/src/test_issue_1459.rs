@@ -25,8 +25,8 @@ fn stored_pool_token(env: &Env, contract_id: &Address, pool_id: u32) -> Option<A
     })
 }
 
-fn approved(env: &Env) -> String {
-    String::from_str(env, "Approved")
+fn approved(_env: &Env) -> ApplicationStatus {
+    ApplicationStatus::Approved
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn test_refund_blocked_after_token_swap() {
         &creator,
         &String::from_str(&env, "1459 Refund Pool"),
         &String::from_str(&env, "Token swap then refund"),
-        &1_000_000u128,
+        &(1_000_000i128),
         &100_000u64,
     );
 
@@ -82,7 +82,7 @@ fn test_claim_funds_rejects_unrelated_token() {
         &creator,
         &String::from_str(&env, "1459 Claim Pool"),
         &String::from_str(&env, "Claim in unrelated token"),
-        &1_000_000u128,
+        &1_000_000i128,
         &school,
         &100_000u64,
     );

@@ -17,8 +17,8 @@ fn create_token(env: &Env, amount: i128, recipient: &Address) -> Address {
     token.address()
 }
 
-fn approved(env: &Env) -> String {
-    String::from_str(env, "Approved")
+fn approved(_env: &Env) -> ApplicationStatus {
+    ApplicationStatus::Approved
 }
 
 // =============================================================================
@@ -49,7 +49,7 @@ fn test_claim_funds_enforces_configured_pool_token() {
         &creator,
         &String::from_str(&env, "1460 Pool"),
         &String::from_str(&env, "Token mismatch on claim"),
-        &1_000_000u128,
+        &1_000_000i128,
         &school,
         &100_000u64,
     );
@@ -108,7 +108,7 @@ fn test_refund_donation_rejects_mismatched_token() {
         &creator,
         &String::from_str(&env, "1460 Refund Pool"),
         &String::from_str(&env, "Refund token check"),
-        &1_000_000u128,
+        &1_000_000i128,
         &school,
         &100_000u64,
     );
@@ -119,8 +119,7 @@ fn test_refund_donation_rejects_mismatched_token() {
     // Advance past the deadline + grace period so refund is allowed.
     let deadline = 10_000u32;
     client.set_pool_deadline(&pool_id, &deadline);
-    env.ledger()
-        .with_mut(|l| l.sequence_number = deadline + REFUND_GRACE_PERIOD_LEDGERS + 1);
+    env.ledger().set_sequence_number(deadline + REFUND_GRACE_PERIOD_LEDGERS + 1);
 
     // Refund in token B — mismatches the stored token A, so refund panics.
     client.refund_donation(&pool_id, &donor, &token_b);
@@ -156,7 +155,7 @@ fn test_donation_and_claim_reject_the_same_mismatched_token() {
         &creator,
         &String::from_str(&env, "1460 Inconsistency"),
         &String::from_str(&env, "Same pool, two token policies"),
-        &1_000_000u128,
+        &1_000_000i128,
         &school,
         &100_000u64,
     );

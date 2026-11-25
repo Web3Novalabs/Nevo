@@ -1,10 +1,7 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{
-    testutils::Address as _,
-    Address, Env,
-};
+use soroban_sdk::{testutils::Address as _, Address, BytesN, Env};
 
 /// Test is_school_registered returns false for unregistered address.
 #[test]
@@ -104,7 +101,7 @@ fn test_is_school_registered_unaffected_by_pool_creation() {
         &creator,
         &soroban_sdk::String::from_str(&env, "School Pool"),
         &soroban_sdk::String::from_str(&env, "Pool for school"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &school,
         &100_000u64,
     );
@@ -117,7 +114,7 @@ fn test_is_school_registered_unaffected_by_pool_creation() {
         &creator,
         &soroban_sdk::String::from_str(&env, "Another School Pool"),
         &soroban_sdk::String::from_str(&env, "Another pool for school"),
-        &3_000_000_000u128,
+        &3_000_000_000i128,
         &school,
         &100_000u64,
     );
@@ -216,13 +213,13 @@ fn test_is_school_registered_persistence() {
         &creator,
         &soroban_sdk::String::from_str(&env, "School Pool"),
         &soroban_sdk::String::from_str(&env, "Pool for school"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &school,
         &100_000u64,
     );
 
     // Make donations to the pool
-    client.donate(&pool_id, &donor, &1_000_000_000u128);
+    client.donate(&pool_id, &donor, &1_000_000_000i128);
 
     // Verify registration status persists
     assert_eq!(client.is_school_registered(&school), true);
