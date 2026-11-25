@@ -362,7 +362,12 @@ pub struct Pool {
     pub is_closed: bool,
     /// Current state of the pool in its lifecycle (Active, Paused, Completed, Cancelled, Disbursed, Closed).
     pub state: PoolState,
-    /// Ledger timestamp after which student applications are no longer accepted.
+    /// Ledger timestamp after which this pool stops accepting new activity.
+    ///
+    /// Both `apply_to_pool` and `donate` / `donate_with_token` reject calls at
+    /// or after this timestamp with `ContractError::CampaignExpired`. The
+    /// deadline is a shared cutoff for applications and donations — a pool
+    /// with no funding yet cannot receive any after it.
     pub application_deadline: u64,
     /// Ledger timestamp of the most recent contribution to this pool.
     /// Zero until the pool receives its first donation.
@@ -1200,6 +1205,7 @@ impl Contract {
     /// - `ContractError::PoolIsClosed` if the pool has been closed
     /// - `ContractError::InvalidPoolState` if the pool is not in Active state
     /// - `ContractError::DuplicateApplication` if the student has already applied to this pool
+    /// - `ContractError::CampaignExpired` if the application deadline has passed
     pub fn apply_to_pool(env: Env, pool_id: u32, student: Address, application_data: String) {
         student.require_auth();
 
@@ -1215,6 +1221,10 @@ impl Contract {
 
         if pool.state != PoolState::Active {
             env.panic_with_error(ContractError::InvalidPoolState);
+        }
+
+        if env.ledger().timestamp() >= pool.application_deadline {
+            env.panic_with_error(ContractError::CampaignExpired);
         }
 
         let applicant_key = (
@@ -2754,3 +2764,4 @@ mod test_issue_1334_get_pool_metadata;
 mod test_issue_1650_token_resolution;
 
 
+mod test_issue_1652_application_deadline;
