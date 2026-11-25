@@ -26,7 +26,7 @@ fn test_create_pool_for_school_registered_school() {
         &creator,
         &String::from_str(&env, "Registered School Pool"),
         &String::from_str(&env, "For registered school"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &school,
         &100_000u64,
     );
@@ -57,7 +57,7 @@ fn test_create_pool_for_school_unregistered_address_fails() {
         &creator,
         &String::from_str(&env, "Unauthorized Pool"),
         &String::from_str(&env, "Should fail"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &unregistered_school,
         &100_000u64,
     );
@@ -85,7 +85,7 @@ fn test_create_pool_for_school_correct_linkage() {
         &creator,
         &String::from_str(&env, "School 1 Pool"),
         &String::from_str(&env, "For school 1"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &school1,
         &100_000u64,
     );
@@ -94,7 +94,7 @@ fn test_create_pool_for_school_correct_linkage() {
         &creator,
         &String::from_str(&env, "School 2 Pool"),
         &String::from_str(&env, "For school 2"),
-        &7_000_000_000u128,
+        &7_000_000_000i128,
         &school2,
         &100_000u64,
     );
@@ -125,7 +125,7 @@ fn test_create_pool_for_school_sequencing() {
         &creator,
         &String::from_str(&env, "Regular Pool"),
         &String::from_str(&env, "Regular pool"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &100_000u64,
     );
 
@@ -134,7 +134,7 @@ fn test_create_pool_for_school_sequencing() {
         &creator,
         &String::from_str(&env, "School Pool"),
         &String::from_str(&env, "School pool"),
-        &3_000_000_000u128,
+        &3_000_000_000i128,
         &school,
         &100_000u64,
     );
@@ -144,7 +144,7 @@ fn test_create_pool_for_school_sequencing() {
         &creator,
         &String::from_str(&env, "Regular Pool 2"),
         &String::from_str(&env, "Regular pool 2"),
-        &2_000_000_000u128,
+        &2_000_000_000i128,
         &100_000u64,
     );
 
@@ -175,7 +175,7 @@ fn test_create_pool_for_school_duplicate_calls_create_distinct_pools() {
         &creator,
         &String::from_str(&env, "First Pool"),
         &String::from_str(&env, "Description 1"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &school,
         &100_000u64,
     );
@@ -185,7 +185,7 @@ fn test_create_pool_for_school_duplicate_calls_create_distinct_pools() {
         &creator,
         &String::from_str(&env, "Second Pool"),
         &String::from_str(&env, "Description 2"),
-        &3_000_000_000u128,
+        &3_000_000_000i128,
         &school,
         &100_000u64,
     );
@@ -197,8 +197,8 @@ fn test_create_pool_for_school_duplicate_calls_create_distinct_pools() {
     let pool1 = client.get_pool(&pool_id_1);
     let pool2 = client.get_pool(&pool_id_2);
 
-    assert_eq!(pool1.2, 5_000_000_000u128); // First pool goal
-    assert_eq!(pool2.2, 3_000_000_000u128); // Second pool goal
+    assert_eq!(pool1.2, 5_000_000_000i128); // First pool goal
+    assert_eq!(pool2.2, 3_000_000_000i128); // Second pool goal
 
     // Verify metadata is distinct
     let (title1, desc1) = client.get_pool_metadata(&pool_id_1);
@@ -236,7 +236,7 @@ fn test_create_pool_for_school_requires_authorization() {
         &creator,
         &String::from_str(&env, "Unauthorized Pool"),
         &String::from_str(&env, "Should fail"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &school,
         &100_000u64,
     );
@@ -256,7 +256,7 @@ fn test_create_pool_for_school_attributes_stored() {
 
     let title = String::from_str(&env, "School Scholarship Fund");
     let description = String::from_str(&env, "Help students achieve their dreams");
-    let goal = 10_000_000_000u128;
+    let goal = 10_000_000_000i128;
     let deadline = 150_000u64;
 
     client.set_admin(&admin);
@@ -276,7 +276,7 @@ fn test_create_pool_for_school_attributes_stored() {
     assert_eq!(pool.0, pool_id);
     assert_eq!(pool.1, creator);
     assert_eq!(pool.2, goal);
-    assert_eq!(pool.3, 0u128); // Initial collected should be 0
+    assert_eq!(pool.3, 0i128); // Initial collected should be 0
     assert_eq!(pool.4, false); // Initially not closed
     assert_eq!(pool.5, deadline);
 
@@ -314,7 +314,7 @@ fn test_create_pool_for_school_maintains_count() {
         &creator,
         &String::from_str(&env, "Pool 1"),
         &String::from_str(&env, "School 1 pool"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &school1,
         &100_000u64,
     );
@@ -325,7 +325,7 @@ fn test_create_pool_for_school_maintains_count() {
         &creator,
         &String::from_str(&env, "Pool 2"),
         &String::from_str(&env, "School 2 pool"),
-        &3_000_000_000u128,
+        &3_000_000_000i128,
         &school2,
         &100_000u64,
     );
@@ -336,7 +336,7 @@ fn test_create_pool_for_school_maintains_count() {
         &creator,
         &String::from_str(&env, "Pool 3"),
         &String::from_str(&env, "Regular pool"),
-        &2_000_000_000u128,
+        &2_000_000_000i128,
         &100_000u64,
     );
     assert_eq!(client.get_pool_count(), 3);
@@ -346,7 +346,7 @@ fn test_create_pool_for_school_maintains_count() {
         &creator,
         &String::from_str(&env, "Pool 4"),
         &String::from_str(&env, "School 1 pool 2"),
-        &7_000_000_000u128,
+        &7_000_000_000i128,
         &school1,
         &100_000u64,
     );
@@ -369,10 +369,10 @@ fn test_create_pool_for_school_various_goals() {
     client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
 
     let goals = vec![
-        100_000_000u128,
-        1_000_000_000u128,
-        10_000_000_000u128,
-        100_000_000_000u128,
+        100_000_000i128,
+        1_000_000_000i128,
+        10_000_000_000i128,
+        100_000_000_000i128,
     ];
 
     for (i, goal) in goals.iter().enumerate() {

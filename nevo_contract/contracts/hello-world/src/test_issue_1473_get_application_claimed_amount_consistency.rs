@@ -32,7 +32,7 @@ fn test_issue_1473_claimed_amount_and_application_fallback_inconsistency() {
         &sponsor,
         &String::from_str(&env, "Test Pool"),
         &String::from_str(&env, "A test pool"),
-        &1000u128,
+        &(1000i128),
         &school,
         &100u64,
     );
@@ -76,7 +76,7 @@ fn test_issue_1473_both_getters_agree_after_partial_claim() {
         &sponsor,
         &String::from_str(&env, "Test Pool"),
         &String::from_str(&env, "A test pool"),
-        &1000u128,
+        &(1000i128),
         &school,
         &100u64,
     );
@@ -91,7 +91,7 @@ fn test_issue_1473_both_getters_agree_after_partial_claim() {
 
     let token = create_token(&env, 600i128, &contract_id);
     client.set_pool_token(&pool_id, &token);
-    client.donate(&pool_id, &sponsor, &500u128);
+    client.donate(&pool_id, &sponsor, &500i128);
 
     client.claim_funds(&student, &pool_id, &100i128, &token);
 

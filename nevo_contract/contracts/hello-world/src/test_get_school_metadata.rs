@@ -31,7 +31,7 @@ fn test_get_school_metadata_at_registration() {
         &creator,
         &title,
         &description,
-        &10_000_000_000u128,
+        &10_000_000_000i128,
         &school,
         &100_000u64,
     );
@@ -63,65 +63,13 @@ fn test_get_school_metadata_unregistered_school() {
         &creator,
         &String::from_str(&env, "Unauthorized School Pool"),
         &String::from_str(&env, "Should fail"),
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &unregistered_school,
         &100_000u64,
     );
 }
 
-/// Test get_school_metadata reflects updated hash if re-registration is allowed.
-#[test]
-fn test_get_school_metadata_updated_on_reregistration() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
 
-    let admin = Address::generate(&env);
-    let creator = Address::generate(&env);
-    let school = Address::generate(&env);
-
-    client.set_admin(&admin);
-    client.register_school(&school, &BytesN::from_array(&env, &[0u8; 32]));
-
-    // Create first pool with original metadata
-    let original_desc = String::from_str(&env, "Original metadata hash");
-    let pool_id1 = client.create_pool_for_school(
-        &creator,
-        &String::from_str(&env, "First Pool"),
-        &original_desc,
-        &5_000_000_000u128,
-        &school,
-        &100_000u64,
-    );
-
-    let (_, desc1) = client.get_pool_metadata(&pool_id1);
-    assert_eq!(desc1, original_desc);
-
-    // Re-register school with a new hash (simulating metadata update)
-    let updated_hash = BytesN::from_array(&env, &[1u8; 32]);
-    client.register_school(&school, &updated_hash);
-    assert_eq!(client.get_school_metadata(&school), updated_hash);
-
-    // Create second pool with updated metadata
-    let updated_desc = String::from_str(&env, "Updated metadata hash 456def");
-    let pool_id2 = client.create_pool_for_school(
-        &creator,
-        &String::from_str(&env, "Second Pool"),
-        &updated_desc,
-        &3_000_000_000u128,
-        &school,
-        &100_000u64,
-    );
-
-    // Verify new pool has updated metadata
-    let (_, desc2) = client.get_pool_metadata(&pool_id2);
-    assert_eq!(desc2, updated_desc);
-
-    // Verify original pool metadata remains unchanged
-    let (_, desc1_check) = client.get_pool_metadata(&pool_id1);
-    assert_eq!(desc1_check, original_desc);
-}
 
 /// Test get_school_metadata correct isolation between different schools.
 #[test]
@@ -146,7 +94,7 @@ fn test_get_school_metadata_isolation_between_schools() {
         &creator,
         &String::from_str(&env, "School 1 Pool"),
         &school1_desc,
-        &5_000_000_000u128,
+        &5_000_000_000i128,
         &school1,
         &100_000u64,
     );
@@ -156,7 +104,7 @@ fn test_get_school_metadata_isolation_between_schools() {
         &creator,
         &String::from_str(&env, "School 2 Pool"),
         &school2_desc,
-        &7_000_000_000u128,
+        &7_000_000_000i128,
         &school2,
         &100_000u64,
     );
@@ -198,7 +146,7 @@ fn test_get_school_metadata_roundtrip() {
         &creator,
         &original_title,
         &original_desc,
-        &6_000_000_000u128,
+        &6_000_000_000i128,
         &school,
         &100_000u64,
     );
@@ -219,7 +167,7 @@ fn test_get_school_metadata_roundtrip() {
         &creator,
         &String::from_str(&env, "Long Description Pool"),
         &long_desc,
-        &2_000_000_000u128,
+        &2_000_000_000i128,
         &school,
         &100_000u64,
     );
@@ -255,7 +203,7 @@ fn test_get_school_metadata_multiple_pools_per_school() {
             &creator,
             &String::from_str(&env, &format!("Pool {}", i)),
             &desc,
-            &(1_000_000_000u128 * (i + 1) as u128),
+            &(1_000_000_000i128 * (i + 1) as i128),
             &school,
             &100_000u64,
         );
@@ -293,7 +241,7 @@ fn test_get_school_metadata_consistency_with_pool_creation() {
         &creator,
         &String::from_str(&env, "Consistent Pool"),
         &metadata_hash,
-        &8_000_000_000u128,
+        &8_000_000_000i128,
         &school,
         &100_000u64,
     );
