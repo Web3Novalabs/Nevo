@@ -216,6 +216,7 @@ pub enum ContractError {
     MilestonesNotReleased = 32,
     /// A Cancelled pool still holds donor funds that must be refunded first.
     PoolHasUnrefundedFunds = 33,
+    CrowdfundingTokenNotSet = 36,
 }
 
 // Helper functions for timestamp/deadline edge-case tests
@@ -719,7 +720,6 @@ impl Contract {
         extend_persistent_ttl(&env, &pool_id);
 
         pool.sponsor.require_auth();
-
         if description.len() as usize > MAX_DESCRIPTION_LENGTH {
             panic!("Description exceeds maximum length");
         }
@@ -1088,6 +1088,7 @@ impl Contract {
         if pool.is_closed {
             env.panic_with_error(ContractError::PoolAlreadyClosed);
         }
+
 
         if pool.state != PoolState::Disbursed && pool.state != PoolState::Cancelled {
             env.panic_with_error(ContractError::PoolNotDisbursedOrRefunded);
@@ -1754,7 +1755,6 @@ impl Contract {
     /// - `"Insolvency: locked funds exceed collected"` if locked > collected
     /// - `"No surplus to withdraw"` if surplus == 0
     pub fn withdraw_unallocated_funds(env: Env, pool_id: u32, token_address: Address) {
-        // TODO(#1748): resolve pool token and reject a mismatched token_address
         let mut pool: Pool = env
             .storage()
             .persistent()
@@ -1762,6 +1762,11 @@ impl Contract {
             .unwrap_or_else(|| env.panic_with_error(ContractError::PoolNotFound));
 
         pool.sponsor.require_auth();
+
+        let expected_token = Self::resolve_pool_token(&env, pool_id);
+        if expected_token != token_address {
+            env.panic_with_error(ContractError::TokenTransferFailed);
+        }
 
         let count_key = (Symbol::new(&env, APPLICATION_COUNT_PREFIX), pool_id);
         let app_count: u32 = env
@@ -1880,13 +1885,8 @@ impl Contract {
             env.panic_with_error(ContractError::InvalidPoolState);
         }
 
-        let token_key = (Symbol::new(&env, POOL_TOKEN_PREFIX), pool_id);
-        if env
-            .storage()
-            .persistent()
-            .get::<_, Address>(&token_key)
-            .is_some_and(|expected| expected != token_address)
-        {
+        let expected_token = Self::resolve_pool_token(&env, pool_id);
+        if expected_token != token_address {
             env.panic_with_error(ContractError::TokenTransferFailed);
         }
 
@@ -2171,7 +2171,6 @@ impl Contract {
     /// - `ContractError::PoolNotExpired` if the deadline has not passed (or grace not elapsed)
     /// - `ContractError::NoContributionToRefund` if the donor has no recorded contribution
     pub fn refund_donation(env: Env, pool_id: u32, donor: Address, token_address: Address) {
-        // TODO(#1749): resolve donation token and reject mismatches with TokenTransferFailed
         donor.require_auth();
 
         let mut pool: Pool = env
@@ -2213,11 +2212,9 @@ impl Contract {
             env.panic_with_error(ContractError::InvalidPoolState);
         }
 
-        let token_key = (Symbol::new(&env, POOL_TOKEN_PREFIX), pool_id);
-        if let Some(expected_token) = env.storage().persistent().get::<_, Address>(&token_key) {
-            if expected_token != token_address {
-                panic!("TokenTransferFailed");
-            }
+        let expected_token = Self::resolve_pool_token(&env, pool_id);
+        if expected_token != token_address {
+            env.panic_with_error(ContractError::TokenTransferFailed);
         }
 
         let contrib_key = (pool_id, "contribution", &donor);
@@ -2292,11 +2289,9 @@ impl Contract {
             env.panic_with_error(ContractError::InvalidAmount);
         }
 
-        let token_key = (Symbol::new(&env, POOL_TOKEN_PREFIX), pool_id);
-        if let Some(expected_token) = env.storage().persistent().get::<_, Address>(&token_key) {
-            if expected_token != token_address {
-                env.panic_with_error(ContractError::TokenTransferFailed);
-            }
+        let expected_token = Self::resolve_pool_token(&env, pool_id);
+        if expected_token != token_address {
+            env.panic_with_error(ContractError::TokenTransferFailed);
         }
 
         let token_client = token::Client::new(&env, &token_address);
@@ -2366,7 +2361,7 @@ impl Contract {
         let admin_key = Symbol::new(&env, ADMIN_KEY);
         let stored_admin: Address = env
             .storage()
-            .persistent()
+            .instance()
             .get::<_, Address>(&admin_key)
             .unwrap_or_else(|| env.panic_with_error(ContractError::AdminNotSet));
         if stored_admin != admin {
@@ -2543,6 +2538,30 @@ impl Contract {
         )
     }
 
+    /// Resolve the token a pool's `collected` is denominated in.
+    ///
+    /// Precedence:
+    ///   1. Pool-specific token set via `set_pool_token` — always wins.
+    ///   2. Global crowdfunding token set via `set_crowdfunding_token`.
+    ///
+    /// Panics with `ContractError::CrowdfundingTokenNotSet` if neither is
+    /// configured, so a pool can never accept or pay out an arbitrary asset.
+    fn resolve_pool_token(env: &Env, pool_id: u32) -> Address {
+        let pool_token_key = (Symbol::new(env, POOL_TOKEN_PREFIX), pool_id);
+        if let Some(token) = env
+            .storage()
+            .persistent()
+            .get::<_, Address>(&pool_token_key)
+        {
+            return token;
+        }
+        let global_key = Symbol::new(env, CROWDFUNDING_TOKEN_KEY);
+        env.storage()
+            .persistent()
+            .get::<_, Address>(&global_key)
+            .unwrap_or_else(|| env.panic_with_error(ContractError::CrowdfundingTokenNotSet))
+    }
+
     /// Configure the global crowdfunding token.
     ///
     /// # Authorization
@@ -2558,7 +2577,7 @@ impl Contract {
         let admin_key = Symbol::new(&env, ADMIN_KEY);
         let stored_admin: Address = env
             .storage()
-            .persistent()
+            .instance()
             .get::<_, Address>(&admin_key)
             .unwrap_or_else(|| env.panic_with_error(ContractError::AdminNotSet));
         if stored_admin != admin {
@@ -2732,3 +2751,6 @@ mod test_issue_1330_get_donor_count;
 mod test_issue_1332_claim_protocol_fees;
 mod test_issue_1333_creation_fee_config;
 mod test_issue_1334_get_pool_metadata;
+mod test_issue_1650_token_resolution;
+
+
